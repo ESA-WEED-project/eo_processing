@@ -60,3 +60,4 @@ repro for EO data processing pipelines in openEO
   conda env config vars set PROJ_DATA=/home/<machine_name>/miniconda3/envs/weed/share/proj
   ```
   - you'll need to deactivate + activate again the weed environment for this to take effect
+- work

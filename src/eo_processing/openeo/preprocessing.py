@@ -300,15 +300,19 @@ def extract_S2_datacube(connection, bbox, start: str, end: str,
     if masking == 'mask_scl_dilation':
         # TODO: double check cloud masking parameters
         # https://github.com/Open-EO/openeo-geotrellis-extensions/blob/develop/geotrellis-common/src/main/scala/org/openeo/geotrelliscommon/CloudFilterStrategy.scala#L54  # NOQA
-        bands = bands.process(
-            "mask_scl_dilation",
-            data=bands,
+        sub_collection = bands.filter_bands(bands=["SCL"])
+        bands = bands.filter_bands(bands.metadata.band_names[:-1])
+        scl_dilated_mask = sub_collection.process(
+            "to_scl_dilation_mask",
+            data=sub_collection,
             scl_band_name="SCL",
-            kernel1_size=17, kernel2_size=77,
+            kernel1_size=17,  # 17px dilation on a 20m layer
+            kernel2_size=77,  # 77px dilation on a 20m layer
             mask1_values=[2, 4, 5, 6, 7],
             mask2_values=[3, 8, 9, 10, 11],
-            erosion_kernel_size=3).filter_bands(
-            bands.metadata.band_names[:-1])
+            erosion_kernel_size=3
+        ).rename_labels("bands", ["S2-L2A-SCL_DILATED_MASK"])
+        bands = bands.mask(scl_dilated_mask)
     elif masking == 'satio':
         # Apply satio-based mask
         mask = scl_mask_erode_dilate(

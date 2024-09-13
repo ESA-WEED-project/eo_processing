@@ -4,15 +4,12 @@ from openeo.rest.datacube import DataCube
 from eo_processing.openeo.masking import scl_mask_erode_dilate
 from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2)
 
-
 S2_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
 
 def ts_datacube_extraction(
         connection, bbox, start: str, end: str,
         S2_collection='SENTINEL2_L2A',
         S1_collection='SENTINEL1_GRD',
-        DEM_collection='COPERNICUS_30',
-        METEO_collection='AGERA5',
         **processing_options) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
@@ -22,8 +19,6 @@ def ts_datacube_extraction(
     :param end: str, End date for requested input data (yyyy-mm-dd)
     :param S2_collection: (str, optional): Collection name for S2 data
     :param S1_collection: (str, optional): Collection name for S1 data
-    :param DEM_collection: (str, optional): Collection name for DEM data
-    :param METEO_collection: (str, optional): Collection name for metrological data
     :param processing_options: (dict, optional), processing options for preprocessing routine (provider, target_crs,
             resolution, ts_interval, time_interpolation, SLC_masking_algo, s1_orbitdirection, S2_bands)
     :return: DataCube
@@ -40,111 +35,10 @@ def ts_datacube_extraction(
         # run an extra temporal filter.... not clear why up to now
         bands = bands.filter_temporal(start, end)
 
-    # add AGERA5 Meteo data
-    if METEO_collection is not None:
-        bands = bands.merge_cubes(extract_METEO_datacube(connection, bbox, start, end,
-                                                         METEO_collection=METEO_collection, **processing_options))
-
-    # add DEM data
-    if DEM_collection is not None:
-        bands = bands.merge_cubes(extract_DEM_data(connection, bbox,
-                                                   DEM_collection=DEM_collection, **processing_options))
-
     # final forcing 16bit - UInt16 again - maybe not needed anymore
     bands = bands.linear_scale_range(0, 65534, 0, 65534)
 
     return bands
-
-
-def extract_DEM_data(connection, bbox, DEM_collection='COPERNICUS_30', rescale=True, **processing_options) -> DataCube:
-    """ extract the DEM data for requested time period and preprocess the data
-
-    :param connection: active openEO connection object
-    :param bbox: dict, bounding box of format {'east': x, 'south': x, 'west': x, 'north': x, 'crs': x}
-    :param DEM_collection: (str, optional): Collection name for DEM data
-    :param rescale: (default=True), if the DEM is converted from float to UInt16 and the negative values are clamped
-    :param processing_options: (dict, optional), processing options for preprocessing routine (target_crs,
-            resolution)
-    :return: DataCube
-    """
-    # evaluate additional processing options
-    target_crs = processing_options.get("target_crs", None)
-    target_res = processing_options.get("resolution", 10.)
-
-    #get data
-    dem = connection.load_collection(
-        DEM_collection,
-        spatial_extent=bbox,
-    )
-
-    # Resample to the S2 spatial resolution
-    # TODO: check interpolation method
-    # TODO: check no-data near edges of cube
-    if target_crs is not None:
-        dem = dem.resample_spatial(projection=target_crs, resolution=target_res,
-                                   method='cubic')
-
-    # collection has timestamps which we need to get rid of
-    dem = dem.max_time()
-
-    # forcing 16bit - UInt16 again --> note that this scaling is removing the negative heigths values and set to 0
-    if rescale:
-        dem = dem.linear_scale_range(0, 65534, 0, 65534)
-
-    return dem
-
-
-def extract_METEO_datacube(connection, bbox, start: str, end: str,
-                           METEO_collection='AGERA5', rescale=True, **processing_options) -> DataCube:
-    """ extract the METEO data for requested time period and preprocess the data
-
-    :param connection: active openEO connection object
-    :param bbox: dict, bounding box of format {'east': x, 'south': x, 'west': x, 'north': x, 'crs': x}
-    :param start: str, Start date for requested input data (yyyy-mm-dd)
-    :param end: str, End date for requested input data (yyyy-mm-dd)
-    :param METEO_collection: (str, optional): Collection name for metrological data
-    :param rescale: (default=True), if rescale to UInt16 should be done
-    :param processing_options: (dict, optional), processing options for preprocessing routine (target_crs,
-            resolution, ts_interval, time_interpolation)
-    :return: DataCube
-    """
-    # evaluate additional processing options
-    target_crs = processing_options.get("target_crs", None)
-    target_res = processing_options.get("resolution", 10.)
-    ts_interval = processing_options.get("ts_interval", None)
-    ts_interpolation = processing_options.get("time_interpolation", False)
-
-    # get data
-    # TODO: add the precipitation (precipitation-flux band) --> need extra handling since that is in mm/day/pixel
-    meteo = connection.load_collection(
-        METEO_collection,
-        spatial_extent=bbox,
-        bands=['temperature-mean'],
-        temporal_extent=[start, end]
-    )
-
-    # warp and/or resample if needed
-    if target_crs is not None:
-        meteo = meteo.resample_spatial(projection=target_crs, resolution=target_res)
-
-    # Composite if wished
-    if ts_interval is not None:
-        meteo = meteo.aggregate_temporal_period(period=ts_interval, reducer="mean")
-
-    # Linearly interpolate missing values.
-    # Shouldn't exist in this dataset but is good practice to do so
-    if ts_interpolation:
-        meteo = meteo.apply_dimension(dimension="t", process="array_interpolate_linear")
-
-    # Rename band to match Radix model requirements
-    meteo = meteo.rename_labels('bands', ['temperature_mean'])
-
-    # forcing 16bit - UInt16 again
-    if rescale:
-        meteo = meteo.linear_scale_range(0, 65534, 0, 65534)
-
-    return meteo
-
 
 def extract_S1_datacube(connection, bbox, start: str, end: str,
                         S1_collection='SENTINEL1_GRD', **processing_options) -> DataCube:
@@ -298,8 +192,6 @@ def extract_S2_datacube(connection, bbox, start: str, end: str,
     # NOTE: For now we mask again snow/ice because clouds
     # are sometimes marked as SCL value 11!
     if masking == 'mask_scl_dilation':
-        # TODO: double check cloud masking parameters
-        # https://github.com/Open-EO/openeo-geotrellis-extensions/blob/develop/geotrellis-common/src/main/scala/org/openeo/geotrelliscommon/CloudFilterStrategy.scala#L54  # NOQA
         sub_collection = bands.filter_bands(bands=["SCL"])
         bands = bands.filter_bands(bands.metadata.band_names[:-1])
         scl_dilated_mask = sub_collection.process(

@@ -55,55 +55,40 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS = {
 # Collection definitions on Terrascope
 _TERRASCOPE_COLLECTIONS = {
     'S2_collection': "SENTINEL2_L2A",
-    'METEO_collection': 'AGERA5',
-    'S1_collection': "SENTINEL1_GRD",
-    'DEM_collection': "COPERNICUS_30"
+    'S1_collection': "SENTINEL1_GRD"
 }
 
 # Collection definitions on CREO
 _CREO_COLLECTIONS = {
     'S2_collection': "SENTINEL2_L2A",
-    'METEO_collection': None,
-    'S1_collection': "SENTINEL1_GRD",
-    'DEM_collection': "COPERNICUS_30"
+    'S1_collection': "SENTINEL1_GRD"
 }
 
 # Collection definitions on Sentinelhub
 _SENTINELHUB_COLLECTIONS = {
     'S2_collection': "SENTINEL2_L2A_SENTINELHUB",
-    'METEO_collection': None,
-    'S1_collection': "SENTINEL1_GRD",
-    'DEM_collection': "COPERNICUS_30"
+    'S1_collection': "SENTINEL1_GRD"
 }
 
 # Collection definitions on CDSE
 _CDSE_COLLECTIONS = {
     'S2_collection': "SENTINEL2_L2A",
-    'METEO_collection': None,
-    'S1_collection': "SENTINEL1_GRD",
-    'DEM_collection': "COPERNICUS_30"
+    'S1_collection': "SENTINEL1_GRD"
 }
 
-def _get_default_job_options(task: str = 'data_extraction'):
-    if (task == 'data_extraction') or (task == 'feature_generation'):
-        return OPENEO_EXTRACT_JOB_OPTIONS
-    else:
-        raise ValueError(f'Task `{task}` not known.')
+def _get_default_job_options():
+    return OPENEO_EXTRACT_JOB_OPTIONS
 
+def get_job_options(provider: str = None):
 
-def get_job_options(provider: str = None,
-                    task: str = 'data_extraction'):
+    job_options = _get_default_job_options()
 
-    job_options = _get_default_job_options(task)
-
-    if (task == 'data_extraction') or (task == 'feature_generation'):
-        if 'creo' in provider.lower():
-            job_options.update(OPENEO_EXTRACT_CREO_JOB_OPTIONS)
-        if provider.lower() == 'cdse':
-            job_options.update(OPENEO_EXTRACT_CDSE_JOB_OPTIONS)
+    if 'creo' in provider.lower():
+        job_options.update(OPENEO_EXTRACT_CREO_JOB_OPTIONS)
+    if provider.lower() == 'cdse':
+        job_options.update(OPENEO_EXTRACT_CDSE_JOB_OPTIONS)
 
     return job_options
-
 
 def get_collection_options(provider: str):
 
@@ -118,10 +103,9 @@ def get_collection_options(provider: str):
     else:
         raise ValueError(f'Provider `{provider}` not known.')
 
+def get_standard_processing_options(provider: str, task: str = 'raw_extraction'):
 
-def get_standard_processing_options(provider: str, task: str = 'data_extraction'):
-
-    if task == 'data_extraction':
+    if task == 'raw_extraction':
         proc_opt = {
             "provider": provider,
             "s1_orbitdirection": S1_ORBITDIRECTION,
@@ -132,7 +116,7 @@ def get_standard_processing_options(provider: str, task: str = 'data_extraction'
             "SLC_masking_algo": MASKING_ALGO,
             "S2_bands": S2_BANDS
         }
-    elif task == 'feature_generation':
+    elif (task == 'feature_generation') or (task == 'vi_generation'):
         proc_opt = {
             "provider": provider,
             "s1_orbitdirection": S1_ORBITDIRECTION,
@@ -151,7 +135,6 @@ def get_standard_processing_options(provider: str, task: str = 'data_extraction'
     else:
         raise ValueError(f'Task `{task}` not known.')
     return proc_opt
-
 
 def get_advanced_options(provider: str, s1_orbitdirection=S1_ORBITDIRECTION, target_crs=TARGET_CRS,
                          resolution=TARGET_RESOLUTION, ts_interpolation=TIME_INTERPOLATION,

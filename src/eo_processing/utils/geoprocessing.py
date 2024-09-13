@@ -28,7 +28,6 @@ def laea20km_id_to_extent(laea_id: str):
         'crs': 'EPSG:3035'
     }
 
-
 def reproj_bbox_to_ll(bbox: dict):
     '''convert bbox to lat lon Polygon
     param bbox: a bounding box dictionary with south,west,north,east and crs
@@ -48,7 +47,6 @@ def reproj_bbox_to_ll(bbox: dict):
     polygon_4326 = Polygon([(minx, maxy), (maxx, maxy), (maxx, miny), (minx, miny), (minx, maxy)])
 
     return polygon_4326
-
 
 def bbox_area(bbox):
     """ Calculate the area of the AOI to process in km2

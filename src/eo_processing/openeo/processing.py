@@ -2,9 +2,7 @@ from openeo.rest.datacube import DataCube
 from openeo.extra.spectral_indices import append_indices, compute_indices
 from openeo.processes import array_create, ProcessBuilder, array_concat, subtract
 
-from eo_processing.openeo.preprocessing import (extract_S2_datacube, extract_S1_datacube,
-                                                extract_METEO_datacube, extract_DEM_data)
-
+from eo_processing.openeo.preprocessing import (extract_S2_datacube, extract_S1_datacube)
 
 VI_LIST = ['NDVI',
            'AVI',
@@ -140,7 +138,6 @@ def radar_indices(input_cube: DataCube, **processing_options) -> DataCube:
 
     return vi_cube
 
-
 def generate_S1_indices(
         connection, bbox, start: str, end: str,
         S1_collection='SENTINEL1_GRD', **processing_options) -> DataCube:
@@ -162,7 +159,6 @@ def generate_S1_indices(
     result_cube = radar_indices(input_cube, **processing_options)
 
     return result_cube
-
 
 def generate_S2_indices(
         connection, bbox, start: str, end: str,
@@ -187,12 +183,10 @@ def generate_S2_indices(
 
     return result_cube
 
-
 def generate_indices_master_cube(
         connection, bbox, start: str, end: str,
         S2_collection='SENTINEL2_L2A',
         S1_collection='SENTINEL1_GRD',
-        METEO_collection='AGERA5',
         **processing_options) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
@@ -202,7 +196,6 @@ def generate_indices_master_cube(
     :param end: str, End date for requested input data (yyyy-mm-dd)
     :param S2_collection: (str, optional): Collection name for S2 data
     :param S1_collection: (str, optional): Collection name for S1 data
-    :param METEO_collection: (str, optional): Collection name for metrological data
     :param processing_options: (dict, optional), processing options for preprocessing routine (provider, target_crs,
             resolution, ts_interval, time_interpolation, SLC_masking_algo, s1_orbitdirection, optical_vi_list,
             S2_scaling, append, S2_bands, radar_vi_list, S1_db_rescale)
@@ -218,13 +211,7 @@ def generate_indices_master_cube(
                                                                     S1_collection=S1_collection,
                                                                     **processing_options))
 
-    # merge the Metro data
-    if METEO_collection is not None:
-        indices_cube = indices_cube.merge_cubes(extract_METEO_datacube(connection, bbox, start, end,
-                                                                       METEO_collection=METEO_collection,
-                                                                       **processing_options))
     return indices_cube
-
 
 def _compute_features(input_timeseries: ProcessBuilder):
     return array_concat(
@@ -232,7 +219,6 @@ def _compute_features(input_timeseries: ProcessBuilder):
         [input_timeseries.mean(), input_timeseries.sd(), input_timeseries.sum(),
          subtract(x=input_timeseries.quantiles(probabilities=[0.75]),
                   y=input_timeseries.quantiles(probabilities=[0.25]))])
-
 
 def calculate_features_cube(input_data: DataCube) -> DataCube:
     """ calculates the features on a given timeseries datacube (reflectance or Vi or both)
@@ -263,7 +249,6 @@ def calculate_features_cube(input_data: DataCube) -> DataCube:
 
     return features_cube
 
-
 def generate_S1_feature_cube(
         connection, bbox, start: str, end: str,
         S1_collection='SENTINEL1_GRD',
@@ -287,7 +272,6 @@ def generate_S1_feature_cube(
     features_cube = calculate_features_cube(input_data)
 
     return features_cube
-
 
 def generate_S2_feature_cube(
         connection, bbox, start: str, end: str,
@@ -313,13 +297,10 @@ def generate_S2_feature_cube(
 
     return features_cube
 
-
 def generate_master_feature_cube(
         connection, bbox, start: str, end: str,
         S2_collection='SENTINEL2_L2A',
         S1_collection='SENTINEL1_GRD',
-        DEM_collection='COPERNICUS_30',
-        METEO_collection='AGERA5',
         **processing_options) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
@@ -329,8 +310,6 @@ def generate_master_feature_cube(
     :param end: str, End date for requested input data (yyyy-mm-dd)
     :param S2_collection: (str, optional): Collection name for S2 data
     :param S1_collection: (str, optional): Collection name for S1 data
-    :param DEM_collection: (str, optional): Collection name for DEM data
-    :param METEO_collection: (str, optional): Collection name for metrological data
     :param processing_options: (dict, optional), processing options for preprocessing routine (provider, target_crs,
             resolution, ts_interval, time_interpolation, SLC_masking_algo, s1_orbitdirection, optical_vi_list,
             S2_scaling, append, S2_bands, radar_vi_list, S1_db_rescale)
@@ -338,16 +317,9 @@ def generate_master_feature_cube(
     """
     # get the reflectance and VI time series cube
     input_data = generate_indices_master_cube(connection, bbox, start, end, S2_collection=S2_collection,
-                                              S1_collection=S1_collection, METEO_collection=METEO_collection,
-                                              **processing_options)
+                                              S1_collection=S1_collection, **processing_options)
 
     # get features
     features_cube = calculate_features_cube(input_data)
-
-    # now we add the DEM at last
-    if DEM_collection is not None:
-        features_cube = features_cube.merge_cubes(extract_DEM_data(connection, bbox,
-                                                                   DEM_collection=DEM_collection,
-                                                                   rescale=False, **processing_options))
 
     return features_cube

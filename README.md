@@ -19,6 +19,10 @@ By default, all required settings are automatically loaded for a chosen `provide
 - `processing_options` that steer the methodological workflow for EO time series data extraction, VI generation & feature generation (temporal aggregation)
 - `job_options` that steer the OpenEO job that runs the workflow
 
+how to best define the `processing_options` in a call
+- use pre-defined settings for `raw_extraction` (generation of raw reflectance/sigma naught time series cubes), `vi_generation` (time series cubes of the VI [plus raw data if requested]) or `feature_generation` via the task key-word in the `get_standard_processing_options` call
+- use the `get_advanced_options` function and define all settings using the below list
+
 Available `processing_options`
 
 ```

@@ -106,7 +106,7 @@ def extract_S1_datacube(connection, bbox, start: str, end: str,
     if target_crs is not None:
         bands = bands.resample_spatial(projection=target_crs, resolution=target_res)
 
-    # Composite if wished
+    # time aggregation if wished
     if ts_interval is not None:
         bands = bands.aggregate_temporal_period(period=ts_interval, reducer="mean")
 
@@ -171,11 +171,6 @@ def extract_S2_datacube(connection, bbox, start: str, end: str,
         # S2URL creo only accepts request in EPSG:4326
         catalogue_check_S2(start, end, bbox)
 
-    # add the SCL band if needed
-    if masking in ['mask_scl_dilation']:
-        # Need SCL band to mask
-        S2_bands.append("SCL")
-
     # request the needed datacube
     bands = connection.load_collection(
         S2_collection,
@@ -189,11 +184,16 @@ def extract_S2_datacube(connection, bbox, start: str, end: str,
     if target_crs is not None:
         bands = bands.resample_spatial(projection=target_crs, resolution=target_res)
 
-    # NOTE: For now we mask again snow/ice because clouds
-    # are sometimes marked as SCL value 11!
+    # apply cloud masking
     if masking == 'mask_scl_dilation':
-        sub_collection = bands.filter_bands(bands=["SCL"])
-        bands = bands.filter_bands(bands.metadata.band_names[:-1])
+        # we have to load the SCL mask as an extra cube to get it correctly working
+        sub_collection = connection.load_collection(
+            S2_collection,
+            bands=["SCL"],
+            spatial_extent=bbox,
+            temporal_extent=[start, end],
+            max_cloud_cover=95
+        )
         scl_dilated_mask = sub_collection.process(
             "to_scl_dilation_mask",
             data=sub_collection,
@@ -204,17 +204,17 @@ def extract_S2_datacube(connection, bbox, start: str, end: str,
             mask2_values=[3, 8, 9, 10, 11],
             erosion_kernel_size=3
         ).rename_labels("bands", ["S2-L2A-SCL_DILATED_MASK"])
-        bands = bands.mask(scl_dilated_mask)
+        bands = bands.mask(scl_dilated_mask) # masks are automatically resampled/warped
     elif masking == 'satio':
         # Apply satio-based mask
         mask = scl_mask_erode_dilate(
             connection,
             bbox,
             scl_layer_band=S2_collection + ':SCL',
-            target_crs=target_crs).resample_cube_spatial(bands)
-        bands = bands.mask(mask)
+            target_crs=target_crs)
+        bands = bands.mask(mask) # masks are automatically resampled/warped
 
-    # Composite if wished
+    # time aggregation if wished
     if ts_interval is not None:
         bands = bands.aggregate_temporal_period(period=ts_interval,  reducer="median")
 

@@ -50,7 +50,6 @@ def optical_indices(input_cube: DataCube, **processing_options) -> DataCube:
 
     return vi_cube
 
-
 def radar_indices(input_cube: DataCube, **processing_options) -> DataCube:
     """creates radar indices times series cube from given datacube of radar EO data
 

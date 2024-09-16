@@ -114,7 +114,7 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
             "time_interpolation": TIME_INTERPOLATION,
             "ts_interval": TS_INTERVAL,
             "SLC_masking_algo": MASKING_ALGO,
-            "S2_bands": S2_BANDS
+            "S2_bands": S2_BANDS   # we have to create a copy of the constant list
         }
     elif (task == 'feature_generation') or (task == 'vi_generation'):
         proc_opt = {

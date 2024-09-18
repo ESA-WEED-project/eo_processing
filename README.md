@@ -13,7 +13,7 @@ and make sure the eo_processing is integrated via edible install
 
 more detailed instructions can be found here: [python_dev_environment](https://github.com/ESA-WEED-project/.github/tree/main/python_dev_environment)
 
-## explanation on settings
+## explanation on settings for S1/S2 processing pipelines
 By default, all required settings are automatically loaded for a chosen `provider` (`terrascope`, `creodias`, `cdse`). All default settings are set in `src/eo_processing/config/settings.py`. Settings are comprised of:
 - `collection_options` set the standard EO data collections for processing
 - `processing_options` that steer the methodological workflow for EO time series data extraction, VI generation & feature generation (temporal aggregation)
@@ -69,6 +69,10 @@ radar_vi_list: list = ['VHVVD','VHVVR','RVI']
 append : bool = True
         if the VI's are appended to the reflectance/radar time series cube OR replace them           
 ```
+## explanation on settings for inference pipeline
+- the inference pipeline currently applies ML models stored in the ONNX format on a given datacube
+- the ONNX model has to be available on the CDSE (currently saved on the CREODIAS storage)
+- output is a Datacube with the winning class as first band as well as the class occurence probalilities as additional bands
 
 ## examples
 see the "notebook" sub-folder for detailed jupyter notebook examples

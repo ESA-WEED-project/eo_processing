@@ -46,6 +46,7 @@ dependencies:
   - cached-property=1.5.2=hd8ed1ab_1
   - cached_property=1.5.2=pyha770c72_1
   - cairo=1.18.0=h32b962e_3
+  - catboost=1.2.7=py312h2e8e312_0
   - certifi=2024.8.30=pyhd8ed1ab_0
   - cffi=1.17.1=py312h4389bb4_0
   - cfitsio=4.4.1=hc2ea260_0
@@ -82,13 +83,17 @@ dependencies:
   - fqdn=1.5.1=pyhd8ed1ab_0
   - freetype=2.12.1=hdaf720e_2
   - freexl=2.0.0=h8276f4a_0
+  - fribidi=1.0.10=h8d14728_0
   - gdal=3.9.2=py312h16ac12d_1
   - geopandas=1.0.1=pyhd8ed1ab_0
   - geopandas-base=1.0.1=pyha770c72_0
   - geos=3.12.2=h5a68840_1
   - geotiff=1.7.3=h232476a_2
+  - getopt-win32=0.1=hcfcfb64_1
   - giflib=5.2.2=h64bf75a_0
   - graphite2=1.3.13=h63175ca_1003
+  - graphviz=12.0.0=hb01754f_0
+  - gts=0.7.6=h6b5321d_4
   - h11=0.14.0=pyhd8ed1ab_0
   - h2=4.1.0=pyhd8ed1ab_0
   - harfbuzz=9.0.0=h2bedf89_1
@@ -149,6 +154,7 @@ dependencies:
   - libdeflate=1.21=h2466b09_0
   - libexpat=2.6.3=he0c23c2_0
   - libffi=3.4.2=h8ffe710_5
+  - libgd=2.3.3=h085315d_10
   - libgdal=3.9.2=h57928b3_1
   - libgdal-core=3.9.2=h6b59ad6_1
   - libgdal-fits=3.9.2=h0a0b71e_1
@@ -216,7 +222,8 @@ dependencies:
   - networkx=3.3=pyhd8ed1ab_1
   - notebook=7.2.2=pyhd8ed1ab_0
   - notebook-shim=0.2.4=pyhd8ed1ab_0
-  - numpy=2.1.1=py312h49bc9c5_0
+  - numpy=1.26.4=py312h8753938_0
+  - onnx=1.16.2=py312ha2757a1_1
   - openeo=0.31.0=pyhd8ed1ab_0
   - openjpeg=2.5.2=h3d672ee_0
   - openssl=3.3.2=h2466b09_0
@@ -224,6 +231,7 @@ dependencies:
   - packaging=24.1=pyhd8ed1ab_0
   - pandas=2.2.2=py312h72972c8_1
   - pandocfilters=1.5.0=pyhd8ed1ab_0
+  - pango=1.54.0=hbb871f6_2
   - parso=0.8.4=pyhd8ed1ab_0
   - pcre2=10.44=h3d7b363_2
   - pickleshare=0.7.5=py_1003
@@ -232,12 +240,14 @@ dependencies:
   - pixman=0.43.4=h63175ca_0
   - pkgutil-resolve-name=1.3.10=pyhd8ed1ab_1
   - platformdirs=4.3.2=pyhd8ed1ab_0
+  - plotly=5.24.1=pyhd8ed1ab_0
   - poppler=24.08.0=h9415970_1
   - poppler-data=0.4.12=hd8ed1ab_0
   - postgresql=16.4=hd835ec0_1
   - proj=9.4.1=hd9569ee_1
   - prometheus_client=0.20.0=pyhd8ed1ab_0
   - prompt-toolkit=3.0.47=pyha770c72_0
+  - protobuf=4.25.3=py312h0368a66_1
   - psutil=6.0.0=py312h4389bb4_1
   - pthread-stubs=0.4=hcd874cb_1001
   - pthreads-win32=2.9.1=hfa6e2cd_3
@@ -253,6 +263,7 @@ dependencies:
   - python=3.12.5=h889d299_0_cpython
   - python-dateutil=2.9.0=pyhd8ed1ab_0
   - python-fastjsonschema=2.20.0=pyhd8ed1ab_0
+  - python-graphviz=0.20.3=pyh717bed2_0
   - python-json-logger=2.0.7=pyhd8ed1ab_0
   - python-tzdata=2024.1=pyhd8ed1ab_0
   - python_abi=3.12=5_cp312
@@ -289,6 +300,7 @@ dependencies:
   - stack_data=0.6.2=pyhd8ed1ab_0
   - svt-av1=2.2.1=he0c23c2_0
   - tbb=2021.13.0=hc790b64_0
+  - tenacity=9.0.0=pyhd8ed1ab_0
   - terminado=0.18.1=pyh5737063_0
   - threadpoolctl=3.5.0=pyhc1e730c_0
   - tifffile=2024.8.30=pyhd8ed1ab_0
@@ -320,8 +332,17 @@ dependencies:
   - wrapt=1.16.0=py312h4389bb4_1
   - xarray=2024.7.0=pyhd8ed1ab_0
   - xerces-c=3.2.5=he0c23c2_1
+  - xorg-kbproto=1.0.7=hcd874cb_1002
+  - xorg-libice=1.1.1=hcd874cb_0
+  - xorg-libsm=1.2.4=hcd874cb_0
+  - xorg-libx11=1.8.9=h0076a8d_1
   - xorg-libxau=1.0.11=hcd874cb_0
   - xorg-libxdmcp=1.1.3=hcd874cb_0
+  - xorg-libxext=1.3.4=hcd874cb_2
+  - xorg-libxpm=3.5.17=hcd874cb_0
+  - xorg-libxt=1.3.0=hcd874cb_1
+  - xorg-xextproto=7.3.0=hcd874cb_1003
+  - xorg-xproto=7.0.31=hcd874cb_1007
   - xyzservices=2024.9.0=pyhd8ed1ab_0
   - xz=5.2.6=h8d14728_0
   - yaml=0.2.5=h8ffe710_2
@@ -332,4 +353,6 @@ dependencies:
   - zlib-ng=2.2.1=he0c23c2_0
   - zstandard=0.23.0=py312h7606c53_1
   - zstd=1.5.6=h0ea2cb4_0
+  - pip:
+      - oschmod==0.3.12
 prefix: C:\Users\BUCHHORM\Anaconda3\envs\weed

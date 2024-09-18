@@ -45,6 +45,8 @@ setup(
         "matplotlib>=3.9.2",
         "rioxarray>=0.17.0",
         "netCDF4>=1.7.1",
-        "scikit-image>=0.24.0"
+        "scikit-image>=0.24.0",
+        "onnx>=1.16.2",
+        "catboost>=1.2.7"
     ],
 )

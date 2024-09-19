@@ -29,7 +29,6 @@ def load_onnx_model(model_name: str) -> ort.InferenceSession:
     # The onnx_models folder contains the content of the model archive provided in the job options
     return ort.InferenceSession(f"onnx_models/{model_name}")
 
-
 def preprocess_input(input_xr: xr.DataArray, ort_session: ort.InferenceSession) -> tuple:
     """
     Preprocess the input DataArray by ensuring the dimensions are in the correct order,
@@ -90,7 +89,7 @@ def apply_model(input_xr: xr.DataArray) -> xr.DataArray:
     This method is called for each timestep in the chunk received by apply_datacube.
     """
     # Step 1: Load the ONNX model
-    ort_session = load_onnx_model("WEED_test_catboost.onnx")
+    ort_session = load_onnx_model("test.onnx")
 
     # Step 2: Preprocess the input
     input_np, input_shape = preprocess_input(input_xr, ort_session)

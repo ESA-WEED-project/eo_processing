@@ -1,7 +1,6 @@
 from eo_processing.openeo.processing import VI_LIST, RADAR_LIST, S2_SCALING
 from eo_processing.openeo.preprocessing import S2_BANDS
 
-
 # ---------------------------------------------------
 # standard processing options
 TARGET_CRS = 3035                   # can be all known EPSG codes

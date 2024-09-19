@@ -57,3 +57,4 @@ def bbox_area(bbox):
     df = gpd.GeoDataFrame({"id": 1, "geometry": [box(bbox['west'], bbox['south'], bbox['east'], bbox['north'])]})
     df.crs = bbox['crs']
     print(f'area of AOI in km2: {df.iloc[0].geometry.area / 10 ** 6}')
+

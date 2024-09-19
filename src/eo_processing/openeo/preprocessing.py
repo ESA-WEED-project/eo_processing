@@ -226,3 +226,4 @@ def extract_S2_datacube(connection, bbox, start: str, end: str,
     bands = bands.linear_scale_range(0, 65534, 0, 65534)
 
     return bands
+

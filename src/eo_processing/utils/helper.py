@@ -8,6 +8,9 @@ import requests
 import matplotlib.pyplot as plt
 import geopandas as gpd
 from shapely.geometry import box
+import importlib.resources as importlib_resources
+import eo_processing.resources
+from os.path import normpath
 
 def init_connection(provider: str) -> openeo.Connection :
     """ Warper to select the correct entry point based on the provider
@@ -90,3 +93,18 @@ def location_visu(bbox, zoom: bool = False, region: str = 'EU', label: bool = Tr
             plt.annotate(text=row[label_field], xy=row['coords'], horizontalalignment='center', color='y')
 
     plt.show()
+
+def getUDFpath(UDFname: str = None) -> normpath:
+    """ hands back the absolute path for a UDF script stored in the resources folder
+
+    :param UDFname: name of the UDF to get the path
+    :return: absolute file path to the UDF
+    """
+    if UDFname is None:
+        raise ValueError('The UDF name must be provided')
+
+    try:
+        file_path = importlib_resources.files(eo_processing.resources).joinpath(UDFname)
+        return normpath(file_path)
+    except FileNotFoundError:
+        raise FileNotFoundError(f'UDF {UDFname} does not exist')

@@ -47,6 +47,7 @@ setup(
         "netCDF4>=1.7.1",
         "scikit-image>=0.24.0",
         "onnx>=1.16.2",
-        "catboost>=1.2.7"
+        "catboost>=1.2.7",
+        "onnxruntime>=1.18.1"
     ],
 )

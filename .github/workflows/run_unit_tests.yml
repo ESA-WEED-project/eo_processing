@@ -1,0 +1,41 @@
+name: Run Unit Tests
+
+# Trigger this workflow on every push to any branch
+on:
+  push:
+    branches:
+      - '**'  # Run on all branches
+
+# Define the job to run the unit tests using a matrix for multiple Python versions
+jobs:
+  test:
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
+
+    # Use a matrix strategy to test across multiple Python versions
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12]
+
+    # Define the steps for setting up the environment and running tests
+    steps:
+      # Step 1: Checkout the repository's code
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Python environment based on the matrix version
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Step 3: Install dependencies from requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install -r requirements.txt
+
+      # Step 4: Run unit tests using pytest, targeting the 'tests_unit' directory
+      - name: Run tests
+        run: |
+          pytest tests/tests_unit/

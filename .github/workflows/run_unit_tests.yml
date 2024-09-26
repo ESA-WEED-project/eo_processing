@@ -38,4 +38,4 @@ jobs:
       # Step 4: Run unit tests using pytest, targeting the 'tests_unit' directory
       - name: Run tests
         run: |
-          pytest tests_unit/
+          pytest tests/tests_unit/

@@ -27,7 +27,7 @@ def load_onnx_model(model_name: str) -> ort.InferenceSession:
     https://docs.python.org/3/library/functools.html#functools.lru_cache
     """
     # The onnx_models folder contains the content of the model archive provided in the job options
-    return ort.InferenceSession(f"onnx_models/{model_name}")
+    return ort.InferenceSession(f"onnx_models/{model_name}", providers=["CPUExecutionProvider"])
 
 def preprocess_input(input_xr: xr.DataArray, ort_session: ort.InferenceSession) -> tuple:
     """

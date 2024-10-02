@@ -322,37 +322,3 @@ def generate_master_feature_cube(
     features_cube = calculate_features_cube(input_data)
 
     return features_cube
-
-#TODO; to become deprecated once using calculate_features_cube
-def compute_quantiles(base_features, quantiles=[0.10, 0.25, 0.50, 0.75, 0.90]):
-    """
-    Computes specified quantiles (default P10, P25, P50, P75, P90) 
-    for each band in the base_features along the time dimension.
-    
-    Args:
-        base_features: A data structure (e.g., xarray or similar) that contains
-                       time series data along a dimension.
-        quantiles: A list of quantiles to compute (default: [0.10, 0.25, 0.50, 0.75, 0.90])
-    
-    Returns:
-        A data structure with computed quantiles, renamed to reflect
-        both the band and the quantile.
-    """
-    
-    def compute_stats(timeseries, quantiles):
-        return timeseries.quantiles(probabilities=quantiles)
-    
-    # Compute the quantiles for each band along the time dimension ('t')
-    stats = base_features.apply_dimension(
-        dimension="t", target_dimension="bands", process=lambda ts: compute_stats(ts, quantiles)
-    )
-    
-    # Generate band names by appending the quantile labels (P10, P25, etc.) to each band
-    quantile_labels = [f"P{int(q*100)}" for q in quantiles]
-    all_bands = [
-        f"{band}_{label}"
-        for band in base_features.metadata.band_names
-        for label in quantile_labels
-    ]
-    
-    return stats.rename_labels("bands", all_bands)

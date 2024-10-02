@@ -30,15 +30,28 @@ def init_connection(provider: str) -> openeo.Connection :
         connection = openeo.connect("https://openeo.cloud").authenticate_oidc()
     return connection
 
-def location_visu(bbox, zoom: bool = False, region: str = 'EU', label: bool = True):
+def location_visu(aoi_object, zoom: bool = False, region: str = 'EU', label: bool = True):
     """ creates a figure of the location of the AOI in Europe/Globe
 
-    :param bbox: a bounding box dictionary with south,west,north,east and crs
+    :param aoi_object: a bounding box dictionary with south,west,north,east and crs OR a GeoPandas GeoDataFrame
     :param zoom: zoom in to intersected countries
     :param region: str, in which context to show the AOI (EU, globe)
     :param label: bool, if True will label the figure with country names
     :return: plt object (directly viewable in jupyter notebook)
     """
+    # evaluate the input
+    if isinstance(aoi_object, dict):
+        # bring AOI dictionary into GeoDataFrame
+        aoi = gpd.GeoDataFrame({"id": 1, "geometry": [box(aoi_object['west'], aoi_object['south'],
+                                                          aoi_object['east'], aoi_object['north'])]})
+        aoi.crs = aoi_object['crs']
+    elif isinstance(aoi_object, gpd.GeoDataFrame):
+        aoi = aoi_object
+    else:
+        print('the aoi has to be either a bounding box dictionary with south,west,north,east and crs '
+              'OR a GeoPandas GeoDataFrame')
+        return
+
     # get vector file of region
     if region == 'EU':
         url = 'https://raw.githubusercontent.com/leakyMirror/map-of-europe/master/GeoJSON/europe.geojson'
@@ -52,22 +65,18 @@ def location_visu(bbox, zoom: bool = False, region: str = 'EU', label: bool = Tr
     # convert in GeoDataFrame
     region_df = gpd.GeoDataFrame.from_features(data).set_crs(epsg=4326, allow_override=True)
 
-    # bring AOI into GeoDataFrame
-    aoi = gpd.GeoDataFrame({"id": 1, "geometry": [box(bbox['west'], bbox['south'], bbox['east'], bbox['north'])]})
-    aoi.crs = bbox['crs']
-
     # zoom in
     if zoom:
-        region_df = region_df[region_df.intersects(aoi.to_crs(4326).iloc[0].geometry)]
+        region_df = region_df[region_df.intersects(aoi.to_crs(4326).geometry.union_all(method='coverage'))]
 
     # create the figure
     fig, ax = plt.subplots()
     if region == 'EU':
         region_df.to_crs(3035).plot(color='grey', edgecolor='black', ax=ax)
-        aoi.to_crs(3035).plot(color='red', ax=ax)
+        aoi.to_crs(3035).plot(facecolor='red', ax=ax, edgecolor='blue')
     elif region == 'globe':
         region_df.plot(color='grey', edgecolor='black', ax=ax)
-        aoi.to_crs(4326).plot(color='red', ax=ax)
+        aoi.to_crs(4326).plot(facecolor='red', ax=ax, edgecolor='blue')
 
     #prepare country labels
     if label:
@@ -94,9 +103,9 @@ def location_visu(bbox, zoom: bool = False, region: str = 'EU', label: bool = Tr
 
     plt.show()
 
-
 def getUDFpath(UDFname: str = None) -> normpath:
     """ hands back the absolute path for a UDF script stored in the resources folder
+
     :param UDFname: name of the UDF to get the path
     :return: absolute file path to the UDF
     """

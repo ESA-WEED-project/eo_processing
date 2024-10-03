@@ -12,7 +12,7 @@ BBOX = {'east': 5.5, 'south': 49.5, 'west': 4.5, 'north': 50.5, 'crs': 'EPSG:432
 DATE_START = "2021-01-01"
 DATE_END = "2021-12-31"
 API_URL = "https://oeo.test"
-GROUNDTRUTH_DIR = "resources"
+GROUNDTRUTH_DIR = "tests//resources"
 
 
 DEFAULT_S1_METADATA = {

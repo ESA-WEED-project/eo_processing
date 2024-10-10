@@ -2,12 +2,15 @@
 import pytest
 import os
 import tempfile
+import zipfile
+import shutil
 from unittest import mock
 from catboost import CatBoostClassifier
 import onnx
 from onnx import helper, TensorProto
 import numpy as np
-from eo_processing.utils.onnx_model_utilities import *
+from eo_processing.utils.onnx_model_utilities import (load_catboost_model, save_model_to_onnx, add_metadata_to_onnx, download_zip_to_tempfile, unzip_to_tempdir, extract_features_from_onnx)
+
 
 
 # Mocking the CatBoost model

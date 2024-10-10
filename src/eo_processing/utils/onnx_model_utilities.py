@@ -7,6 +7,7 @@ import tempfile
 import shutil
 from catboost import CatBoostClassifier
 
+
 # Function to load the CatBoost model
 def load_catboost_model(catboost_model_path: str):
     """Load the CatBoost model from a saved .cbm file."""

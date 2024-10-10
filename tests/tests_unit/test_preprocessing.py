@@ -12,7 +12,7 @@ BBOX = {'east': 5.5, 'south': 49.5, 'west': 4.5, 'north': 50.5, 'crs': 'EPSG:432
 DATE_START = "2021-01-01"
 DATE_END = "2021-12-31"
 API_URL = "https://oeo.test"
-GROUNDTRUTH_DIR = "tests//resources"
+GROUNDTRUTH_DIR = "tests/resources"  # Fixed typo here
 
 
 DEFAULT_S1_METADATA = {
@@ -45,15 +45,17 @@ DEFAULT_S2_METADATA = {
 }
 
 
-# Helper to load JSON files from a given path
-def load_json_from_path(filepath):
+def dict_from_json(filepath):
     with open(filepath, "r") as json_file:
         return json.load(json_file)
 
 
 # Mock connection setup
 @pytest.fixture
-def mock_connection(requests_mock):
+def connection(requests_mock):
+    """
+    Mock connection to the OpenEO backend with sample metadata for Sentinel-1 and Sentinel-2.
+    """
     requests_mock.get(API_URL + "/", json={"api_version": "1.0.0"})
     requests_mock.get(API_URL + "/collections/SENTINEL1_GRD", json=DEFAULT_S1_METADATA)
     requests_mock.get(API_URL + "/collections/SENTINEL2_L2A", json=DEFAULT_S2_METADATA)
@@ -106,78 +108,56 @@ s2_test_scenarios = [
 ]
 
 
-@pytest.mark.parametrize("filename, params", ts_test_scenarios)
-def test_ts_datacube_extraction(mock_connection, filename, params):
+@pytest.mark.parametrize(["filename", "params"], ts_test_scenarios)
+def test_ts_datacube_extraction(connection, filename, params):
     """
     Test `ts_datacube_extraction` function for different scenarios.
     """
-    # Pass the mock connection explicitly
-    data_cube = DataCube.load_collection(
-        collection_id="SENTINEL2_L2A" if "S2" in filename else "SENTINEL1_GRD",
-        connection=mock_connection
+    data_cube = connection.load_collection(
+        collection_id="SENTINEL2_L2A" if "S2" in filename else "SENTINEL1_GRD"
     )
 
-    # Use the mock for ts_datacube_extraction
     with patch('eo_processing.openeo.preprocessing.ts_datacube_extraction', return_value=data_cube):
-        extracted_cube = ts_datacube_extraction(mock_connection, bbox=BBOX, start=DATE_START, end=DATE_END, **params)
+        extracted_cube = ts_datacube_extraction(connection, bbox=BBOX, start=DATE_START, end=DATE_END, **params)
 
         # Verify generated process graph against ground truth
-        generated_process_graph = extracted_cube.to_json()
+        generated_process_graph = extracted_cube.to_dict()
         groundtruth_filepath = os.path.join(GROUNDTRUTH_DIR, filename)
-        groundtruth_process_graph = load_json_from_path(groundtruth_filepath)
+        groundtruth_process_graph = dict_from_json(groundtruth_filepath)
 
-        # Assert the process graphs match
-        assert json.dumps(json.loads(generated_process_graph), sort_keys=True, indent=4) == \
-               json.dumps(groundtruth_process_graph, sort_keys=True, indent=4)
+        # Compare dictionaries directly
+        assert generated_process_graph == groundtruth_process_graph
 
-@pytest.mark.parametrize("filename, params", s1_test_scenarios)
-def test_extract_S1_datacube(mock_connection, filename, params):
+
+@pytest.mark.parametrize(["filename", "params"], s1_test_scenarios)
+def test_extract_S1_datacube(connection, filename, params):
     """
     Test the `extract_S1_datacube` function for various Sentinel-1 scenarios.
     """
-    # Load the mock data cube
-    data_cube = DataCube.load_collection(
-        collection_id="SENTINEL1_GRD",
-        connection=mock_connection
-    )
+    data_cube = connection.load_collection("SENTINEL1_GRD")
 
-    # Use the mock for ts_datacube_extraction
     with patch('eo_processing.openeo.preprocessing.extract_S1_datacube', return_value=data_cube):
-        extracted_cube = extract_S1_datacube(mock_connection, bbox=BBOX, start=DATE_START, end=DATE_END, **params)
+        extracted_cube = extract_S1_datacube(connection, bbox=BBOX, start=DATE_START, end=DATE_END, **params)
     
-    generated_process_graph = extracted_cube.to_json()
-
-    # Construct paths for generated and expected files
+    generated_process_graph = extracted_cube.to_dict()
     groundtruth_filepath = os.path.join(GROUNDTRUTH_DIR, filename)
+    groundtruth_process_graph = dict_from_json(groundtruth_filepath)
 
-    # Load and normalize the expected process graph
-    groundtruth_process_graph = load_json_from_path(groundtruth_filepath)
+    assert generated_process_graph == groundtruth_process_graph
 
-    # Convert both process graphs to JSON strings for comparison
-    assert json.dumps(json.loads(generated_process_graph), sort_keys=True, indent=4) == json.dumps(groundtruth_process_graph, sort_keys=True, indent=4)
 
-@pytest.mark.parametrize("filename, params", s2_test_scenarios)
-def test_extract_S2_datacube(mock_connection, filename, params):
+@pytest.mark.parametrize(["filename", "params"], s2_test_scenarios)
+def test_extract_S2_datacube(connection, filename, params):
     """
     Test the `extract_S2_datacube` function for various Sentinel-2 scenarios.
     """
-    # Load the mock data cube
-    data_cube = DataCube.load_collection(
-        collection_id="SENTINEL2_L2A",
-        connection=mock_connection
-    )
+    data_cube = connection.load_collection("SENTINEL2_L2A")
 
-    # Use the mock for extract_S2_datacube
     with patch('eo_processing.openeo.preprocessing.extract_S2_datacube', return_value=data_cube):
-        extracted_cube = extract_S2_datacube(mock_connection, bbox=BBOX, start=DATE_START, end=DATE_END, **params)
+        extracted_cube = extract_S2_datacube(connection, bbox=BBOX, start=DATE_START, end=DATE_END, **params)
     
-    generated_process_graph = extracted_cube.to_json()
-
-    # Construct paths for generated and expected files
+    generated_process_graph = extracted_cube.to_dict()
     groundtruth_filepath = os.path.join(GROUNDTRUTH_DIR, filename)
+    groundtruth_process_graph = dict_from_json(groundtruth_filepath)
 
-    # Load and normalize the expected process graph
-    groundtruth_process_graph = load_json_from_path(groundtruth_filepath)
-
-    # Convert both process graphs to JSON strings for comparison
-    assert json.dumps(json.loads(generated_process_graph), sort_keys=True, indent=4) == json.dumps(groundtruth_process_graph, sort_keys=True, indent=4)
+    assert generated_process_graph == groundtruth_process_graph

@@ -10,3 +10,5 @@ onnx>=1.16.2
 catboost>=1.2.7
 onnxruntime>=1.18.1
 geojson>=3.1.0
+pyarrow>=17.0.0
+fastparquet>=2024.5.0

@@ -57,8 +57,10 @@ dependencies:
   - click-plugins=1.1.1=py_0
   - cligj=0.7.2=pyhd8ed1ab_1
   - colorama=0.4.6=pyhd8ed1ab_0
+  - coloredlogs=15.0.1=pyhd8ed1ab_3
   - comm=0.2.2=pyhd8ed1ab_0
   - contourpy=1.3.0=py312hd5eb7cc_1
+  - cramjam=2.8.4rc3=py312h7a6832a_2
   - cycler=0.12.1=pyhd8ed1ab_0
   - dav1d=1.2.1=hcfcfb64_0
   - debugpy=1.8.5=py312h275cf98_1
@@ -70,6 +72,7 @@ dependencies:
   - exceptiongroup=1.2.2=pyhd8ed1ab_0
   - executing=2.1.0=pyhd8ed1ab_0
   - expat=2.6.3=he0c23c2_0
+  - fastparquet=2024.5.0=py312h1a27103_2
   - fmt=11.0.2=h7f575de_0
   - folium=0.17.0=pyhd8ed1ab_0
   - font-ttf-dejavu-sans-mono=2.37=hab24e00_0
@@ -84,7 +87,9 @@ dependencies:
   - freetype=2.12.1=hdaf720e_2
   - freexl=2.0.0=h8276f4a_0
   - fribidi=1.0.10=h8d14728_0
+  - fsspec=2024.10.0=pyhff2d567_0
   - gdal=3.9.2=py312h16ac12d_1
+  - geojson=3.1.0=pyhd8ed1ab_0
   - geopandas=1.0.1=pyhd8ed1ab_0
   - geopandas-base=1.0.1=pyha770c72_0
   - geos=3.12.2=h5a68840_1
@@ -102,6 +107,7 @@ dependencies:
   - hpack=4.0.0=pyh9f0ad1d_0
   - httpcore=1.0.5=pyhd8ed1ab_0
   - httpx=0.27.2=pyhd8ed1ab_0
+  - humanfriendly=10.0=py312h2e8e312_5
   - hyperframe=6.0.1=pyhd8ed1ab_0
   - icu=75.1=he0c23c2_0
   - idna=3.8=pyhd8ed1ab_0
@@ -142,6 +148,10 @@ dependencies:
   - libabseil=20240116.2=cxx17_he0c23c2_1
   - libaec=1.1.3=h63175ca_0
   - libarchive=3.7.4=haf234dc_0
+  - libarrow=17.0.0=h29daf90_13_cpu
+  - libarrow-acero=17.0.0=he0c23c2_13_cpu
+  - libarrow-dataset=17.0.0=he0c23c2_13_cpu
+  - libarrow-substrait=17.0.0=h1f0e801_13_cpu
   - libavif16=1.1.1=h4e96d62_1
   - libblas=3.9.0=23_win64_mkl
   - libbrotlicommon=1.1.0=h2466b09_2
@@ -152,6 +162,7 @@ dependencies:
   - libcrc32c=1.1.2=h0e60522_0
   - libcurl=8.9.1=h18fefc2_0
   - libdeflate=1.21=h2466b09_0
+  - libevent=2.1.12=h3671451_1
   - libexpat=2.6.3=he0c23c2_0
   - libffi=3.4.2=h8ffe710_5
   - libgd=2.3.3=h085315d_10
@@ -180,6 +191,7 @@ dependencies:
   - libkml=1.3.0=h538826c_1021
   - liblapack=3.9.0=23_win64_mkl
   - libnetcdf=4.9.2=nompi_h92078aa_114
+  - libparquet=17.0.0=ha915800_13_cpu
   - libpng=1.6.43=h19919ed_0
   - libpq=16.4=hab9416b_1
   - libprotobuf=4.25.3=h503648d_0
@@ -189,7 +201,9 @@ dependencies:
   - libspatialite=5.1.0=hab0cb6d_9
   - libsqlite=3.46.1=h2466b09_0
   - libssh2=1.11.0=h7dfc565_0
+  - libthrift=0.20.0=hbe90ef8_1
   - libtiff=4.6.0=hb151862_4
+  - libutf8proc=2.8.0=h82a8f57_0
   - libwebp-base=1.4.0=hcfcfb64_0
   - libxcb=1.16=h013a479_1
   - libxml2=2.12.7=h0f24e4e_4
@@ -212,6 +226,7 @@ dependencies:
   - minizip=4.0.6=hb638d1e_0
   - mistune=3.0.2=pyhd8ed1ab_0
   - mkl=2024.1.0=h66d3029_694
+  - mpmath=1.3.0=pyhd8ed1ab_0
   - msys2-conda-epoch=20160418=1
   - munkres=1.1.4=pyh9f0ad1d_0
   - nbclient=0.10.0=pyhd8ed1ab_0
@@ -224,9 +239,11 @@ dependencies:
   - notebook-shim=0.2.4=pyhd8ed1ab_0
   - numpy=1.26.4=py312h8753938_0
   - onnx=1.16.2=py312ha2757a1_1
-  - openeo=0.31.0=pyhd8ed1ab_0
+  - onnxruntime=1.18.1=py312hc06fd7c_1_cpu
+  - openeo=0.32.0=pyhd8ed1ab_0
   - openjpeg=2.5.2=h3d672ee_0
   - openssl=3.3.2=h2466b09_0
+  - orc=2.0.2=h784c2ca_0
   - overrides=7.7.0=pyhd8ed1ab_0
   - packaging=24.1=pyhd8ed1ab_0
   - pandas=2.2.2=py312h72972c8_1
@@ -252,17 +269,21 @@ dependencies:
   - pthread-stubs=0.4=hcd874cb_1001
   - pthreads-win32=2.9.1=hfa6e2cd_3
   - pure_eval=0.2.3=pyhd8ed1ab_0
+  - pyarrow=17.0.0=py312h7e22eef_1
+  - pyarrow-core=17.0.0=py312h6a9c419_1_cpu
   - pycparser=2.22=pyhd8ed1ab_0
   - pygments=2.18.0=pyhd8ed1ab_0
   - pyogrio=0.9.0=py312hd215820_2
   - pyparsing=3.1.4=pyhd8ed1ab_0
   - pyproj=3.6.1=py312h6f27134_9
+  - pyreadline3=3.5.2=py312h2e8e312_0
   - pyside6=6.7.2=py312h2ee7485_2
   - pysocks=1.7.1=pyh0701188_6
   - pystac=1.10.1=pyhd8ed1ab_0
   - python=3.12.5=h889d299_0_cpython
   - python-dateutil=2.9.0=pyhd8ed1ab_0
   - python-fastjsonschema=2.20.0=pyhd8ed1ab_0
+  - python-flatbuffers=24.3.25=pyh59ac667_0
   - python-graphviz=0.20.3=pyh717bed2_0
   - python-json-logger=2.0.7=pyhd8ed1ab_0
   - python-tzdata=2024.1=pyhd8ed1ab_0
@@ -299,6 +320,7 @@ dependencies:
   - sqlite=3.46.1=h2466b09_0
   - stack_data=0.6.2=pyhd8ed1ab_0
   - svt-av1=2.2.1=he0c23c2_0
+  - sympy=1.13.2=pyh04b8f61_3
   - tbb=2021.13.0=hc790b64_0
   - tenacity=9.0.0=pyhd8ed1ab_0
   - terminado=0.18.1=pyh5737063_0
@@ -354,5 +376,5 @@ dependencies:
   - zstandard=0.23.0=py312h7606c53_1
   - zstd=1.5.6=h0ea2cb4_0
   - pip:
-    - oschmod==0.3.12
+      - oschmod==0.3.12
 prefix: C:\Users\BUCHHORM\Anaconda3\envs\weed

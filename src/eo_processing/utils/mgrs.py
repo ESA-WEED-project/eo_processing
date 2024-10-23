@@ -187,3 +187,16 @@ def get_MGRSid10_center(longitude: float, latitude: float) -> tuple[str, float, 
     MGRSid10 = calculate_MGRSid10(rounded_easting, rounded_northing, zone, band)
 
     return MGRSid10, round(center_lon, 7), round(center_lat, 7)
+
+def tileID_2_epsg(S2_tileID: str) -> int:
+    """
+    :param S2_tileID: String representing the S2 tile ID.
+    :return: EPSG code as an integer corresponding to the S2 tile ID.
+    """
+    northern = (S2_tileID[2] >= 'N')
+
+    # get EPSG number from zone number and northern
+    if northern:
+        return 32600 + int(S2_tileID[:2])
+    else:
+        return 32700 + int(S2_tileID[:2])

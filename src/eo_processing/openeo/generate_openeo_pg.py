@@ -4,7 +4,6 @@ import unittest
 import json
 from unittest.mock import MagicMock
 import openeo
-from eo_processing.openeo.preprocessing import ts_datacube_extraction
 from eo_processing.openeo.preprocessing import extract_S2_datacube, extract_S1_datacube, ts_datacube_extraction
 
 #%%

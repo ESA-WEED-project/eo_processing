@@ -5,6 +5,7 @@ some functions to retrieve the MGRS identifier for a coordinate and LL-2-UTM coo
 """
 
 import pyproj
+from math import trunc
 
 def latitude_to_zone_letter(latitude):
     """ Helper function to get the UTM zone letter
@@ -64,7 +65,7 @@ def LL_2_UTM(lon, lat, forced_epsg=None):
         NOTE: UTM zone can be forced by given the EPSG number (int) directly.
         Note2: if you force epsg the zone_letter will be a faked one - for
                northern_hemisphere = Z and for southern_hemisphere = A !!!!
-        Function uses rasterio built-in functions"""
+    """
 
     # calculate the UTM zone_number and zone_letter from lon, lat
     zone_number = latlon_to_zone_number(lon, lat)
@@ -102,7 +103,7 @@ def UTM_2_LL(easting, northing, zone_number, zone_letter):
         NOTE: if you are not sure of the zone_letter since you come
               from random UTM coordinates then set 'Z' for northern hemisphere
               and 'A' for southern hemisphere
-        Function uses rasterio built-in functions """
+    """
     # get source_crs
     northern = (zone_letter >= 'N')
     if northern:
@@ -121,7 +122,7 @@ def LL_2_MGRSid(lon, lat):
     """Function to calculate the MGRS identifier (used in
        Sentinel-2 tile naming and PROBAV_UTM tile naming)
        from a given longitude and latitude.
-       Fuction uses rasterio build-in functions """
+    """
     # first calculate UTM coordinates out of the LL
     easting, northing, zone, band = LL_2_UTM(lon, lat)
     # get the 100k subgrid letters
@@ -134,8 +135,55 @@ def UTM_2_MGRSid(easting, northing, zone_number, zone_letter):
     """Function to calculate the MGRS identifier (used in
        Sentinel-2 tile naming and PROBAV_UTM tile naming)
        from a given UTM coordinate tuple.
-       Fuction uses rasterio build-in functions """
+    """
     # run directly helper function
     letters_100kgrid = MGRS_100k_letters(easting, northing, zone_number)
 
     return str("{0:0>2}".format(zone_number) + zone_letter + letters_100kgrid)
+
+
+def floor_to_nearest_5(value: float) -> int:
+    """ Floor the given value to the nearest 10 and add 5.
+
+    :param value: The input floating point number to be floored.
+    :return: The nearest integer to the input value that is a multiple of 5.
+    """
+    return (trunc(value / 10.0) * 10) + 5
+
+
+def calculate_MGRSid10(easting: float, northing: float, zone: int, band: str) -> str:
+    """ Returns the 13-character Military Grid Reference System (MGRS) 10m identifier as a string.
+
+    :param easting: The easting value of the UTM coordinate.
+    :param northing: The northing value of the UTM coordinate.
+    :param zone: The UTM zone number.
+    :param band: The UTM latitude band letter.
+    :return: MGRSid10 string.
+    """
+    mgrs_id = UTM_2_MGRSid(easting, northing, zone, band)
+    formatted_easting = str(int(easting))[-5:-1]
+    formatted_northing = str(int(northing))[-5:-1]
+    return f'{mgrs_id}{formatted_easting}{formatted_northing}'
+
+
+def get_MGRSid10_center(longitude: float, latitude: float) -> tuple[str, float, float]:
+    """
+    Calculate the MGRSid10 Geolocation Index and center coordinates in latitude and longitude of the corresponding
+    reference point location in MGRS 10-meter grid.
+
+    :param longitude: Longitude of the location in decimal degrees.
+    :param latitude: Latitude of the location in decimal degrees.
+    :return: MGRSid10, center longitude, center latitude in decimal degrees.
+    """
+    try:
+        easting, northing, zone, band = LL_2_UTM(longitude, latitude)
+    except Exception:
+        raise ValueError('Given coordinates did not follow the required longitude, latitude standard.')
+
+    rounded_easting = floor_to_nearest_5(easting)
+    rounded_northing = floor_to_nearest_5(northing)
+    center_lon, center_lat = UTM_2_LL(rounded_easting, rounded_northing, zone, band)
+
+    MGRSid10 = calculate_MGRSid10(rounded_easting, rounded_northing, zone, band)
+
+    return MGRSid10, round(center_lon, 7), round(center_lat, 7)

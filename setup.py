@@ -48,6 +48,7 @@ setup(
         "scikit-image>=0.24.0"
         "onnx>=1.16.2",
         "catboost>=1.2.7",
-        "onnxruntime>=1.18.1"
+        "onnxruntime>=1.18.1",
+        "geojson>=3.1.0"
     ],
 )

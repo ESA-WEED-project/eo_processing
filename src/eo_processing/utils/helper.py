@@ -11,9 +11,6 @@ from shapely.geometry import box
 import importlib.resources as importlib_resources
 import eo_processing.resources
 from os.path import normpath
-import numpy as np
-import geojson
-
 
 def init_connection(provider: str) -> openeo.Connection :
     """ Warper to select the correct entry point based on the provider
@@ -122,12 +119,3 @@ def getUDFpath(UDFname: str = None) -> normpath:
         return normpath(file_path)
     except FileNotFoundError:
         raise FileNotFoundError(f'UDF {UDFname} does not exist')
-
-def bbox_of_PointsFeatureCollection(points_geometry):
-    # create an openEO spatial_extent dict from the GeoJSON FeatureCollection bbox of all points
-    coords = np.array(list(geojson.utils.coords(points_geometry)))
-    return {'east': coords[:,0].max(),
-            'south': coords[:,1].min(),
-            'west': coords[:,0].min(),
-            'north': coords[:,1].max(),
-            'crs': 'EPSG:4326'}

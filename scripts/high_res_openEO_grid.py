@@ -1,4 +1,4 @@
-from extentmapping.utils import laea20km_id_to_extent
+from eo_processing.utils import laea20km_id_to_extent
 import pandas as pd
 import geopandas as gdp
 from shapely.geometry import box

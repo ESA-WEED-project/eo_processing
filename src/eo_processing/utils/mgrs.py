@@ -6,8 +6,9 @@ some functions to retrieve the MGRS identifier for a coordinate and LL-2-UTM coo
 
 import pyproj
 from math import trunc
+from typing import Union
 
-def latitude_to_zone_letter(latitude):
+def latitude_to_zone_letter(latitude: float) -> Union[str, None]:
     """ Helper function to get the UTM zone letter
         from a given latitude """
     ZONE_LETTERS = "CDEFGHJKLMNPQRSTUVWXX"
@@ -16,7 +17,7 @@ def latitude_to_zone_letter(latitude):
     else:
         return None
 
-def latlon_to_zone_number(longitude, latitude):
+def latlon_to_zone_number(longitude: float, latitude: float) -> int:
     """ Helper function to get the UTM zone number
         from a given latitude and longitude """
     if 56 <= latitude < 64 and 3 <= longitude < 12:
@@ -34,7 +35,7 @@ def latlon_to_zone_number(longitude, latitude):
 
     return int((longitude + 180) / 6) + 1
 
-def MGRS_100k_letters(easting, northing, zone_number):
+def MGRS_100k_letters(easting: float, northing:float, zone_number: int) -> str:
     """ Helper function to get the MGRS 100 kilometer
         sub-grid letter for easting and northing value of UTM coordinate """
     ## ini some constants
@@ -55,7 +56,7 @@ def MGRS_100k_letters(easting, northing, zone_number):
     en = (_Le100k[(zone_number - 1) % 3][int(E) - 1] + _Ln100k[(zone_number - 1) % 2][int(N) % len(_Ln100k[0])])
     return en
 
-def MGRS_2Mil_letter(northing, zone_letter):
+def MGRS_2Mil_letter(northing: float, zone_letter: str) -> str:
     """ calculate the 2 million m northern identifier for the MGRS 100K square identification. The MGRS 100K square
         is repeated every 2 million meter in the northing and therefore not unique standalone.
 
@@ -69,14 +70,14 @@ def MGRS_2Mil_letter(northing, zone_letter):
     _Ln2million_south = 'αßΓδε'
 
     # get the correct 2mio letter from northing value
-    N, _ = divmod(northing, 2e6)
+    index = int(northing // 2e6)
 
     if zone_letter >= 'N':
-        return _Ln2million_north[int(N)]
+        return _Ln2million_north[index]
     else:
-        return _Ln2million_south[int(N)]
+        return _Ln2million_south[index]
 
-def LL_2_UTM(lon, lat, forced_epsg=None):
+def LL_2_UTM(lon: float, lat: float, forced_epsg: Union[int, None]=None) -> tuple[float, float, int, str]:
     """ Function to calculate the UTM coordinates plus
         zone_number and zone_letter from a given
         longitude and latitude.
@@ -113,7 +114,7 @@ def LL_2_UTM(lon, lat, forced_epsg=None):
 
     return target_easting, target_northing, zone_number, zone_letter
 
-def UTM_2_LL(easting, northing, zone_number, zone_letter):
+def UTM_2_LL(easting: float, northing: float, zone_number: int, zone_letter:str) -> tuple[float, float]:
     """ Function to calculate longitude and latitude coordinates
         from a given UTM eastin and northing value plus
         the UTM zone number and zone letter.
@@ -134,7 +135,7 @@ def UTM_2_LL(easting, northing, zone_number, zone_letter):
 
     return target_lon, target_lat
 
-def LL_2_MGRSid(lon, lat):
+def LL_2_MGRSid(lon: float, lat: float) -> str:
     """Function to calculate the MGRS identifier (used in
        Sentinel-2 tile naming and PROBAV_UTM tile naming)
        from a given longitude and latitude.
@@ -144,7 +145,7 @@ def LL_2_MGRSid(lon, lat):
 
     return UTM_2_MGRSid(easting, northing, zone_number, zone_letter)
 
-def UTM_2_MGRSid(easting, northing, zone_number, zone_letter):
+def UTM_2_MGRSid(easting: float, northing: float, zone_number: int, zone_letter: str) -> str:
     """Function to calculate the MGRS identifier (used in
        Sentinel-2 tile naming and PROBAV_UTM tile naming)
        from a given UTM coordinate tuple.
@@ -162,28 +163,42 @@ def floor_to_nearest_5(value: float) -> int:
     """
     return (trunc(value / 10.0) * 10) + 5
 
-def calculate_MGRSid10(easting: float, northing: float, zone_number: int, zone_letter: str) -> str:
+def UTM_2_MGRSid10(easting: float, northing: float, zone_number: int, zone_letter: str) -> str:
     """ Returns the 13-character Military Grid Reference System (MGRS) 10m identifier as a string.
 
     :param easting: The easting value of the UTM coordinate.
     :param northing: The northing value of the UTM coordinate.
-    :param zone: The UTM zone number.
-    :param band: The UTM latitude band letter.
+    :param zone_number: The UTM zone number.
+    :param zone_letter: The UTM latitude band letter.
     :return: MGRSid10 string.
     """
     mgrs_id = UTM_2_MGRSid(easting, northing, zone_number, zone_letter)
-    formatted_easting = str(int(easting))[-5:-1]
-    formatted_northing = str(int(northing))[-5:-1]
+    formatted_easting = f"{int(easting):05d}"[-5:-1]
+    formatted_northing = f"{int(northing):05d}"[-5:-1]
     return f'{mgrs_id}{formatted_easting}{formatted_northing}'
 
-def get_MGRSid10_center(longitude: float, latitude: float) -> tuple[str, float, float]:
+def LL_2_MGRSid10(longitude: float, latitude: float) -> str:
+    """ Returns the 13-character Military Grid Reference System (MGRS) 10m identifier as a string.
+
+    :param longitude: Longitude of the point in decimal degrees
+    :param latitude: Latitude of the point in decimal degrees
+    :return: MGRSid10 string
     """
-    Calculate the MGRSid10 Geolocation Index and center coordinates in latitude and longitude of the corresponding
+    try:
+        easting, northing, zone_number, zone_letter = LL_2_UTM(longitude, latitude)
+    except Exception:
+        raise ValueError('Given coordinates did not follow the required longitude, latitude standard.')
+
+    return UTM_2_MGRSid10(easting, northing, zone_number, zone_letter)
+
+def get_MGRSid10_centerLL(longitude: float, latitude: float) -> tuple[float, float]:
+    """
+    Calculate the MGRSid10 Geolocation center coordinates in latitude and longitude of the corresponding
     reference point location in MGRS 10-meter grid.
 
     :param longitude: Longitude of the location in decimal degrees.
     :param latitude: Latitude of the location in decimal degrees.
-    :return: MGRSid10, center longitude, center latitude in decimal degrees.
+    :return: center longitude, center latitude in decimal degrees.
     """
     try:
         easting, northing, zone_number, zone_letter = LL_2_UTM(longitude, latitude)
@@ -194,9 +209,7 @@ def get_MGRSid10_center(longitude: float, latitude: float) -> tuple[str, float, 
     rounded_northing = floor_to_nearest_5(northing)
     center_lon, center_lat = UTM_2_LL(rounded_easting, rounded_northing, zone_number, zone_letter)
 
-    MGRSid10 = calculate_MGRSid10(rounded_easting, rounded_northing, zone_number, zone_letter)
-
-    return MGRSid10, round(center_lon, 7), round(center_lat, 7)
+    return round(center_lon, 7), round(center_lat, 7)
 
 def UTM_2_grid100id(easting: float, northing: float, zone_number: int, zone_letter: str) -> str:
     """ The grid100id represents a unique, non-overlapping UTM 100x100km tiling grid for processing in openEO. It differs
@@ -241,16 +254,19 @@ def UTM_2_grid20id(easting: float, northing: float, zone_number: int, zone_lette
     :param zone_letter: The zone letter of the UTM coordinate.
     :return: A string representing the 20k grid ID.
     """
-    # run directly helper function
+    # run directly helper function - get the grid100id
     grid100id = UTM_2_grid100id(easting, northing, zone_number, zone_letter)
 
-    # get the row / column number for 20k subgrid in MGRS_100k_grid
-    formatted_easting = str(int(easting))[-5:]
-    formatted_northing = str(int(northing))[-5:]
-    e = int(divmod(int(formatted_easting), 20000)[0])
-    n = int(divmod(int(formatted_northing), 20000)[0])
+    ## get the row / column number for 20k subgrid in MGRS_100k_grid
+    # Calculate the remaining component within the 100k grid interval
+    formatted_easting = easting % 100000
+    formatted_northing = northing % 100000
 
-    return grid100id + str(e) + str(n)
+    # Calculate the subgrid indices (0-4) within the 20x20 km grid
+    e = int(formatted_easting // 20000)
+    n = int(formatted_northing // 20000)
+
+    return f"{grid100id}{e}{n}"
 
 def LL_2_grid20id(lon: float, lat: float) -> str:
     """ warper around UTM_2_grid20id function to start from lat/lon coordinate.
@@ -263,22 +279,22 @@ def LL_2_grid20id(lon: float, lat: float) -> str:
     easting, northing, zone_number, zone_letter = LL_2_UTM(lon, lat)
     return UTM_2_grid20id(easting, northing, zone_number, zone_letter)
 
-def grid20id_2_epsg(grid20id: str) -> int:
-    """ Converts the grid20id to the corresponding EPSG code of this 20x20km UTM grid.
+def gridID_2_epsg(gridid: str) -> int:
+    """ Converts the grid100id or grid20id to the corresponding EPSG code of this 100x100km or 20x20km UTM grid.
 
-    :param grid20id: A string representing the grid20id.
+    :param gridid: A string representing the grid20id or grid100id.
     :return: The corresponding EPSG code as an integer.
     """
-    northern = (grid20id[2] > 'ε')
+    northern = (gridid[2] > 'ε')
 
     # get EPSG number from zone number and northern
     if northern:
-        return 32600 + int(grid20id[:2])
+        return 32600 + int(gridid[:2])
     else:
-        return 32700 + int(grid20id[:2])
+        return 32700 + int(gridid[:2])
 
-def tileID_2_epsg(MGRSid: str) -> int:
-    """
+def MGRSid_2_epsg(MGRSid: str) -> int:
+    """ Converts the MGRSid or MGRSid10 to the corresponding EPSG code of this 100x100km or 10x10m UTM grid.
     :param MGRSid: String representing the MGRS tile ID (or S2 tile id).
     :return: EPSG code as an integer corresponding to tile ID.
     """

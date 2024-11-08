@@ -5,8 +5,10 @@ some functions to retrieve the MGRS identifier for a coordinate and LL-2-UTM coo
 """
 
 import pyproj
+from math import trunc
+from typing import Union
 
-def latitude_to_zone_letter(latitude):
+def latitude_to_zone_letter(latitude: float) -> Union[str, None]:
     """ Helper function to get the UTM zone letter
         from a given latitude """
     ZONE_LETTERS = "CDEFGHJKLMNPQRSTUVWXX"
@@ -15,8 +17,7 @@ def latitude_to_zone_letter(latitude):
     else:
         return None
 
-
-def latlon_to_zone_number(longitude, latitude):
+def latlon_to_zone_number(longitude: float, latitude: float) -> int:
     """ Helper function to get the UTM zone number
         from a given latitude and longitude """
     if 56 <= latitude < 64 and 3 <= longitude < 12:
@@ -34,8 +35,7 @@ def latlon_to_zone_number(longitude, latitude):
 
     return int((longitude + 180) / 6) + 1
 
-
-def MGRS_100k_letters(easting, northing, zone):
+def MGRS_100k_letters(easting: float, northing:float, zone_number: int) -> str:
     """ Helper function to get the MGRS 100 kilometer
         sub-grid letter for easting and northing value of UTM coordinate """
     ## ini some constants
@@ -53,18 +53,38 @@ def MGRS_100k_letters(easting, northing, zone):
     # repeating every 3rd zone (note -1 because eastings start
     # at 166e3 due to 500km false origin)
     # northing sub-grid letters in even zones are A-V, in odd zones are F-E
-    en = (_Le100k[(zone - 1) % 3][int(E) - 1] + _Ln100k[(zone - 1) % 2][int(N) % len(_Ln100k[0])])
+    en = (_Le100k[(zone_number - 1) % 3][int(E) - 1] + _Ln100k[(zone_number - 1) % 2][int(N) % len(_Ln100k[0])])
     return en
 
+def MGRS_2Mil_letter(northing: float, zone_letter: str) -> str:
+    """ calculate the 2 million m northern identifier for the MGRS 100K square identification. The MGRS 100K square
+        is repeated every 2 million meter in the northing and therefore not unique standalone.
 
-def LL_2_UTM(lon, lat, forced_epsg=None):
+    :param northing: int, URM northing value of the coordinate
+    :param zone_letter: string, UTM zone letter of the coordinate representing the GZL
+    :return: string, greek letter representing the 2 million meter northern identifier
+    """
+    ## ini constants
+    # 2 million northing grid letters for northern & southern hemisphere (ordered from south to north)
+    _Ln2million_north = 'λπστφ'
+    _Ln2million_south = 'αßΓδε'
+
+    # get the correct 2mio letter from northing value
+    index = int(northing // 2e6)
+
+    if zone_letter >= 'N':
+        return _Ln2million_north[index]
+    else:
+        return _Ln2million_south[index]
+
+def LL_2_UTM(lon: float, lat: float, forced_epsg: Union[int, None]=None) -> tuple[float, float, int, str]:
     """ Function to calculate the UTM coordinates plus
         zone_number and zone_letter from a given
         longitude and latitude.
         NOTE: UTM zone can be forced by given the EPSG number (int) directly.
         Note2: if you force epsg the zone_letter will be a faked one - for
                northern_hemisphere = Z and for southern_hemisphere = A !!!!
-        Function uses rasterio built-in functions"""
+    """
 
     # calculate the UTM zone_number and zone_letter from lon, lat
     zone_number = latlon_to_zone_number(lon, lat)
@@ -94,15 +114,14 @@ def LL_2_UTM(lon, lat, forced_epsg=None):
 
     return target_easting, target_northing, zone_number, zone_letter
 
-
-def UTM_2_LL(easting, northing, zone_number, zone_letter):
+def UTM_2_LL(easting: float, northing: float, zone_number: int, zone_letter:str) -> tuple[float, float]:
     """ Function to calculate longitude and latitude coordinates
         from a given UTM eastin and northing value plus
         the UTM zone number and zone letter.
         NOTE: if you are not sure of the zone_letter since you come
               from random UTM coordinates then set 'Z' for northern hemisphere
               and 'A' for southern hemisphere
-        Function uses rasterio built-in functions """
+    """
     # get source_crs
     northern = (zone_letter >= 'N')
     if northern:
@@ -116,26 +135,173 @@ def UTM_2_LL(easting, northing, zone_number, zone_letter):
 
     return target_lon, target_lat
 
-
-def LL_2_MGRSid(lon, lat):
+def LL_2_MGRSid(lon: float, lat: float) -> str:
     """Function to calculate the MGRS identifier (used in
        Sentinel-2 tile naming and PROBAV_UTM tile naming)
        from a given longitude and latitude.
-       Fuction uses rasterio build-in functions """
+    """
     # first calculate UTM coordinates out of the LL
-    easting, northing, zone, band = LL_2_UTM(lon, lat)
-    # get the 100k subgrid letters
-    letters_100kgrid = MGRS_100k_letters(easting, northing, zone)
+    easting, northing, zone_number, zone_letter = LL_2_UTM(lon, lat)
 
-    return str("{0:0>2}".format(zone) + band + letters_100kgrid)
+    return UTM_2_MGRSid(easting, northing, zone_number, zone_letter)
 
-
-def UTM_2_MGRSid(easting, northing, zone_number, zone_letter):
+def UTM_2_MGRSid(easting: float, northing: float, zone_number: int, zone_letter: str) -> str:
     """Function to calculate the MGRS identifier (used in
        Sentinel-2 tile naming and PROBAV_UTM tile naming)
        from a given UTM coordinate tuple.
-       Fuction uses rasterio build-in functions """
+    """
     # run directly helper function
     letters_100kgrid = MGRS_100k_letters(easting, northing, zone_number)
 
     return str("{0:0>2}".format(zone_number) + zone_letter + letters_100kgrid)
+
+def floor_to_nearest_5(value: float) -> int:
+    """ Floor the given value to the nearest 10 and add 5.
+
+    :param value: The input floating point number to be floored.
+    :return: The nearest integer to the input value that is a multiple of 5.
+    """
+    return (trunc(value / 10.0) * 10) + 5
+
+def UTM_2_MGRSid10(easting: float, northing: float, zone_number: int, zone_letter: str) -> str:
+    """ Returns the 13-character Military Grid Reference System (MGRS) 10m identifier as a string.
+
+    :param easting: The easting value of the UTM coordinate.
+    :param northing: The northing value of the UTM coordinate.
+    :param zone_number: The UTM zone number.
+    :param zone_letter: The UTM latitude band letter.
+    :return: MGRSid10 string.
+    """
+    mgrs_id = UTM_2_MGRSid(easting, northing, zone_number, zone_letter)
+    formatted_easting = f"{int(easting):05d}"[-5:-1]
+    formatted_northing = f"{int(northing):05d}"[-5:-1]
+    return f'{mgrs_id}{formatted_easting}{formatted_northing}'
+
+def LL_2_MGRSid10(longitude: float, latitude: float) -> str:
+    """ Returns the 13-character Military Grid Reference System (MGRS) 10m identifier as a string.
+
+    :param longitude: Longitude of the point in decimal degrees
+    :param latitude: Latitude of the point in decimal degrees
+    :return: MGRSid10 string
+    """
+    try:
+        easting, northing, zone_number, zone_letter = LL_2_UTM(longitude, latitude)
+    except Exception:
+        raise ValueError('Given coordinates did not follow the required longitude, latitude standard.')
+
+    return UTM_2_MGRSid10(easting, northing, zone_number, zone_letter)
+
+def get_MGRSid10_centerLL(longitude: float, latitude: float) -> tuple[float, float]:
+    """
+    Calculate the MGRSid10 Geolocation center coordinates in latitude and longitude of the corresponding
+    reference point location in MGRS 10-meter grid.
+
+    :param longitude: Longitude of the location in decimal degrees.
+    :param latitude: Latitude of the location in decimal degrees.
+    :return: center longitude, center latitude in decimal degrees.
+    """
+    try:
+        easting, northing, zone_number, zone_letter = LL_2_UTM(longitude, latitude)
+    except Exception:
+        raise ValueError('Given coordinates did not follow the required longitude, latitude standard.')
+
+    rounded_easting = floor_to_nearest_5(easting)
+    rounded_northing = floor_to_nearest_5(northing)
+    center_lon, center_lat = UTM_2_LL(rounded_easting, rounded_northing, zone_number, zone_letter)
+
+    return round(center_lon, 7), round(center_lat, 7)
+
+def UTM_2_grid100id(easting: float, northing: float, zone_number: int, zone_letter: str) -> str:
+    """ The grid100id represents a unique, non-overlapping UTM 100x100km tiling grid for processing in openEO. It differs
+        from the MGRS system that the Grid Zone Designation letter (third digit) is a greek letter representing the
+        2 million meter northern subgrid to get unique 100k square identifiers. This is needed since in the MGRS system
+        the GZD_letter is based on longitude and therefore can split 100k grids cells into two names.
+
+    :param easting: The easting value in meters for the UTM coordinate.
+    :param northing: The northing value in meters for the UTM coordinate.
+    :param zone_number: The UTM zone number.
+    :param zone_letter: The UTM zone letter.
+    :return: A string representing the 100-km grid square identifier in UTM processign grid.
+    """
+    # run directly helper function
+    letters_100kgrid = MGRS_100k_letters(easting, northing, zone_number)
+    letter_2mgrid = MGRS_2Mil_letter(northing, zone_letter)
+
+    return str("{0:0>2}".format(zone_number) + letter_2mgrid + letters_100kgrid)
+
+def LL_2_grid100id(lon: float, lat: float) -> str:
+    """ warper around UTM_2_grid100id function to start from lat/lon coordinate.
+
+    :param lon: Longitude in decimal degrees
+    :param lat: Latitude in decimal degrees
+    :return: Grid 100 ID based on the provided longitude and latitude
+    """
+    # first calculate UTM coordinates out of the LL
+    easting, northing, zone_number, zone_letter = LL_2_UTM(lon, lat)
+    return UTM_2_grid100id(easting, northing, zone_number, zone_letter)
+
+def UTM_2_grid20id(easting: float, northing: float, zone_number: int, zone_letter: str) -> str:
+    """ The grid20id represents a unique, non-overlapping UTM 20x20km tiling grid for processing in openEO. It differs
+        from the MGRS system that the Grid Zone Designation letter (third digit) is a greek letter representing the
+        2 million meter northern subgrid to get unique 100k square identifiers. This is needed since in the MGRS system
+        the GZD_letter is based on longitude and therefore can split 100k grids cells into two names.
+        The last two digits in the grid20id represent the eating and northing position of the 20x20km subgrid in the
+        100k square grid (00 representing the lower left 20x20km subgrid AND 44 the upper right 20x20km subgrid).
+
+    :param easting: The easting value of the UTM coordinate in meters.
+    :param northing: The northing value of the UTM coordinate in meters.
+    :param zone_number: The zone number of the UTM coordinate.
+    :param zone_letter: The zone letter of the UTM coordinate.
+    :return: A string representing the 20k grid ID.
+    """
+    # run directly helper function - get the grid100id
+    grid100id = UTM_2_grid100id(easting, northing, zone_number, zone_letter)
+
+    ## get the row / column number for 20k subgrid in MGRS_100k_grid
+    # Calculate the remaining component within the 100k grid interval
+    formatted_easting = easting % 100000
+    formatted_northing = northing % 100000
+
+    # Calculate the subgrid indices (0-4) within the 20x20 km grid
+    e = int(formatted_easting // 20000)
+    n = int(formatted_northing // 20000)
+
+    return f"{grid100id}{e}{n}"
+
+def LL_2_grid20id(lon: float, lat: float) -> str:
+    """ warper around UTM_2_grid20id function to start from lat/lon coordinate.
+
+    :param lon: Longitude in decimal degrees
+    :param lat: Latitude in decimal degrees
+    :return: Grid 20 ID based on the provided longitude and latitude
+    """
+    # first calculate UTM coordinates out of the LL
+    easting, northing, zone_number, zone_letter = LL_2_UTM(lon, lat)
+    return UTM_2_grid20id(easting, northing, zone_number, zone_letter)
+
+def gridID_2_epsg(gridid: str) -> int:
+    """ Converts the grid100id or grid20id to the corresponding EPSG code of this 100x100km or 20x20km UTM grid.
+
+    :param gridid: A string representing the grid20id or grid100id.
+    :return: The corresponding EPSG code as an integer.
+    """
+    northern = (gridid[2] > 'ε')
+
+    # get EPSG number from zone number and northern
+    if northern:
+        return 32600 + int(gridid[:2])
+    else:
+        return 32700 + int(gridid[:2])
+
+def MGRSid_2_epsg(MGRSid: str) -> int:
+    """ Converts the MGRSid or MGRSid10 to the corresponding EPSG code of this 100x100km or 10x10m UTM grid.
+    :param MGRSid: String representing the MGRS tile ID (or S2 tile id).
+    :return: EPSG code as an integer corresponding to tile ID.
+    """
+    northern = (MGRSid[2] >= 'N')
+
+    # get EPSG number from zone number and northern
+    if northern:
+        return 32600 + int(MGRSid[:2])
+    else:
+        return 32700 + int(MGRSid[:2])

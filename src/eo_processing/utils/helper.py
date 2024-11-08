@@ -12,9 +12,6 @@ import importlib.resources as importlib_resources
 import eo_processing.resources
 from os.path import normpath
 
-from eo_processing.openeo.generate_openeo_pg import connection
-
-
 def init_connection(provider: str) -> openeo.Connection :
     """ Warper to select the correct entry point based on the provider
 

@@ -39,7 +39,7 @@ setup(
     zip_safe=True,
     install_requires=[
         "rasterio>=1.3.11",
-        "openeo>=0.31.0",
+        "openeo>=0.34.0",
         "geopandas>=1.0.1",
         "notebook>=7.2.2",
         "matplotlib>=3.9.2",
@@ -48,6 +48,9 @@ setup(
         "scikit-image>=0.24.0"
         "onnx>=1.16.2",
         "catboost>=1.2.7",
-        "onnxruntime>=1.18.1"
+        "onnxruntime>=1.18.1",
+        "geojson>=3.1.0",
+        "pyarrow>=17.0.0",
+        "fastparquet>=2024.5.0"
     ],
 )

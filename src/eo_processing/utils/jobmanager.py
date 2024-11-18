@@ -8,6 +8,7 @@ from openeo.extra.job_management import MultiBackendJobManager,_format_usage_sta
 from openeo.rest import OpenEoApiError
 import pandas as pd
 from typing import Optional
+import openeo
 
 
 logger = logging.getLogger(__name__)
@@ -101,7 +102,7 @@ class WeedJobManager(MultiBackendJobManager):
 
         self.ensure_job_dir_exists(job.job_id)
 
-        with open(metadata_path, "w") as f:
+        with open(metadata_path, "w", encoding='utf8') as f:
             json.dump(job_metadata, f, ensure_ascii=False)
 
         results = job.get_results()
@@ -233,3 +234,17 @@ def is_notebook() -> bool:
             return False  # Other type (?)
     except NameError:
         return False      # Probably standard Python interpreter
+
+def add_cost_to_csv(
+    connection: openeo.Connection,
+    file_path: str,
+):
+    df = pd.read_file(file_path)
+    for i, row in df.iterrows():
+        job = connection.job(row["id"])
+        try:
+            cost = job.describe_job()["costs"]
+        except KeyError:
+            cost = None
+        df.loc[i, "cost"] = cost
+    df.to_csv(file_path)

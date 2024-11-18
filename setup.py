@@ -51,6 +51,7 @@ setup(
         "onnxruntime>=1.18.1",
         "geojson>=3.1.0",
         "pyarrow>=17.0.0",
-        "fastparquet>=2024.5.0"
+        "fastparquet>=2024.5.0",
+        "pydrive2>=1.21.1"
     ],
 )

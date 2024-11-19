@@ -52,6 +52,7 @@ setup(
         "geojson>=3.1.0",
         "pyarrow>=17.0.0",
         "fastparquet>=2024.5.0",
-        "pydrive2>=1.21.1"
+        "pydrive2>=1.21.1",
+        "hvac>=2.3.0"
     ],
 )

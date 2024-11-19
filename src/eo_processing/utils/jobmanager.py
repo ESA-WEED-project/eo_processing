@@ -2,9 +2,10 @@ import os
 import json
 import logging
 from openeo.util import rfc3339
+import requests
 from pathlib import Path
 import collections
-from openeo.extra.job_management import MultiBackendJobManager,_format_usage_stat, JobDatabaseInterface
+from openeo.extra.job_management import MultiBackendJobManager,_format_usage_stat, JobDatabaseInterface, ignore_connection_errors
 from openeo.rest import OpenEoApiError
 import pandas as pd
 from typing import Optional
@@ -15,9 +16,11 @@ logger = logging.getLogger(__name__)
 
 class WeedJobManager(MultiBackendJobManager):
 
-    def __init__(self, poll_sleep=5, root_dir='.', viz=False):
+    def __init__(self, poll_sleep=5, root_dir='.', viz=False, max_attempts = 3):
         super().__init__(poll_sleep=poll_sleep, root_dir=root_dir)
         self.viz = viz
+        self.max_attempts = max_attempts
+
 
     @staticmethod
     def _normalize_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -42,7 +45,8 @@ class WeedJobManager(MultiBackendJobManager):
             ("memory", None),
             ("duration", None),
             ("backend_name", None),
-            ("cost", None)
+            ("cost", None),
+            ("attempt",0)
         ]
         new_columns = {col: val for (col, val) in required_with_default if col not in df.columns}
         df = df.assign(**new_columns)
@@ -83,39 +87,48 @@ class WeedJobManager(MultiBackendJobManager):
 
         if len(error_logs) > 0:
             self.ensure_job_dir_exists(job.job_id)
-            error_log_path.write_text(json.dumps(error_logs, indent=2))
+            with open(error_log_path, "w", encoding='utf8') as f:
+                json.dump(error_logs, f, ensure_ascii=False, indent=2)
 
         else:
             error_log_path.write_text(
                 "Couldn't find any errors in the logs. Please check manually.")
 
-        job_graph_path.write_text(
-            json.dumps(job_metadata, indent=2))
+        with open(job_graph_path, "w", encoding='utf8') as f:
+            json.dump(job_metadata, f, ensure_ascii=False, indent=2)
 
     def on_job_done(self, job, row):
         job_metadata = job.describe()
+
         job_dir = self.get_job_dir(job.job_id)
         title = os.path.splitext(job_metadata['title'])[0]
+        file_ext = job_metadata['process']['process_graph']['saveresult1']['arguments']['format'].lower()
         metadata_path = self.get_job_metadata_path(job.job_id,title)
         job_graph_path = self.get_job_graph_path(job.job_id,title)
         error_log_path = self.get_error_log_path(job.job_id, title)
 
         self.ensure_job_dir_exists(job.job_id)
 
-        with open(metadata_path, "w", encoding='utf8') as f:
-            json.dump(job_metadata, f, ensure_ascii=False)
+        with open(job_graph_path, "w", encoding='utf8') as f:
+            json.dump(job_metadata, f, ensure_ascii=False, indent=2)
 
         results = job.get_results()
 
-        results.download_files(job_dir, include_stac_metadata=False)
+        #fix prefix problem for non netcdf or GTiff files
+        if file_ext in ['netcdf','gtiff']:
+            results.download_files(job_dir, include_stac_metadata=False)
+        else :
+            results.download_file(job_dir / f"{title}.{file_ext}", name=f"timeseries.{file_ext}")
 
-        job_graph_path.write_text(json.dumps(job_metadata, indent=2))
+        with open(metadata_path, "w", encoding='utf8') as f:
+            json.dump(results.get_metadata(), f, ensure_ascii=False, indent=2)
 
         logs = job.logs(level="error")
 
         if len(logs) > 0:
             self.ensure_job_dir_exists(job.job_id)
-            error_log_path.write_text(json.dumps(logs, indent=2))
+            with open(error_log_path, "w", encoding='utf8') as f:
+                json.dump(logs, f, ensure_ascii=False, indent=2)
 
         return row
 
@@ -127,9 +140,6 @@ class WeedJobManager(MultiBackendJobManager):
         stats = stats if stats is not None else collections.defaultdict(int)
 
         active = job_db.get_by_status(statuses=["created", "queued", "running"])
-
-        if self.viz:
-            self.create_viz_status(job_db)
 
         for i in active.index:
             job_id = active.loc[i, "id"]
@@ -156,7 +166,9 @@ class WeedJobManager(MultiBackendJobManager):
                 if previous_status != "error" and new_status == "error":
                     stats["job failed"] += 1
                     self.on_job_error(the_job, active.loc[i])
-                    new_status = "not_started"
+                    if active.loc[i, "attempt"] <= self.max_attempts:
+                        active.loc[i, "attempt"] += 1
+                        new_status = "not_started"
 
                 if previous_status in {"created", "queued"} and new_status == "running":
                     stats["job started running"] += 1
@@ -165,7 +177,9 @@ class WeedJobManager(MultiBackendJobManager):
                 if new_status == "canceled":
                     stats["job canceled"] += 1
                     self.on_job_cancel(the_job, active.loc[i])
-                    new_status = "not_started"
+                    if active.loc[i, "attempt"] <= self.max_attempts:
+                        active.loc[i, "attempt"] += 1
+                        new_status = "not_started"
 
                 if self._cancel_running_job_after and new_status == "running":
                     self._cancel_prolonged_job(the_job, active.loc[i])
@@ -185,6 +199,81 @@ class WeedJobManager(MultiBackendJobManager):
         stats["job_db persist"] += 1
         job_db.persist(active)
 
+        if self.viz:
+            self.create_viz_status(job_db)
+
+    def _launch_job(self, start_job, df, i, backend_name, stats: Optional[dict] = None):
+        """Helper method for launching jobs
+
+        :param start_job:
+            A callback which will be invoked with the row of the dataframe for which a job should be started.
+            This callable should return a :py:class:`openeo.rest.job.BatchJob` object.
+
+            See also:
+            `MultiBackendJobManager.run_jobs` for the parameters and return type of this callable
+
+            Even though it is called here in `_launch_job` and that is where the constraints
+            really come from, the public method `run_jobs` needs to document `start_job` anyway,
+            so let's avoid duplication in the docstrings.
+
+        :param df:
+            DataFrame that specifies the jobs, and tracks the jobs' statuses.
+
+        :param i:
+            index of the job's row in dataframe df
+
+        :param backend_name:
+            name of the backend that will execute the job.
+        """
+        stats = stats if stats is not None else collections.defaultdict(int)
+
+        df.loc[i, "backend_name"] = backend_name
+        row = df.loc[i]
+        try:
+            logger.info(f"Starting job on backend {backend_name} for {row.to_dict()}")
+            connection = self._get_connection(backend_name, resilient=True)
+
+            stats["start_job call"] += 1
+            job = start_job(
+                row=row,
+                connection_provider=self._get_connection,
+                connection=connection,
+                provider=backend_name,
+            )
+        except requests.exceptions.ConnectionError as e:
+            logger.warning(f"Failed to start job for {row.to_dict()}", exc_info=True)
+            df.loc[i, "status"] = "start_failed"
+            if df.loc[i, "attempt"] <= self.max_attempts:
+                df.loc[i, "attempt"] += 1
+                df.loc[i, "status"] = "not_started"
+            stats["start_job error"] += 1
+        else:
+            df.loc[i, "start_time"] = rfc3339.utcnow()
+            if job:
+                df.loc[i, "id"] = job.job_id
+                with ignore_connection_errors(context="get status"):
+                    status = job.status()
+                    stats["job get status"] += 1
+                    df.loc[i, "status"] = status
+                    if status == "created":
+                        # start job if not yet done by callback
+                        try:
+                            job.start()
+                            stats["job start"] += 1
+                            df.loc[i, "status"] = job.status()
+                            stats["job get status"] += 1
+                        except OpenEoApiError as e:
+                            logger.error(e)
+                            df.loc[i, "status"] = "start_failed"
+                            if df.loc[i, "attempt"] <= self.max_attempts:
+                                df.loc[i, "attempt"] += 1
+                                df.loc[i, "status"] = "not_started"
+                            stats["job start error"] += 1
+            else:
+                # you can skip jobs before sending to openeo: eg some local processing needs to be finished before
+                # being able to process
+                df.loc[i, "status"] = "skipped"
+                stats["start_job skipped"] += 1
 
     def create_viz_status(self, job_db : JobDatabaseInterface ):
         import matplotlib.pyplot as plt

@@ -25,8 +25,8 @@ STEPS
 
 import geopandas as gpd
 import pandas as pd
-from shapely.geometry import box
-from shapely.ops import unary_union
+import math
+from eo_processing.utils.mgrs import UTM_2_grid20id
 import os
 
 # standard paths
@@ -39,6 +39,8 @@ gdf_utm = gpd.read_file(path_utm)
 
 # loop over all UTM zones
 lZones = gdf_utm.name.unique().tolist()
+lFiles = []
+
 for UTMzone in lZones:
     print(f'processing zone: {UTMzone}')
     # get the UTM zone polygon and the EPSG
@@ -49,7 +51,7 @@ for UTMzone in lZones:
 
     gdf_zone = gdf_utm[gdf_utm.name == UTMzone].copy()
 
-    # get the land masses in correct epsg
+    # get the land masses
     gdf_land = gpd.read_file(path_land)
     gdf_land = gdf_land.clip(gdf_zone)
     gdf_land = gdf_land.dissolve()
@@ -57,28 +59,56 @@ for UTMzone in lZones:
     # bring all to correct epsg
     gdf_zone = gdf_zone.to_crs(epsg=epsg)
     gdf_land = gdf_land.to_crs(epsg=epsg)
+    
+    # short cut if the gdf_land is empty
+    if gdf_land.empty:
+        continue
 
     # now we load the basic 20x20km grid and set the crs to the correct epsg
     gdf_grid = gpd.read_file(path_grid).set_crs(epsg=epsg, allow_override=True)
 
     # clipping
     gdf_grid = gdf_grid.clip(gdf_zone)
-    gdf_grid = gdf_grid.clip(gdf_land)
+    
+    # intersecting
+    gdf_grid = gdf_grid[gdf_grid.intersects(gdf_land.union_all(method='coverage'))]
 
     # name the 20x20 grid cells with the grid20id
-    pass
+    if str(epsg)[2] == '6':
+        zone_letter = 'Z'
+    else:
+        zone_letter = 'A'
+
+    gdf_grid['grid20id'] = gdf_grid.apply(
+        lambda row: UTM_2_grid20id(row['geometry'].centroid.x, row['geometry'].centroid.y, int(str(epsg)[-2:]), zone_letter), axis=1, result_type='expand')
 
     # add the bbox dict for openEO
-    pass
+    gdf_grid['bbox_dict'] = gdf_grid.apply(
+        lambda row: {
+            'west': math.floor(row.geometry.bounds[0] / 100) * 100.,
+            'south': math.floor(row.geometry.bounds[1] / 100) * 100.,
+            'east': math.ceil(row.geometry.bounds[2] / 100) * 100.,
+            'north': math.ceil(row.geometry.bounds[3] / 100) * 100.,
+            'epsg': epsg
+        }, axis=1
+    )
 
     # save to disk
-    gdf_grid.to_file(
+    gdf_grid[['grid20id', 'bbox_dict', 'geometry']].to_file(
         os.path.normpath(
             r'C:\Users\BUCHHORM\Downloads\global_20x20km_opneEO_processing_grid\results\UTM_zone_{0}.gpkg'.format(
                 epsg)))
+    lFiles.append(os.path.normpath(
+        r'C:\Users\BUCHHORM\Downloads\global_20x20km_opneEO_processing_grid\results\UTM_zone_{0}.gpkg'.format(epsg)))
 
-    print()
 
+# load all geopackages which were produced and convert to EPSG:4326 and merge them into one GeoDataFrame
+result = gpd.GeoDataFrame(columns=['grid20id', 'bbox_dict', 'geometry'], geometry='geometry', crs='EPSG:4326')
 
+for file in lFiles:
+    gdf_tmp = gpd.read_file(file)
+    gdf_tmp = gdf_tmp.to_crs(epsg=4326)
+    result = pd.concat([result, gdf_tmp], ignore_index=True)
 
-print()
+# save final result to disk
+result.to_file(os.path.normpath(r'C:\Users\BUCHHORM\Downloads\global_20x20km_opneEO_processing_grid\final_global_grid.gpkg'))

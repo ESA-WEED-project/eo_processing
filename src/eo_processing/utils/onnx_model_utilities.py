@@ -3,7 +3,7 @@ import os
 import onnx
 from catboost import CatBoostClassifier
 from openeo.udf import inspect
-from eo_processing.utils.external_dependency_utilities import process_model_file_with_lock
+from eo_processing.utils.external_dependency_utilities import download_file_with_lock
 
 # Function to load the CatBoost model
 def load_catboost_model(catboost_model_path: str):
@@ -136,7 +136,7 @@ def get_training_features_from_model(url: str):
     and extract input/output features.
     """
     # Step 1: Process the model file
-    onnx_model_path = process_model_file_with_lock(url)
+    onnx_model_path = download_file_with_lock(url)
     
     # Step 2: Extract metadata from the ONNX model
     try:

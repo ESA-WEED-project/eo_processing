@@ -1,26 +1,21 @@
 # /// script
 # dependencies = [
 # "filelock",
+# "onnxruntime",
 # ]
 # ///
 
-import sys
 import os
-
-# The onnx_deps folder contains the extracted contents of the dependencies archive provided in the job options
-sys.path.append("onnx_deps") 
-import onnxruntime as ort
-
-import xarray as xr
-import numpy as np
 import functools
-
 import requests
 import tempfile
+import onnxruntime as ort
+import xarray as xr
+import numpy as np
 import shutil
-import zipfile
+from urllib.parse import urlparse
 from openeo.udf import inspect
-from typing import Dict, Optional
+from typing import Dict
 from filelock import FileLock
 
 
@@ -34,16 +29,21 @@ def is_onnx_file(file_path: str) -> bool:
     
 def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: str = '/tmp/cache') -> str:
     """Download a file with concurrency protection and store it temporarily."""
-    file_name = os.path.basename(url)
+    
+    # Extract the file name from the URL (e.g., "model_1.onnx")
+    file_name = os.path.basename(urlparse(url).path)
+    
+    # Construct the file path within the cache directory (e.g., '/tmp/cache/model.onnx')
     file_path = os.path.join(cache_dir, file_name)
+    
+    # Lock file to prevent concurrent downloads
     lock_path = file_path + '.download.lock'
-
     lock = FileLock(lock_path)
     
     with lock:
         # Check if the file already exists in the cache
         if os.path.exists(file_path):
-            inspect(message=f"File {file_path} already exists in cache.")
+            print(f"File {file_path} already exists in cache.")
             return file_path
         
         try:
@@ -51,7 +51,7 @@ def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: st
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".onnx")
             temp_file_path = temp_file.name  # Store the temporary file path
             
-            inspect(message=f"Downloading file from {url}...")
+            print(f"Downloading file from {url}...")
 
             response = requests.get(url, stream=True)
             if response.status_code == 200:
@@ -63,13 +63,12 @@ def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: st
                         if file_size > max_file_size_mb * 1024 * 1024:
                             raise ValueError(f"Downloaded file exceeds the size limit of {max_file_size_mb} MB")
 
-                inspect(message=f"Downloaded file to {temp_file_path}")
+                print(f"Downloaded file to {temp_file_path}")
                 
                 # After download is complete, move the file from temp to the final destination
-                final_file_path = os.path.join(cache_dir, file_name)
-                os.rename(temp_file_path, final_file_path)  # Move the file to final location
+                shutil.move(temp_file_path, file_path)  # Move the file to final location
 
-                return final_file_path  # Return path of the final model file
+                return file_path  # Return path of the final model file
 
             else:
                 raise ValueError(f"Failed to download file, status code: {response.status_code}")
@@ -78,60 +77,6 @@ def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: st
             if os.path.exists(temp_file_path):
                 os.remove(temp_file_path)  # Clean up temporary file on error
             raise ValueError(f"Error downloading file: {e}")
-
-def extract_onnx_from_zip(zip_path: str) -> str:
-    """Extract an ONNX model from a ZIP file and return its path."""
-    temp_dir = tempfile.mkdtemp()
-    try:
-        inspect(message=f"Extracting ZIP file {zip_path} to {temp_dir}...")
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(temp_dir)
-        
-        for root, dirs, files in os.walk(temp_dir):
-            for file in files:
-                if file.endswith(".onnx"):
-                    onnx_model_path = os.path.join(root, file)
-                    inspect(message=f"Found ONNX model at {onnx_model_path}")
-                    return onnx_model_path
-        
-        raise FileNotFoundError("No ONNX model found in the ZIP archive.")
-    except Exception as e:
-        shutil.rmtree(temp_dir)
-        raise ValueError(f"Error extracting ONNX from ZIP: {e}")
-
-def process_model_file_with_lock(url: str, cache_dir: str = '/tmp/cache') -> str:
-    """
-    Process a model file (ZIP or ONNX) with concurrency protection.
-    Ensures only one workflow processes the same file at a time.
-    """
-    # Step 1: Download the file with locking
-    downloaded_file_path = download_file_with_lock(url, cache_dir=cache_dir)
-    
-    # Step 2: Determine file type and process
-    file_name = os.path.basename(downloaded_file_path)
-    lock_path = os.path.join(cache_dir, file_name + '.process.lock')
-    lock = FileLock(lock_path)
-
-    with lock:
-        try:
-            if is_zip_file(downloaded_file_path):
-                # Step 3: If it's a ZIP file, extract the ONNX model
-                onnx_path = extract_onnx_from_zip(downloaded_file_path)
-                os.remove(downloaded_file_path)  # Cleanup the ZIP file after extraction
-                
-                if is_onnx_file(onnx_path):
-                    inspect(message=f"Extracted and validated ONNX model at {onnx_path}.")
-                    return onnx_path
-                else:
-                    raise ValueError(f"File {onnx_path} is not a valid ONNX model.")
-                
-            elif is_onnx_file(downloaded_file_path):
-                inspect(message=f"File {downloaded_file_path} is a valid ONNX model.")
-                return downloaded_file_path  # Return valid ONNX file directly
-            else:
-                raise ValueError(f"File {downloaded_file_path} is not a valid ONNX model.")
-        except Exception as e:
-            raise ValueError(f"Error processing model file: {e}")
 
 @functools.lru_cache(maxsize=5)
 def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> ort.InferenceSession:
@@ -150,7 +95,7 @@ def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> ort.Infere
     """
     try:
         # Process the model file to ensure it's a valid ONNX model
-        model_path = process_model_file_with_lock(model_url, cache_dir=cache_dir)
+        model_path = download_file_with_lock(model_url, cache_dir=cache_dir)
 
         # Initialize the ONNX Runtime session
         inspect(message=f"Initializing ONNX Runtime session for model at {model_path}...")

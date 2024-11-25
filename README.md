@@ -2,16 +2,12 @@
 repro for EO data processing pipelines in openEO
 
 ## WEED: Python development environment
-import environment by using the yml file in the repository
-  ```
-  conda env create -f <path>/weed_python_environment.yml
-  ```
+install the Python miniconda environment -> detailed instructions here: [python_dev_environment](https://github.com/ESA-WEED-project/.github/tree/main/python_dev_environment)
+<br>
 and make sure the eo_processing is integrated via edible install
   - cd in the working folder of your repro (mostly in PyCharmsProject the name of the cloned repository) with terminal
   - run `conda activate weed`
   -	run `python -m pip install -e .`
-
-more detailed instructions can be found here: [python_dev_environment](https://github.com/ESA-WEED-project/.github/tree/main/python_dev_environment)
 
 ## explanation on settings for S1/S2 processing pipelines
 By default, all required settings are automatically loaded for a chosen `provider` (`terrascope`, `creodias`, `cdse`). All default settings are set in `src/eo_processing/config/settings.py`. Settings are comprised of:

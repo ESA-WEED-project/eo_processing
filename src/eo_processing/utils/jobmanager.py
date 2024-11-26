@@ -5,10 +5,11 @@ from openeo.util import rfc3339
 import requests
 from pathlib import Path
 import collections
-from openeo.extra.job_management import MultiBackendJobManager,_format_usage_stat, JobDatabaseInterface, ignore_connection_errors
+from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_stat, JobDatabaseInterface,
+                                         ignore_connection_errors, _ColumnProperties)
 from openeo.rest import OpenEoApiError
 import pandas as pd
-from typing import Optional
+from typing import Optional, Mapping
 import openeo
 
 
@@ -16,42 +17,29 @@ logger = logging.getLogger(__name__)
 
 class WeedJobManager(MultiBackendJobManager):
 
-    def __init__(self, poll_sleep=5, root_dir='.', viz=False, max_attempts = 3):
+    # alter the standard list of
+    _COLUMN_REQUIREMENTS: Mapping[str, _ColumnProperties] = {
+        "id": _ColumnProperties(dtype="str"),
+        "backend_name": _ColumnProperties(dtype="str"),
+        "status": _ColumnProperties(dtype="str", default="not_started"),
+        # TODO: use proper date/time dtype instead of legacy str for start times?
+        "start_time": _ColumnProperties(dtype="str"),
+        "running_start_time": _ColumnProperties(dtype="str"),
+        # TODO: these columns "cpu", "memory", "duration" are not referenced explicitly from MultiBackendJobManager,
+        #       but are indirectly coupled through handling of VITO-specific "usage" metadata in `_track_statuses`.
+        #       Since bfd99e34 they are not really required to be present anymore, can we make that more explicit?
+        "cpu": _ColumnProperties(dtype="str"),
+        "memory": _ColumnProperties(dtype="str"),
+        "duration": _ColumnProperties(dtype="str"),
+        "attempt": _ColumnProperties(dtype="int", default=0),
+        "cost": _ColumnProperties(dtype="float"),
+    }
+
+    def __init__(self, poll_sleep=5, root_dir='.', viz=False, max_attempts = 3, viz_labels=False):
         super().__init__(poll_sleep=poll_sleep, root_dir=root_dir)
         self.viz = viz
+        self.viz_labels = viz_labels
         self.max_attempts = max_attempts
-
-
-    @staticmethod
-    def _normalize_df(df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Normalize given pandas dataframe (creating a new one):
-        ensure we have the required columns.
-
-        :param df: The dataframe to normalize.
-        :return: a new dataframe that is normalized.
-        """
-        # check for some required columns.
-        required_with_default = [
-            ("status", "not_started"),
-            ("id", None),
-            ("start_time", None),
-            ("running_start_time", None),
-            # TODO: columns "cpu", "memory", "duration" are not referenced directly
-            #       within MultiBackendJobManager making it confusing to claim they are required.
-            #       However, they are through assumptions about job "usage" metadata in `_track_statuses`.
-            #       => proposed solution: allow to configure usage columns when adding a backend
-            ("cpu", None),
-            ("memory", None),
-            ("duration", None),
-            ("backend_name", None),
-            ("cost", None),
-            ("attempt",0)
-        ]
-        new_columns = {col: val for (col, val) in required_with_default if col not in df.columns}
-        df = df.assign(**new_columns)
-
-        return df
 
     def get_job_dir(self, job_id: str) -> Path:
         """Path to directory where job metadata, results and error logs are be saved."""
@@ -301,11 +289,12 @@ class WeedJobManager(MultiBackendJobManager):
         status_df.plot(ax=ax, edgecolor='black', color=status_df['color'])
 
         # add labels to the tiles showing the tileID and status
-        status_df['coords'] = status_df['geometry'].apply(lambda x: x.representative_point().coords[:])
-        status_df['coords'] = [coords[0] for coords in status_df['coords']]
-        for idx, row in status_df.iterrows():
-            plt.annotate(text=f'{row['name']} \n ({row['status']})', xy=row['coords'],
-                         horizontalalignment='center', color='k')
+        if self.viz_labels:
+            status_df['coords'] = status_df['geometry'].apply(lambda x: x.representative_point().coords[:])
+            status_df['coords'] = [coords[0] for coords in status_df['coords']]
+            for idx, row in status_df.iterrows():
+                plt.annotate(text=f'{row['name']} \n ({row['status']})', xy=row['coords'],
+                             horizontalalignment='center', color='k')
 
         # show the figure
         plt.show()

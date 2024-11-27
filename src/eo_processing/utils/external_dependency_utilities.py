@@ -3,7 +3,6 @@ import os
 import requests
 import tempfile
 from openeo.udf import inspect
-from filelock import FileLock
 from urllib.parse import urlparse
 import onnx
 
@@ -21,7 +20,7 @@ def validate_onnx_file(file_path: str) -> bool:
         inspect(message=f"Validation failed for ONNX file {file_path}: {e}")
         return False
 
-def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: str = '/tmp/cache') -> str:
+def download_file(url: str, max_file_size_mb: int = 100, cache_dir: str = '/tmp/cache') -> str:
     """Download a file with concurrency protection and store it temporarily."""
     
     # Extract the file name from the URL (e.g., "model_1.onnx")
@@ -30,47 +29,43 @@ def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: st
     # Construct the file path within the cache directory (e.g., '/tmp/cache/model.onnx')
     file_path = os.path.join(cache_dir, file_name)
     
-    # Lock file to prevent concurrent downloads
-    lock_path = file_path + '.download.lock'
-    lock = FileLock(lock_path)
+
+    # Check if the file already exists in the cache
+    if os.path.exists(file_path):
+        inspect(message=f"File {file_path} already exists in cache.")
+        return file_path
     
-    with lock:
-        # Check if the file already exists in the cache
-        if os.path.exists(file_path):
-            inspect(message=f"File {file_path} already exists in cache.")
-            return file_path
+    try:
+        # Download the file to a temporary location
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".onnx")
+        temp_file_path = temp_file.name  # Store the temporary file path
         
-        try:
-            # Download the file to a temporary location
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".onnx")
-            temp_file_path = temp_file.name  # Store the temporary file path
+        inspect(message=f"Downloading file from {url}...")
+
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            file_size = 0
+            with temp_file:
+                for chunk in response.iter_content(chunk_size=1024):
+                    temp_file.write(chunk)
+                    file_size += len(chunk)
+                    if file_size > max_file_size_mb * 1024 * 1024:
+                        raise ValueError(f"Downloaded file exceeds the size limit of {max_file_size_mb} MB")
+
+            inspect(message=f"Downloaded file to {temp_file_path}")
             
-            inspect(message=f"Downloading file from {url}...")
+            # After download is complete, move the file from temp to the final destination
+            os.rename(temp_file_path, file_path)  # Move the file to final location
 
-            response = requests.get(url, stream=True)
-            if response.status_code == 200:
-                file_size = 0
-                with temp_file:
-                    for chunk in response.iter_content(chunk_size=1024):
-                        temp_file.write(chunk)
-                        file_size += len(chunk)
-                        if file_size > max_file_size_mb * 1024 * 1024:
-                            raise ValueError(f"Downloaded file exceeds the size limit of {max_file_size_mb} MB")
+            return file_path  # Return path of the final model file
 
-                inspect(message=f"Downloaded file to {temp_file_path}")
-                
-                # After download is complete, move the file from temp to the final destination
-                os.rename(temp_file_path, file_path)  # Move the file to final location
+        else:
+            raise ValueError(f"Failed to download file, status code: {response.status_code}")
 
-                return file_path  # Return path of the final model file
-
-            else:
-                raise ValueError(f"Failed to download file, status code: {response.status_code}")
-
-        except Exception as e:
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)  # Clean up temporary file on error
-            raise ValueError(f"Error downloading file: {e}")
+    except Exception as e:
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)  # Clean up temporary file on error
+        raise ValueError(f"Error downloading file: {e}")
 
 
 

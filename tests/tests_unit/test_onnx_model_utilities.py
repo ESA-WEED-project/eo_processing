@@ -1,15 +1,12 @@
 
 import pytest
 import os
-import tempfile
-import zipfile
-import shutil
 from unittest import mock
 from catboost import CatBoostClassifier
 import onnx
 from onnx import helper, TensorProto
 import numpy as np
-from eo_processing.utils.onnx_model_utilities import (load_catboost_model, save_model_to_onnx, add_metadata_to_onnx, download_zip_to_tempfile, unzip_to_tempdir, extract_features_from_onnx)
+from eo_processing.utils.onnx_model_utilities import (load_catboost_model, save_model_to_onnx, add_metadata_to_onnx, extract_features_from_onnx)
 
 
 
@@ -167,48 +164,6 @@ def test_extract_features_from_onnx_with_real_model(real_onnx_model):
     assert features['input_features'] == input_features
     assert features['output_features'] == output_features
 
-# Test download_zip_to_tempfile
-def test_download_zip_to_tempfile_success():
-    url = "http://example.com/test.zip"
-    
-    # Mock the requests.get to return a successful response
-    mock_response = mock.Mock()
-    mock_response.status_code = 200
-    mock_response.iter_content = mock.Mock(return_value=[b"fakezipdata"])
-    
-    with mock.patch('requests.get', return_value=mock_response):
-        zip_path = download_zip_to_tempfile(url)
-        assert os.path.exists(zip_path)
-        os.remove(zip_path)  # Cleanup
-
-def test_download_zip_to_tempfile_fail():
-    url = "http://example.com/test.zip"
-    
-    # Mock the requests.get to return a failed response
-    mock_response = mock.Mock()
-    mock_response.status_code = 404
-    
-    with mock.patch('requests.get', return_value=mock_response):
-        with pytest.raises(ValueError, match="Failed to download file"):
-            download_zip_to_tempfile(url)
-
-# Test unzip_to_tempdir
-def test_unzip_to_tempdir():
-    # Create a temporary zip file
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        with zipfile.ZipFile(tmp_file, 'w') as zf:
-            zf.writestr("test_model.onnx", "fake onnx content")
-    
-    try:
-        onnx_path, temp_dir = unzip_to_tempdir(tmp_file.name)
-        assert os.path.exists(onnx_path)
-        shutil.rmtree(temp_dir)  # Cleanup
-    finally:
-        os.remove(tmp_file.name)
-
-def test_unzip_to_tempdir_fail():
-    with pytest.raises(ValueError, match="Failed to unzip file"):
-        unzip_to_tempdir("invalid_zip_path.zip")
 
 # Test extract_features_from_onnx
 def test_extract_features_from_onnx():

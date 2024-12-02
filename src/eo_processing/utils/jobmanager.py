@@ -1,16 +1,22 @@
 import os
 import json
 import logging
+from threading import Thread
 from openeo.util import rfc3339
+import re
 import requests
+import datetime
 from pathlib import Path
 import collections
+import time
 from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_stat, JobDatabaseInterface,
-                                         ignore_connection_errors, _ColumnProperties)
+                                         ignore_connection_errors, _ColumnProperties, _start_job_default,
+                                         get_job_db)
 from openeo.rest import OpenEoApiError
 import pandas as pd
 from typing import Optional, Mapping
 import openeo
+import warnings
 
 
 logger = logging.getLogger(__name__)
@@ -40,6 +46,27 @@ class WeedJobManager(MultiBackendJobManager):
         self.viz = viz
         self.viz_labels = viz_labels
         self.max_attempts = max_attempts
+        self._cancel_download_after = (
+            datetime.timedelta(seconds=1800)  )
+
+    def download_job_too_long(self, job, row):
+        """Cancel the job if it has been running for too long."""
+        job_running_start_time = rfc3339.parse_datetime(row["running_start_time"], with_timezone=True)
+
+        elapsed = datetime.datetime.now(tz=datetime.timezone.utc) - (job_running_start_time + datetime.timedelta(seconds=int(row['duration'].split(' ')[0])))
+        if elapsed > self._cancel_download_after*row['attempt']:
+            f"download of job {job.job_id} (after {elapsed}) has been labeled as failed.)"
+            return False
+        else: return False
+
+    def check_finished(self, job):
+        job_metadata = job.describe()
+        title = os.path.splitext(job_metadata['title'])[0]
+        metadata_path = self.get_job_metadata_path(job.job_id, title)
+        return os.path.exists(metadata_path)
+
+
+
 
     def get_job_dir(self, job_id: str) -> Path:
         """Path to directory where job metadata, results and error logs are be saved."""
@@ -85,6 +112,8 @@ class WeedJobManager(MultiBackendJobManager):
         with open(job_graph_path, "w", encoding='utf8') as f:
             json.dump(job_metadata, f, ensure_ascii=False, indent=2)
 
+        return check_reason(json.dumps(error_logs, ensure_ascii=False))
+
     def on_job_done(self, job, row):
         job_metadata = job.describe()
 
@@ -118,7 +147,6 @@ class WeedJobManager(MultiBackendJobManager):
             with open(error_log_path, "w", encoding='utf8') as f:
                 json.dump(logs, f, ensure_ascii=False, indent=2)
 
-        return row
 
     def _track_statuses(self, job_db: JobDatabaseInterface, stats: Optional[dict] = None):
         """
@@ -127,7 +155,7 @@ class WeedJobManager(MultiBackendJobManager):
         """
         stats = stats if stats is not None else collections.defaultdict(int)
 
-        active = job_db.get_by_status(statuses=["created", "queued", "running"])
+        active = job_db.get_by_status(statuses=["created", "queued", "running", "downloading"])
 
         for i in active.index:
             job_id = active.loc[i, "id"]
@@ -146,17 +174,29 @@ class WeedJobManager(MultiBackendJobManager):
                     f"Status of job {job_id!r} (on backend {backend_name}) is {new_status!r} (previously {previous_status!r})"
                 )
 
-                if new_status == "finished":
+                if new_status == "finished" and previous_status != "downloading":
                     stats["job finished"] += 1
-                    self.on_job_done(the_job, active.loc[i])
+                    worker = Thread(target=self.on_job_done,
+                                              args=(the_job, active.loc[i]))
+                    worker.start()
                     active.loc[i, "cost"] = job_metadata['costs']
+                    new_status = "downloading"
+
+                if previous_status == "downloading":
+                    if not self.check_finished(the_job):
+                        new_status = "downloading"
 
                 if previous_status != "error" and new_status == "error":
                     stats["job failed"] += 1
-                    self.on_job_error(the_job, active.loc[i])
-                    if active.loc[i, "attempt"] <= self.max_attempts:
+                    error_reason = self.on_job_error(the_job, active.loc[i])
+                    if error_reason:
+                        new_status = error_reason
+                    elif active.loc[i, "attempt"] <= self.max_attempts:
                         active.loc[i, "attempt"] += 1
                         new_status = "not_started"
+                    else:
+                        new_status = "error_openeo"
+
 
                 if previous_status in {"created", "queued"} and new_status == "running":
                     stats["job started running"] += 1
@@ -168,6 +208,18 @@ class WeedJobManager(MultiBackendJobManager):
                     if active.loc[i, "attempt"] <= self.max_attempts:
                         active.loc[i, "attempt"] += 1
                         new_status = "not_started"
+
+                if new_status == "downloading":
+                    if self.download_job_too_long(the_job, active.loc[i]):
+                        #retry download
+                        if active.loc[i, "attempt"] <= self.max_attempts+2:
+                            new_status = "running"
+                        else:
+                            new_status = "error_downloading"
+
+
+
+
 
                 if self._cancel_running_job_after and new_status == "running":
                     self._cancel_prolonged_job(the_job, active.loc[i])
@@ -184,8 +236,12 @@ class WeedJobManager(MultiBackendJobManager):
                 print(f"error for job {job_id!r} on backend {backend_name}")
                 print(e)
 
+
+
         stats["job_db persist"] += 1
         job_db.persist(active)
+
+
 
         if self.viz:
             self.create_viz_status(job_db)
@@ -279,7 +335,9 @@ class WeedJobManager(MultiBackendJobManager):
                       "running": 'navy',
                       "start_failed": 'salmon',
                       "skipped": 'darkorange',
-                      "finished": 'lime',
+                      "downloading": 'lightgreen',
+                      "finished": 'green',
+                      "download_error" : "lightred",
                       "error": 'darkred',
                       "canceled": 'magenta'}
         status_df['color'] = status_df['status'].map(color_dict)
@@ -298,6 +356,71 @@ class WeedJobManager(MultiBackendJobManager):
 
         # show the figure
         plt.show()
+
+    def start_job_thread(self, start_job, job_db):
+        # Resume from existing db
+        logger.info(f"Resuming `run_jobs` from existing {job_db}")
+        df = job_db.read()
+
+        self._stop_thread = False
+        def run_loop():
+
+            # TODO: support user-provided `stats`
+            stats = collections.defaultdict(int)
+
+            while (
+                sum(job_db.count_by_status(statuses=["not_started", "created", "queued", "running", "downloading"]).values()) > 0
+                and not self._stop_thread
+            ):
+                self._job_update_loop(job_db=job_db, start_job=start_job)
+                stats["run_jobs loop"] += 1
+
+                logger.info(f"Job status histogram: {job_db.count_by_status()}. Run stats: {dict(stats)}")
+                # Do sequence of micro-sleeps to allow for quick thread exit
+                for _ in range(int(max(1, self.poll_sleep))):
+                    time.sleep(1)
+                    if self._stop_thread:
+                        break
+
+        self._thread = Thread(target=run_loop)
+        self._thread.start()
+    def run_jobs(self, df = None, start_job = _start_job_default, job_db = None, **kwargs,):
+        # Backwards compatibility for deprecated `output_file` argument
+        if "output_file" in kwargs:
+            if job_db is not None:
+                raise ValueError("Only one of `output_file` and `job_db` should be provided")
+            warnings.warn(
+                "The `output_file` argument is deprecated. Use `job_db` instead.", DeprecationWarning, stacklevel=2
+            )
+            job_db = kwargs.pop("output_file")
+        assert not kwargs, f"Unexpected keyword arguments: {kwargs!r}"
+
+        if isinstance(job_db, (str, Path)):
+            job_db = get_job_db(path=job_db)
+
+        if not isinstance(job_db, JobDatabaseInterface):
+            raise ValueError(f"Unsupported job_db {job_db!r}")
+
+        if job_db.exists():
+            # Resume from existing db
+            logger.info(f"Resuming `run_jobs` from existing {job_db}")
+        elif df is not None:
+            # TODO: start showing deprecation warnings for this usage pattern?
+            job_db.initialize_from_df(df)
+
+        # TODO: support user-provided `stats`
+        stats = collections.defaultdict(int)
+
+        while sum(job_db.count_by_status(statuses=["not_started", "created", "queued", "running", "downloading"]).values()) > 0:
+            self._job_update_loop(job_db=job_db, start_job=start_job, stats=stats)
+            stats["run_jobs loop"] += 1
+
+            # Show current stats and sleep
+            logger.info(f"Job status histogram: {job_db.count_by_status()}. Run stats: {dict(stats)}")
+            time.sleep(self.poll_sleep)
+            stats["sleep"] += 1
+
+        return stats
 
 
 def is_notebook() -> bool:
@@ -326,3 +449,17 @@ def add_cost_to_csv(
             cost = None
         df.loc[i, "cost"] = cost
     df.to_csv(file_path)
+
+def check_reason(log_text):
+    if re.search('Failed to allocate memory for image', log_text) or re.search("OOM", log_text) or re.search("exit code: 50", log_text):
+        return "OOM"
+    if re.search("NoDataAvailable", log_text):
+        return "NoDataAvailable"
+    if re.search("Orfeo toolbox.", log_text):
+        return "orfeo_error"
+    if re.search("No tiff for band VH", log_text):
+        return "no_VH_band"
+    if re.search("sar_backscatter: No tiffs found in", log_text):
+        return "no_tiff_in_S1"
+    return False
+

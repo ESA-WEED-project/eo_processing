@@ -18,11 +18,20 @@ from typing import Optional, Mapping
 import openeo
 import warnings
 
-
 logger = logging.getLogger(__name__)
 
 class WeedJobManager(MultiBackendJobManager):
+    """
+    Manages jobs for a multi-backend system with capabilities to track, cancel,
+    and store metadata of jobs.
 
+    WeedJobManager is responsible for handling job operations within a
+    multi-backend job management framework. It extends capabilities to track the
+    status of jobs, handles error logs, manages attempts, and retains metadata
+    and error information about jobs. The manager provides infrastructural
+    support for operations such as downloading results or marking jobs completed
+    or failed based on predefined criteria.
+    """
     # alter the standard list of
     _COLUMN_REQUIREMENTS: Mapping[str, _ColumnProperties] = {
         "id": _ColumnProperties(dtype="str"),
@@ -41,7 +50,24 @@ class WeedJobManager(MultiBackendJobManager):
         "cost": _ColumnProperties(dtype="float"),
     }
 
-    def __init__(self, poll_sleep=5, root_dir='.', viz=False, max_attempts = 3, viz_labels=False):
+    def __init__(self, poll_sleep: int = 5, root_dir: str = '.', viz: bool = False, max_attempts: int = 3,
+                 viz_labels: bool = False) -> None:
+        """
+        Initializes a new instance of the DownloadManager class, which manages
+        download sessions with retry capabilities and optional visualization
+        features. The class allows configuration of polling intervals, working
+        directory, number of attempts for retries, and visualization options
+        for download processes.
+
+        :param int poll_sleep: The number of seconds to wait between each
+            polling attempt to check download progress.
+        :param str root_dir: The root directory where files will be downloaded.
+        :param bool viz: Flag to enable visualization of the download progress.
+        :param int max_attempts: The maximum number of attempts to retry a
+            failed download.
+        :param bool viz_labels: Flag to enable or disable labels in the
+            visualization of the download progress.
+        """
         super().__init__(poll_sleep=poll_sleep, root_dir=root_dir)
         self.viz = viz
         self.viz_labels = viz_labels
@@ -50,50 +76,132 @@ class WeedJobManager(MultiBackendJobManager):
             datetime.timedelta(seconds=1800)  )
 
     def download_job_too_long(self, job, row):
-        """Cancel the job if it has been running for too long."""
+        """
+        Determines if a job download has been running for too long. The function calculates
+        the elapsed time since a job started running and checks whether it exceeds a threshold
+        determined by self._cancel_download_after and the job's current attempt count.
+
+        :param job: Represents the job to be evaluated.
+        :param row: A dictionary containing details about the job, including
+                    'running_start_time' and 'duration'.
+        :return: True if the job has been running longer than the allowed
+                 time; False otherwise.
+        """
         job_running_start_time = rfc3339.parse_datetime(row["running_start_time"], with_timezone=True)
 
-        elapsed = datetime.datetime.now(tz=datetime.timezone.utc) - (job_running_start_time + datetime.timedelta(seconds=int(row['duration'].split(' ')[0])))
+        elapsed = (datetime.datetime.now(tz=datetime.timezone.utc) -
+                   (job_running_start_time + datetime.timedelta(seconds=int(row['duration'].split(' ')[0]))))
+
         if elapsed > self._cancel_download_after*row['attempt']:
             f"download of job {job.job_id} (after {elapsed}) has been labeled as failed.)"
-            return False
+            return True
         else: return False
 
-    def check_finished(self, job):
+    def check_finished(self, job) -> bool:
+        """
+        Check if the metadata file for a given job already exists in the filesystem,
+        indicating whether the job has been completed.
+
+        This function extracts the job's metadata and determines the file path for
+        the associated metadata file. It then checks if this file path exists, which
+        would suggest that the job has been processed and the metadata has been saved.
+
+        :param job: The job object whose completion status needs to be verified. It
+                    must provide a 'describe' method that returns a dictionary
+                    containing job metadata, including the job's title.
+        :return: A boolean value where `True` indicates that the job metadata file
+                 exists, and thus the job is finished. `False` signifies that the
+                 metadata file is not found, indicating that the job might not be
+                 complete.
+        """
         job_metadata = job.describe()
         title = os.path.splitext(job_metadata['title'])[0]
         metadata_path = self.get_job_metadata_path(job.job_id, title)
         return os.path.exists(metadata_path)
 
-
-
-
     def get_job_dir(self, job_id: str) -> Path:
-        """Path to directory where job metadata, results and error logs are be saved."""
+        """
+        Retrieve the directory path for a specific job identified by `job_id`.
+
+        This method uses the job identifier to locate and return the directory path
+        associated with the job. It primarily accesses the `_root_dir` where all job
+        directories reside.
+
+        :param job_id: a string identifier for the job whose directory path needs to
+                       be retrieved.
+        :return: the path object representing the directory of the specified job.
+        """
         return self._root_dir
 
     def get_error_log_path(self, job_id: str, title: str  = None) -> Path:
-        """Path where error log file for the job is saved."""
+        """
+        Constructs the file path for the error log associated with a specific job.
+        This path is composed by joining the directory of the job, an 'errors'
+        subdirectory, and a JSON file name, which is formed by concatenating the
+        provided title and job ID. If the subdirectory does not exist, it will be
+        created. This method does not verify the path beyond ensuring the
+        existence of the necessary directory.
+
+        :param job_id: Identifier for the job. This should be a unique string
+                       associated with the job for which the error log path is
+                       being generated.
+        :param title: Optional title for the error log, which will be part of the
+                      file name. If not provided, the file name will not have a
+                      title prefix.
+        :return: A Path object representing the complete file path to the error
+                 log.
+        """
         path  = self.get_job_dir(job_id) / "errors" / f"{title}_{job_id}_errors.json"
         if not path.parent.exists():
             path.parent.mkdir()
         return path
 
     def get_job_metadata_path(self, job_id: str, title: str  = None) -> Path:
-        """Path where job metadata file is saved."""
+        """
+        Constructs and returns the file path for the job's metadata based on the
+        given job identifier and an optional title. The method ensures that the
+        parent directory of the path exists by creating it if necessary.
+
+        :param job_id: Unique identifier for the job, used to construct the
+                       metadata file path.
+        :param title: Optional descriptor to include in the metadata file name,
+                      providing additional context or organization.
+        :return: A Path object representing the full path to the job's metadata
+                 file, which includes a JSON file named with the job_id and
+                 optionally the title.
+        """
         path = self.get_job_dir(job_id) / "metadata" / f"{title}_{job_id}_metadata.json"
         if not path.parent.exists():
             path.parent.mkdir()
         return path
 
     def get_job_graph_path(self, job_id: str, title: str  = None) -> Path:
-        """Path where job metadata file is saved."""
+        """
+        Constructs the file path for a job graph JSON file. The path is generated
+        based on the job ID and an optional title. If the directory for the
+        constructed path does not exist, it is created.
+
+        :param job_id: A unique identifier for the job.
+        :param title: An optional title to include in the file name.
+        :return: The path object representing the location of the job graph file.
+        """
         path =  self.get_job_dir(job_id) / "jobs" / f"{title}_{job_id}_job.json"
         if not path.parent.exists():
             path.parent.mkdir()
         return path
 
     def on_job_error(self, job, row):
+        """
+        Handles the logging and storage of errors encountered in a job. This method processes
+        error logs from a given job, ensures the job directory exists, and writes both the
+        error logs and job metadata to specified files. If no errors are encountered, a
+        message indicating the absence of errors is written instead. The method finally
+        returns a reason based on the error logs.
+
+        :param job: The job instance from which error logs and metadata are retrieved.
+        :param row: Row information associated with the job.
+        :return: A reason derived from the error logs indicating the nature of the job's failure.
+        """
         error_logs = job.logs(level="error")
         job_metadata = job.describe_job()
         title = os.path.splitext(job_metadata['title'])[0]
@@ -115,6 +223,18 @@ class WeedJobManager(MultiBackendJobManager):
         return check_reason(json.dumps(error_logs, ensure_ascii=False))
 
     def on_job_done(self, job, row):
+        """
+        Handles the completion of a job by processing its metadata and results. This
+        includes generating job directories, saving metadata and logs, and downloading
+        the results in the correct format. Ensures the proper structure of directories
+        to store job-specific data. It is responsible for adapting the download process
+        based on the file format to handle special cases for NetCDF and GeoTIFF.
+
+        :param job: The job instance that has been completed, providing access to
+                    its metadata and results.
+        :param row: Metadata or context information associated with the job.
+        :return: None
+        """
         job_metadata = job.describe()
 
         job_dir = self.get_job_dir(job.job_id)
@@ -147,11 +267,25 @@ class WeedJobManager(MultiBackendJobManager):
             with open(error_log_path, "w", encoding='utf8') as f:
                 json.dump(logs, f, ensure_ascii=False, indent=2)
 
-
     def _track_statuses(self, job_db: JobDatabaseInterface, stats: Optional[dict] = None):
         """
-        Tracks status (and stats) of running jobs (in place).
-        Optionally cancels jobs when running too long.
+        Tracks and updates the statuses of jobs within the specified job database. This
+        method fetches the active jobs, checks their current status, and updates it based
+        on various conditions including job completion, error occurrences, and cancellation.
+        It also logs the status changes, handles job retries based on specified maximum
+        attempts, and persists the updated statuses back to the database. An optional
+        statistics dictionary can be provided to accumulate counts of specific job
+        statuses for monitoring purposes.
+
+        :param job_db: Interface for interacting with the job database where job statuses
+                       are stored and updated. It provides functionality to retrieve and
+                       persist job data.
+        :param stats: A dictionary object that accumulates counts and statistics of job
+                      tracking operations. It can be omitted, in which case a default
+                      dictionary is used to keep track of statistics within this method.
+                      The dictionary includes counters for operations like job description
+                      fetching, job completion, job failure, and job cancellation.
+        :return: None
         """
         stats = stats if stats is not None else collections.defaultdict(int)
 
@@ -163,16 +297,13 @@ class WeedJobManager(MultiBackendJobManager):
             previous_status = active.loc[i, "status"]
 
             try:
-
                 con = self._get_connection(backend_name)
                 the_job = con.job(job_id)
                 job_metadata = the_job.describe()
                 stats["job describe"] += 1
                 new_status = job_metadata["status"]
 
-                logger.info(
-                    f"Status of job {job_id!r} (on backend {backend_name}) is {new_status!r} (previously {previous_status!r})"
-                )
+                logger.info(f"Status of job {job_id!r} (on backend {backend_name}) is {new_status!r} (previously {previous_status!r})")
 
                 if new_status == "finished" and previous_status != "downloading":
                     stats["job finished"] += 1
@@ -197,7 +328,6 @@ class WeedJobManager(MultiBackendJobManager):
                     else:
                         new_status = "error_openeo"
 
-
                 if previous_status in {"created", "queued"} and new_status == "running":
                     stats["job started running"] += 1
                     active.loc[i, "running_start_time"] = rfc3339.utcnow()
@@ -217,10 +347,6 @@ class WeedJobManager(MultiBackendJobManager):
                         else:
                             new_status = "error_downloading"
 
-
-
-
-
                 if self._cancel_running_job_after and new_status == "running":
                     self._cancel_prolonged_job(the_job, active.loc[i])
 
@@ -236,12 +362,8 @@ class WeedJobManager(MultiBackendJobManager):
                 print(f"error for job {job_id!r} on backend {backend_name}")
                 print(e)
 
-
-
         stats["job_db persist"] += 1
         job_db.persist(active)
-
-
 
         if self.viz:
             self.create_viz_status(job_db)
@@ -320,13 +442,24 @@ class WeedJobManager(MultiBackendJobManager):
                 stats["start_job skipped"] += 1
 
     def create_viz_status(self, job_db : JobDatabaseInterface ):
+        """
+        Creates a visualization of job statuses using geographic data. The status of
+        each job is represented on a plot with color coding based on the current state
+        of the job. Statuses and their corresponding colors are defined in a color
+        dictionary. If visualization labels are enabled, each job is annotated with its
+        tile ID and status on the plot.
+
+        :param job_db: Interface to access and manipulate job data. Must implement
+                       necessary methods to provide geometrical and status data as a
+                       DataFrame.
+        :return: None
+        """
         import matplotlib.pyplot as plt
         if is_notebook():
             from IPython.display import clear_output
             clear_output(wait=True)
 
         status_df = job_db.df.copy()
-        #status_df.set_crs('epsg:4326',allow_override=True)
 
         # updating the colors for processing status
         color_dict = {"not_started": 'grey',
@@ -384,6 +517,7 @@ class WeedJobManager(MultiBackendJobManager):
 
         self._thread = Thread(target=run_loop)
         self._thread.start()
+
     def run_jobs(self, df = None, start_job = _start_job_default, job_db = None, **kwargs,):
         # Backwards compatibility for deprecated `output_file` argument
         if "output_file" in kwargs:
@@ -422,8 +556,17 @@ class WeedJobManager(MultiBackendJobManager):
 
         return stats
 
-
 def is_notebook() -> bool:
+    """
+    Determines if the code is being executed within a Jupyter notebook
+    or a similar interactive environment. This function examines the
+    class name of the current IPython shell to infer the execution
+    context and return a boolean indicating if the environment is either
+    a Jupyter notebook, qtconsole, or a terminal-based IPython shell.
+
+    :return: True if the environment is a Jupyter notebook or qtconsole,
+             otherwise False.
+    """
     from IPython import get_ipython
     try:
         shell = get_ipython().__class__.__name__
@@ -436,10 +579,25 @@ def is_notebook() -> bool:
     except NameError:
         return False      # Probably standard Python interpreter
 
-def add_cost_to_csv(
-    connection: openeo.Connection,
-    file_path: str,
-):
+def add_cost_to_csv(connection: openeo.Connection, file_path: str):
+    """
+    Adds a 'cost' column to the CSV file at the specified file path,
+    by retrieving the costs for each job ID from the given OpenEO
+    connection. It reads the CSV content into a DataFrame, iterates
+    through its rows, retrieves job costs using the OpenEO connection,
+    and updates the CSV file with the new cost values.
+
+    :param connection:
+        An OpenEO connection object that is used to connect to the OpenEO
+        backend and retrieve job information.
+    :param file_path:
+        The path to the CSV file where job IDs and their costs will be
+        stored. It must be a valid file path string pointing to a CSV
+        file on the local file system.
+    :return:
+        None. The function updates the provided CSV file in place by
+        adding the retrieved cost information for each job ID.
+    """
     df = pd.read_file(file_path)
     for i, row in df.iterrows():
         job = connection.job(row["id"])
@@ -451,7 +609,25 @@ def add_cost_to_csv(
     df.to_csv(file_path)
 
 def check_reason(log_text):
-    if re.search('Failed to allocate memory for image', log_text) or re.search("OOM", log_text) or re.search("exit code: 50", log_text):
+    """
+    Analyzes the provided log text to determine the reason for specific
+    errors or issues encountered within the system. This function scans
+    through the log text to match predefined error patterns. If a match
+    is found, it returns a corresponding string that denotes the nature
+    of the error. If no recognizable pattern is found, it returns False.
+
+    :param log_text: The log text to be analyzed for determining error
+                     reasons within the system. Expected to contain
+                     strings that match specific error patterns defined
+                     in the function.
+    :return: A string representing the identified error reason or False
+             if no recognizable error pattern is detected. Possible
+             return values include "OOM" for out-of-memory errors,
+             "NoDataAvailable", "orfeo_error", "no_VH_band", and
+             "no_tiff_in_S1".
+    """
+    if (re.search('Failed to allocate memory for image', log_text) or
+            re.search("OOM", log_text) or re.search("exit code: 50", log_text)):
         return "OOM"
     if re.search("NoDataAvailable", log_text):
         return "NoDataAvailable"
@@ -462,4 +638,3 @@ def check_reason(log_text):
     if re.search("sar_backscatter: No tiffs found in", log_text):
         return "no_tiff_in_S1"
     return False
-

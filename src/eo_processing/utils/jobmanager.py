@@ -63,7 +63,6 @@ class WeedJobManager(MultiBackendJobManager):
         job_metadata = job.describe()
         title = os.path.splitext(job_metadata['title'])[0]
         metadata_path = self.get_job_metadata_path(job.job_id, title)
-        print(metadata_path)
         return os.path.exists(metadata_path)
 
 
@@ -457,7 +456,7 @@ def check_reason(log_text):
     if re.search("NoDataAvailable", log_text):
         return "NoDataAvailable"
     if re.search("Orfeo toolbox.", log_text):
-        return "orfeo_toolbox"
+        return "orfeo_error"
     if re.search("No tiff for band VH", log_text):
         return "no_VH_band"
     if re.search("sar_backscatter: No tiffs found in", log_text):

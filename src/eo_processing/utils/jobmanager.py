@@ -14,7 +14,7 @@ from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_st
                                          get_job_db)
 from openeo.rest import OpenEoApiError
 import pandas as pd
-from typing import Optional, Mapping
+from typing import Optional, Mapping, Union
 import openeo
 import warnings
 
@@ -75,7 +75,7 @@ class WeedJobManager(MultiBackendJobManager):
         self._cancel_download_after = (
             datetime.timedelta(seconds=1800)  )
 
-    def download_job_too_long(self, job, row):
+    def download_job_too_long(self, job: openeo.BatchJob, row: pd.Series) -> bool:
         """
         Determines if a job download has been running for too long. The function calculates
         the elapsed time since a job started running and checks whether it exceeds a threshold
@@ -97,7 +97,7 @@ class WeedJobManager(MultiBackendJobManager):
             return True
         else: return False
 
-    def check_finished(self, job) -> bool:
+    def check_finished(self, job: openeo.BatchJob) -> bool:
         """
         Check if the metadata file for a given job already exists in the filesystem,
         indicating whether the job has been completed.
@@ -121,11 +121,8 @@ class WeedJobManager(MultiBackendJobManager):
 
     def get_job_dir(self, job_id: str) -> Path:
         """
-        Retrieve the directory path for a specific job identified by `job_id`.
-
-        This method uses the job identifier to locate and return the directory path
-        associated with the job. It primarily accesses the `_root_dir` where all job
-        directories reside.
+        It primarily returns the `_root_dir` where all job directories reside. Note: that is a WEED project
+        specific decision.
 
         :param job_id: a string identifier for the job whose directory path needs to
                        be retrieved.
@@ -133,7 +130,7 @@ class WeedJobManager(MultiBackendJobManager):
         """
         return self._root_dir
 
-    def get_error_log_path(self, job_id: str, title: str  = None) -> Path:
+    def get_error_log_path(self, job_id: str, title: str = None) -> Path:
         """
         Constructs the file path for the error log associated with a specific job.
         This path is composed by joining the directory of the job, an 'errors'
@@ -156,7 +153,7 @@ class WeedJobManager(MultiBackendJobManager):
             path.parent.mkdir()
         return path
 
-    def get_job_metadata_path(self, job_id: str, title: str  = None) -> Path:
+    def get_job_metadata_path(self, job_id: str, title: str = None) -> Path:
         """
         Constructs and returns the file path for the job's metadata based on the
         given job identifier and an optional title. The method ensures that the
@@ -190,7 +187,7 @@ class WeedJobManager(MultiBackendJobManager):
             path.parent.mkdir()
         return path
 
-    def on_job_error(self, job, row):
+    def on_job_error(self, job: openeo.BatchJob, row: pd.Series) -> Union[str, bool]:
         """
         Handles the logging and storage of errors encountered in a job. This method processes
         error logs from a given job, ensures the job directory exists, and writes both the
@@ -212,17 +209,17 @@ class WeedJobManager(MultiBackendJobManager):
             self.ensure_job_dir_exists(job.job_id)
             with open(error_log_path, "w", encoding='utf8') as f:
                 json.dump(error_logs, f, ensure_ascii=False, indent=2)
-
         else:
             error_log_path.write_text(
                 "Couldn't find any errors in the logs. Please check manually.")
 
+        # also stores the job graph of the failed job for further inspection
         with open(job_graph_path, "w", encoding='utf8') as f:
             json.dump(job_metadata, f, ensure_ascii=False, indent=2)
 
         return check_reason(json.dumps(error_logs, ensure_ascii=False))
 
-    def on_job_done(self, job, row):
+    def on_job_done(self, job: openeo.BatchJob, row: pd.Series) -> None:
         """
         Handles the completion of a job by processing its metadata and results. This
         includes generating job directories, saving metadata and logs, and downloading
@@ -267,7 +264,7 @@ class WeedJobManager(MultiBackendJobManager):
             with open(error_log_path, "w", encoding='utf8') as f:
                 json.dump(logs, f, ensure_ascii=False, indent=2)
 
-    def _track_statuses(self, job_db: JobDatabaseInterface, stats: Optional[dict] = None):
+    def _track_statuses(self, job_db: JobDatabaseInterface, stats: Optional[dict] = None) -> None:
         """
         Tracks and updates the statuses of jobs within the specified job database. This
         method fetches the active jobs, checks their current status, and updates it based
@@ -305,6 +302,10 @@ class WeedJobManager(MultiBackendJobManager):
 
                 logger.info(f"Status of job {job_id!r} (on backend {backend_name}) is {new_status!r} (previously {previous_status!r})")
 
+                if previous_status in {"created", "queued"} and new_status == "running":
+                    stats["job started running"] += 1
+                    active.loc[i, "running_start_time"] = rfc3339.utcnow()
+
                 if new_status == "finished" and previous_status != "downloading":
                     stats["job finished"] += 1
                     worker = Thread(target=self.on_job_done,
@@ -317,35 +318,30 @@ class WeedJobManager(MultiBackendJobManager):
                     if not self.check_finished(the_job):
                         new_status = "downloading"
 
+                if new_status == "downloading":
+                    if self.download_job_too_long(the_job, active.loc[i]):
+                        #retry download
+                        if active.loc[i, "attempt"] <= self.max_attempts+2:
+                            active.loc[i, "attempt"] += 1
+                            new_status = "running"
+                        else:
+                            new_status = "error_downloading"
+
                 if previous_status != "error" and new_status == "error":
                     stats["job failed"] += 1
                     error_reason = self.on_job_error(the_job, active.loc[i])
                     if error_reason:
                         new_status = error_reason
                     elif active.loc[i, "attempt"] <= self.max_attempts:
-                        active.loc[i, "attempt"] += 1
                         new_status = "not_started"
                     else:
                         new_status = "error_openeo"
-
-                if previous_status in {"created", "queued"} and new_status == "running":
-                    stats["job started running"] += 1
-                    active.loc[i, "running_start_time"] = rfc3339.utcnow()
 
                 if new_status == "canceled":
                     stats["job canceled"] += 1
                     self.on_job_cancel(the_job, active.loc[i])
                     if active.loc[i, "attempt"] <= self.max_attempts:
-                        active.loc[i, "attempt"] += 1
                         new_status = "not_started"
-
-                if new_status == "downloading":
-                    if self.download_job_too_long(the_job, active.loc[i]):
-                        #retry download
-                        if active.loc[i, "attempt"] <= self.max_attempts+2:
-                            new_status = "running"
-                        else:
-                            new_status = "error_downloading"
 
                 if self._cancel_running_job_after and new_status == "running":
                     self._cancel_prolonged_job(the_job, active.loc[i])
@@ -415,6 +411,7 @@ class WeedJobManager(MultiBackendJobManager):
             stats["start_job error"] += 1
         else:
             df.loc[i, "start_time"] = rfc3339.utcnow()
+            df.loc[i, "attempt"] += 1
             if job:
                 df.loc[i, "id"] = job.job_id
                 with ignore_connection_errors(context="get status"):
@@ -432,7 +429,6 @@ class WeedJobManager(MultiBackendJobManager):
                             logger.error(e)
                             df.loc[i, "status"] = "start_failed"
                             if df.loc[i, "attempt"] <= self.max_attempts:
-                                df.loc[i, "attempt"] += 1
                                 df.loc[i, "status"] = "not_started"
                             stats["job start error"] += 1
             else:
@@ -441,7 +437,7 @@ class WeedJobManager(MultiBackendJobManager):
                 df.loc[i, "status"] = "skipped"
                 stats["start_job skipped"] += 1
 
-    def create_viz_status(self, job_db : JobDatabaseInterface ):
+    def create_viz_status(self, job_db: JobDatabaseInterface) -> None:
         """
         Creates a visualization of job statuses using geographic data. The status of
         each job is represented on a plot with color coding based on the current state
@@ -608,7 +604,7 @@ def add_cost_to_csv(connection: openeo.Connection, file_path: str):
         df.loc[i, "cost"] = cost
     df.to_csv(file_path)
 
-def check_reason(log_text):
+def check_reason(log_text: str) -> Union[str, bool]:
     """
     Analyzes the provided log text to determine the reason for specific
     errors or issues encountered within the system. This function scans

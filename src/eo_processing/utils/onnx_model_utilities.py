@@ -32,32 +32,35 @@ def save_model_to_onnx(model, output_onnx_path: str):
 # Function to add metadata to the ONNX model
 def add_metadata_to_onnx(onnx_path: str, input_features: list = None, output_features: list = None):
     """Load the ONNX model and add input/output feature metadata to the doc_string."""
+    import onnx
+    from onnx import StringStringEntryProto
+
     try:
         onnx_model = onnx.load(onnx_path)
         inspect(message=f"Loaded ONNX model from {onnx_path}")
     except Exception as e:
         raise ValueError(f"Failed to load ONNX model from {onnx_path}: {e}")
     
-    if input_features or output_features:
-        metadata_entries = []
+    metadata_entries = []
 
-        # Validate and add input features
-        if input_features:
-            if isinstance(input_features, list) and input_features:
-                input_features_string = ', '.join(input_features)
-                metadata_entries.append(onnx.StringStringEntryProto(key='input_features', value=input_features_string))
-            else:
-                raise ValueError("Input features must be a non-empty list.")
+    # Validate and add input features
+    if input_features:
+        if isinstance(input_features, list) and input_features:
+            input_features_string = ', '.join(input_features)
+            metadata_entries.append(StringStringEntryProto(key='input_features', value=input_features_string))
+        else:
+            raise ValueError("Input features must be a non-empty list.")
 
-        # Validate and add output features
-        if output_features:
-            if isinstance(output_features, list) and output_features:
-                output_features_string = ', '.join(output_features)
-                metadata_entries.append(onnx.StringStringEntryProto(key='output_features', value=output_features_string))
-            else:
-                raise ValueError("Output features must be a non-empty list.")
+    # Validate and add output features (optional)
+    if output_features:
+        if isinstance(output_features, list) and output_features:
+            output_features_string = ', '.join(output_features)
+            metadata_entries.append(StringStringEntryProto(key='output_features', value=output_features_string))
+        else:
+            raise ValueError("Output features must be a non-empty list.")
 
-        # Add new metadata
+    # Add new metadata
+    if metadata_entries:
         onnx_model.metadata_props.extend(metadata_entries)
         inspect(message=f"Metadata added: input_features = {input_features}, output_features = {output_features}")
     
@@ -71,7 +74,7 @@ def add_metadata_to_onnx(onnx_path: str, input_features: list = None, output_fea
 # Main conversion function that ties everything together
 def convert_catboost_model_to_onnx_with_metadata(catboost_model_path: str, 
                                                  input_features: list, 
-                                                 output_features: list, 
+                                                 output_features: list = None,  # Make optional
                                                  output_onnx_path: str = None):
     """Main function to convert CatBoost model to ONNX format with input/output features."""
     
@@ -87,7 +90,7 @@ def convert_catboost_model_to_onnx_with_metadata(catboost_model_path: str,
     # Step 3: Add input/output features metadata to the ONNX model
     add_metadata_to_onnx(output_onnx_path, input_features=input_features, output_features=output_features)
 
-    inspect(message=f"Model successfully converted and saved to ONNX format with input/output features in metadata.")
+    inspect(message="Model successfully converted and saved to ONNX format with input/output features in metadata.")
 
 # Function to extract metadata from ONNX model
 def extract_features_from_onnx(onnx_model_path: str):

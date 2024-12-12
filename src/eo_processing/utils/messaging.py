@@ -5,7 +5,7 @@ import smtplib
 # Constants
 SMTP_SERVER = 'mail.vgt.vito.be'
 SENDER_NAME = 'WEED openEO processing cluster'
-SENDER_EMAIL = 'esa.weed.project@gmail.com'
+SENDER_EMAIL = 'esa.weed.project@vito.be'
 
 
 def format_email_address(name_email_pair: tuple[str, str]) -> str:
@@ -18,7 +18,6 @@ def format_email_address(name_email_pair: tuple[str, str]) -> str:
     :return: A properly formatted email address as a string.
     """
     return email.utils.formataddr(name_email_pair)
-
 
 def send_email(recipient: tuple[str, str] | str, subject: str, msg_text: str, debug_flag: bool = False) -> None:
     """
@@ -49,7 +48,6 @@ def send_email(recipient: tuple[str, str] | str, subject: str, msg_text: str, de
         with smtplib.SMTP(SMTP_SERVER) as server:
             server.set_debuglevel(debug_flag)  # show communication with the server
             server.sendmail(SENDER_EMAIL, [recipient_entry[1]], msg.as_string())
-
 
 def read_recipients_from_file(file_path: str) -> list[tuple[str, str]]:
     """

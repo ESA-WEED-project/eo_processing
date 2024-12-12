@@ -19,6 +19,8 @@ def load_catboost_model(catboost_model_path: str):
     except Exception as e:
         raise ValueError(f"Failed to load CatBoost model from {catboost_model_path}: {e}")
 
+
+
 # Function to save the model as ONNX
 def save_model_to_onnx(model, output_onnx_path: str):
     """Save the CatBoost model to ONNX format."""
@@ -94,25 +96,35 @@ def convert_catboost_model_to_onnx_with_metadata(catboost_model_path: str,
 
 # Function to extract metadata from ONNX model
 def extract_features_from_onnx(onnx_model_path: str):
-    """Extract and return input and output features from the ONNX model's metadata."""
+    """Extract and return input and output features from the ONNX model's metadata.
+    If output features are not specified in the metadata, they are assigned
+    based on the length of the ONNX model's output."""
     try:
         onnx_model = onnx.load(onnx_model_path)
-        inspect(message=f"Loaded ONNX model from {onnx_model_path}")
+        print(f"Loaded ONNX model from {onnx_model_path}")
     except Exception as e:
         raise ValueError(f"Failed to load ONNX model from {onnx_model_path}: {e}")
 
+    # Extract metadata
     metadata = {prop.key: prop.value for prop in onnx_model.metadata_props}
 
+    # Retrieve input and output features from metadata
     input_features = metadata.get('input_features', '')
     output_features = metadata.get('output_features', '')
 
     input_features_list = input_features.split(', ') if input_features else []
     output_features_list = output_features.split(', ') if output_features else []
 
+    # Log if no features found in metadata
     if not input_features_list:
-        inspect(message="No input features found in metadata.")
+        print("No input features found in metadata.")
     if not output_features_list:
-        inspect(message="No output features found in metadata.")
+        print("No output features found in metadata.")
+
+        # Assign default output features based on the number of model outputs
+        output_names = [output.name for output in onnx_model.graph.output]
+        output_features_list = output_names
+        print(f"Default output features assigned: {output_features_list}")
     
     return {
         'input_features': input_features_list,

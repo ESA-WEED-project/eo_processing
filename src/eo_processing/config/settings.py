@@ -84,7 +84,7 @@ def get_job_options(provider: str = None):
 
     if 'creo' in provider.lower():
         job_options.update(OPENEO_EXTRACT_CREO_JOB_OPTIONS)
-    if provider.lower() == 'cdse' or provider.lower() == 'cdse-staging':
+    if provider.lower() == 'cdse' or provider.lower() == 'cdse-stagging':
         job_options.update(OPENEO_EXTRACT_CDSE_JOB_OPTIONS)
 
     return job_options
@@ -97,7 +97,7 @@ def get_collection_options(provider: str):
         return _SENTINELHUB_COLLECTIONS
     elif 'creo' in provider.lower():
         return _CREO_COLLECTIONS
-    elif provider.lower() == 'cdse' or provider.lower() == 'cdse-staging':
+    elif provider.lower() == 'cdse' or provider.lower() == 'cdse-stagging':
         return _CDSE_COLLECTIONS
     else:
         raise ValueError(f'Provider `{provider}` not known.')

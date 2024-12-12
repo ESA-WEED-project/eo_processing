@@ -318,15 +318,6 @@ class WeedJobManager(MultiBackendJobManager):
                     if not self.check_finished(the_job):
                         new_status = "downloading"
 
-                if new_status == "downloading":
-                    if self.download_job_too_long(the_job, active.loc[i]):
-                        #retry download
-                        if active.loc[i, "attempt"] <= self.max_attempts+2:
-                            active.loc[i, "attempt"] += 1
-                            new_status = "running"
-                        else:
-                            new_status = "error_downloading"
-
                 if previous_status != "error" and new_status == "error":
                     stats["job failed"] += 1
                     error_reason = self.on_job_error(the_job, active.loc[i])
@@ -346,12 +337,22 @@ class WeedJobManager(MultiBackendJobManager):
                 if self._cancel_running_job_after and new_status == "running":
                     self._cancel_prolonged_job(the_job, active.loc[i])
 
-                active.loc[i, "status"] = new_status
-
                 # TODO: there is well hidden coupling here with "cpu", "memory" and "duration" from `_normalize_df`
                 for key in job_metadata.get("usage", {}).keys():
                     if key in active.columns:
                         active.loc[i, key] = _format_usage_stat(job_metadata, key)
+
+                #this needs usage to be set
+                if new_status == "downloading":
+                    if self.download_job_too_long(the_job, active.loc[i]):
+                        # retry download
+                        if active.loc[i, "attempt"] <= self.max_attempts + 2:
+                            active.loc[i, "attempt"] += 1
+                            new_status = "running"
+                        else:
+                            new_status = "error_downloading"
+
+                active.loc[i, "status"] = new_status
 
             except OpenEoApiError as e:
                 stats["job tracking error"] += 1

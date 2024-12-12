@@ -51,7 +51,7 @@ class WeedJobManager(MultiBackendJobManager):
     }
 
     def __init__(self, poll_sleep: int = 5, root_dir: str = '.', viz: bool = False, max_attempts: int = 3,
-                 viz_labels: bool = False) -> None:
+                 viz_labels: bool = False, viz_edge_color: str = 'black') -> None:
         """
         Initializes a new instance of the DownloadManager class, which manages
         download sessions with retry capabilities and optional visualization
@@ -71,6 +71,7 @@ class WeedJobManager(MultiBackendJobManager):
         super().__init__(poll_sleep=poll_sleep, root_dir=root_dir)
         self.viz = viz
         self.viz_labels = viz_labels
+        self.viz_edge_color = viz_edge_color
         self.max_attempts = max_attempts
         self._cancel_download_after = (
             datetime.timedelta(seconds=1800)  )
@@ -474,7 +475,7 @@ class WeedJobManager(MultiBackendJobManager):
 
         # plot the tiles with their status color
         fig, ax = plt.subplots()
-        status_df.plot(ax=ax, edgecolor='black', color=status_df['color'])
+        status_df.plot(ax=ax, edgecolor=self.viz_edge_color, color=status_df['color'])
 
         # add labels to the tiles showing the tileID and status
         if self.viz_labels:

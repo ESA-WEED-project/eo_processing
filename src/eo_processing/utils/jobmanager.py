@@ -51,30 +51,30 @@ class WeedJobManager(MultiBackendJobManager):
     }
 
     def __init__(self, poll_sleep: int = 5, root_dir: str = '.', viz: bool = False, max_attempts: int = 3,
-                 viz_labels: bool = False, viz_edge_color: str = 'black') -> None:
+                 viz_labels: bool = False, viz_edge_color: str = 'black', dl_cancel_time: int = 1800) -> None:
         """
-        Initializes a new instance of the DownloadManager class, which manages
-        download sessions with retry capabilities and optional visualization
-        features. The class allows configuration of polling intervals, working
-        directory, number of attempts for retries, and visualization options
-        for download processes.
+        Initializes an instance of the class with configuration options for polling, directory paths,
+        visualization settings, maximum retry attempts, and download cancellation timing.
 
-        :param int poll_sleep: The number of seconds to wait between each
-            polling attempt to check download progress.
-        :param str root_dir: The root directory where files will be downloaded.
-        :param bool viz: Flag to enable visualization of the download progress.
-        :param int max_attempts: The maximum number of attempts to retry a
-            failed download.
-        :param bool viz_labels: Flag to enable or disable labels in the
-            visualization of the download progress.
+        This constructor allows configuring various parameters like the polling interval, the root
+        directory where operations will be performed, whether to enable visualization along with
+        customizable visualization settings such as label rendering and edge colors, as well as
+        maximum retry attempts. It also configures a timeout for cancellation of downloads.
+
+        :param poll_sleep: The interval (in seconds) for polling operations.
+        :param root_dir: The root directory to use for file-related operations.
+        :param viz: Flag to enable or disable visualization.
+        :param max_attempts: Maximum number of attempts allowed for retrying operations.
+        :param viz_labels: Flag to toggle the visualization of labels.
+        :param viz_edge_color: Color used to render edges in visualization.
+        :param dl_cancel_time: Timeout duration (in seconds) after which a download will be canceled.
         """
         super().__init__(poll_sleep=poll_sleep, root_dir=root_dir)
         self.viz = viz
         self.viz_labels = viz_labels
         self.viz_edge_color = viz_edge_color
         self.max_attempts = max_attempts
-        self._cancel_download_after = (
-            datetime.timedelta(seconds=1800)  )
+        self._cancel_download_after = (datetime.timedelta(seconds=dl_cancel_time))
 
     def download_job_too_long(self, job: openeo.BatchJob, row: pd.Series) -> bool:
         """

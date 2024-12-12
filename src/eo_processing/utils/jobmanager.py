@@ -482,7 +482,7 @@ class WeedJobManager(MultiBackendJobManager):
             status_df['coords'] = status_df['geometry'].apply(lambda x: x.representative_point().coords[:])
             status_df['coords'] = [coords[0] for coords in status_df['coords']]
             for idx, row in status_df.iterrows():
-                plt.annotate(text=f'{row['name']} \n ({row['status']})', xy=row['coords'],
+                plt.annotate(text=f"{row['name']} \n ({row['status']})", xy=row['coords'],
                              horizontalalignment='center', color='k')
 
         # show the figure

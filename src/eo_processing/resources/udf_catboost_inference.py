@@ -51,8 +51,7 @@ def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: st
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".onnx")
             temp_file_path = temp_file.name  # Store the temporary file path
             
-            print(f"Downloading file from {url}...")
-
+            inspect(message=f"Downloading file from {url}...")
             response = requests.get(url, stream=True)
             if response.status_code == 200:
                 file_size = 0
@@ -63,7 +62,7 @@ def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: st
                         if file_size > max_file_size_mb * 1024 * 1024:
                             raise ValueError(f"Downloaded file exceeds the size limit of {max_file_size_mb} MB")
 
-                print(f"Downloaded file to {temp_file_path}")
+                inspect(message=f"Downloaded file to {temp_file_path}")
                 
                 # After download is complete, move the file from temp to the final destination
                 shutil.move(temp_file_path, file_path)  # Move the file to final location
@@ -142,6 +141,8 @@ def postprocess_output(predicted_labels: np.ndarray, probabilities_dicts: list, 
     # Reshape to match the (y, x) spatial structure
     predicted_labels = predicted_labels.reshape(input_shape[0], input_shape[1])
     probabilities = probabilities.reshape(len(class_labels), input_shape[0], input_shape[1])
+    probabilities = (probabilities / probabilities.sum(axis=0, keepdims=True)) * 100
+
 
     return predicted_labels, probabilities
 
@@ -151,13 +152,13 @@ def create_output_xarray(predicted_labels: np.ndarray, probabilities: np.ndarray
     Create an xarray DataArray with predicted labels and probabilities stacked along the bands dimension.
     """
     inspect(message=f"Ceating output xarray")
-    combined_data = np.concatenate([
-        predicted_labels[np.newaxis, :, :],  # Shape (1, y, x) for predicted labels
-        probabilities  # Shape (n_classes, y, x) for probabilities
-    ], axis=0)
+    #combined_data = np.concatenate([
+    #    predicted_labels[np.newaxis, :, :],  # Shape (1, y, x) for predicted labels
+    #    probabilities  # Shape (n_classes, y, x) for probabilities
+    #], axis=0)
 
     return xr.DataArray(
-        combined_data,
+        probabilities,
         dims=["bands", "y", "x"],
         coords={
             'y': input_xr.coords['y'],
@@ -206,6 +207,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     """
     # Define how you want to handle nan values
     cube = cube.fillna(0)
+    cube = cube.astype('float32')
 
     # Apply the model for each timestep in the chunk
     output_data = apply_model(cube, context)

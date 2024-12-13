@@ -3,6 +3,8 @@ from openeo.extra.spectral_indices import append_indices, compute_indices
 from openeo.processes import array_create, ProcessBuilder, array_concat, subtract
 
 from eo_processing.openeo.preprocessing import (extract_S2_datacube, extract_S1_datacube)
+import openeo
+from eo_processing.utils.geoprocessing import openEO_bbox_format
 
 VI_LIST = ['NDVI',
            'AVI',
@@ -23,8 +25,7 @@ RADAR_LIST = ['VHVVD',
 
 S2_SCALING = [0, 10000, 0, 1.0]
 
-
-def optical_indices(input_cube: DataCube, **processing_options) -> DataCube:
+def optical_indices(input_cube: DataCube, **processing_options: dict) -> DataCube:
     """creates vegetation indices times series cube from given datacube of optical EO data
 
     :param input_cube: openEO DataCube
@@ -50,7 +51,7 @@ def optical_indices(input_cube: DataCube, **processing_options) -> DataCube:
 
     return vi_cube
 
-def radar_indices(input_cube: DataCube, **processing_options) -> DataCube:
+def radar_indices(input_cube: DataCube, **processing_options: dict) -> DataCube:
     """creates radar indices times series cube from given datacube of radar EO data
 
     :param input_cube: openEO DataCube
@@ -137,9 +138,8 @@ def radar_indices(input_cube: DataCube, **processing_options) -> DataCube:
 
     return vi_cube
 
-def generate_S1_indices(
-        connection, bbox, start: str, end: str,
-        S1_collection='SENTINEL1_GRD', **processing_options) -> DataCube:
+def generate_S1_indices(connection: openeo.Connection, bbox: openEO_bbox_format, start: str, end: str,
+                        S1_collection: str ='SENTINEL1_GRD', **processing_options: dict) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -159,9 +159,8 @@ def generate_S1_indices(
 
     return result_cube
 
-def generate_S2_indices(
-        connection, bbox, start: str, end: str,
-        S2_collection='SENTINEL2_L2A', **processing_options) -> DataCube:
+def generate_S2_indices(connection: openeo.Connection, bbox: openEO_bbox_format, start: str, end: str,
+                        S2_collection: str ='SENTINEL2_L2A', **processing_options: dict) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -176,17 +175,14 @@ def generate_S2_indices(
     # get the S2 input data pre-processed
     input_cube = extract_S2_datacube(connection, bbox, start, end, S2_collection=S2_collection,
                                      **processing_options)
-
     # call the VI generator
     result_cube = optical_indices(input_cube, **processing_options)
 
     return result_cube
 
-def generate_indices_master_cube(
-        connection, bbox, start: str, end: str,
-        S2_collection='SENTINEL2_L2A',
-        S1_collection='SENTINEL1_GRD',
-        **processing_options) -> DataCube:
+def generate_indices_master_cube(connection: openeo.Connection, bbox: openEO_bbox_format, start: str, end: str,
+                                 S2_collection: str ='SENTINEL2_L2A', S1_collection: str ='SENTINEL1_GRD',
+                                 **processing_options: dict) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -203,16 +199,26 @@ def generate_indices_master_cube(
     # get the S2 indices
     indices_cube = generate_S2_indices(connection, bbox, start, end, S2_collection=S2_collection,
                                        **processing_options)
-
     # merge the S1 indices
     if S1_collection is not None:
         indices_cube = indices_cube.merge_cubes(generate_S1_indices(connection, bbox, start, end,
                                                                     S1_collection=S1_collection,
                                                                     **processing_options))
-
     return indices_cube
 
-def _compute_features(input_timeseries: ProcessBuilder):
+
+def _compute_features(input_timeseries: DataCube) -> ProcessBuilder:
+    """
+    Computes a set of statistical features from the given input time series. The computed
+    features include quantiles at specified probabilities, the mean, the standard deviation,
+    the sum, and the interquartile range (IQR) derived as the difference between the 75th
+    and 25th percentiles.
+
+    :param input_timeseries: An object representing the input time series with methods to
+        compute quantiles, mean, standard deviation, and sum of its data.
+    :return: Concatenated array of computed statistical features, including quantiles,
+        mean, standard deviation, sum, and the interquartile range (IQR).
+    """
     return array_concat(
         input_timeseries.quantiles(probabilities=[0.02, 0.25, 0.5, 0.75, 0.98]),
         [input_timeseries.mean(), input_timeseries.sd(), input_timeseries.sum(),
@@ -220,10 +226,19 @@ def _compute_features(input_timeseries: ProcessBuilder):
                   y=input_timeseries.quantiles(probabilities=[0.25]))])
 
 def calculate_features_cube(input_data: DataCube) -> DataCube:
-    """ calculates the features on a given timeseries datacube (reflectance or Vi or both)
+    """
+    Calculates feature statistics for each time series within the input data cube. This function applies
+    statistical summaries to the bands of the input `DataCube` across the time dimension (`t`). It then
+    modifies the band names to reflect the applied statistical operations and further filters out bands
+    with summaries that are not meaningful for the analysis. The processed output is returned as a new
+    `DataCube`.
 
-    :param input_data: time series datacube
-    :return: DataCube
+    :param input_data: The input `DataCube` object, which contains multi-dimensional spatio-temporal data
+                       to process. Bands represent different variables or channels, and the time series
+                       are evaluated along the `t` dimension.
+    :return: Returns a `DataCube` object containing the processed features. The output includes bands
+             with applied statistical summaries (e.g., mean, median, percentiles) and excludes irrelevant
+             bands based on practical considerations.
     """
     # calculate the features
     features_cube = input_data.apply_dimension(dimension='t',
@@ -248,10 +263,8 @@ def calculate_features_cube(input_data: DataCube) -> DataCube:
 
     return features_cube
 
-def generate_S1_feature_cube(
-        connection, bbox, start: str, end: str,
-        S1_collection='SENTINEL1_GRD',
-        **processing_options) -> DataCube:
+def generate_S1_feature_cube(connection: openeo.Connection, bbox: openEO_bbox_format, start: str, end: str,
+                             S1_collection: str ='SENTINEL1_GRD', **processing_options: dict) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -266,16 +279,13 @@ def generate_S1_feature_cube(
     # get the reflectance and VI time series cube
     input_data = generate_S1_indices(connection, bbox, start, end, S1_collection=S1_collection,
                                      **processing_options)
-
     # get features
     features_cube = calculate_features_cube(input_data)
 
     return features_cube
 
-def generate_S2_feature_cube(
-        connection, bbox, start: str, end: str,
-        S2_collection='SENTINEL2_L2A',
-        **processing_options) -> DataCube:
+def generate_S2_feature_cube(connection: openeo.Connection, bbox: openEO_bbox_format, start: str, end: str,
+                             S2_collection: str ='SENTINEL2_L2A', **processing_options: dict) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -290,17 +300,14 @@ def generate_S2_feature_cube(
     # get the reflectance and VI time series cube
     input_data = generate_S2_indices(connection, bbox, start, end, S2_collection=S2_collection,
                                      **processing_options)
-
     # get features
     features_cube = calculate_features_cube(input_data)
 
     return features_cube
 
-def generate_master_feature_cube(
-        connection, bbox, start: str, end: str,
-        S2_collection='SENTINEL2_L2A',
-        S1_collection='SENTINEL1_GRD',
-        **processing_options) -> DataCube:
+def generate_master_feature_cube(connection: openeo.Connection, bbox: openEO_bbox_format, start: str, end: str,
+                                 S2_collection: str ='SENTINEL2_L2A', S1_collection: str ='SENTINEL1_GRD',
+                                 **processing_options: dict) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -317,7 +324,6 @@ def generate_master_feature_cube(
     # get the reflectance and VI time series cube
     input_data = generate_indices_master_cube(connection, bbox, start, end, S2_collection=S2_collection,
                                               S1_collection=S1_collection, **processing_options)
-
     # get features
     features_cube = calculate_features_cube(input_data)
 

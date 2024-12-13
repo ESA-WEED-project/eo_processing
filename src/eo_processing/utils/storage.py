@@ -54,7 +54,6 @@ def WEED_GDRIVE_Access(username: str = 'buchhornm',
     # return the fsspec filesystem to access the files & folders available for the service account credentials
     return GDriveFileSystem(entry_point, use_service_account=True, client_json=gdrive_credentials)
 
-
 def print_gdrive_overview(gdrive: GDriveFileSystem) -> None:
     """
     Prints an overview of the Google Drive filesystem structure starting from

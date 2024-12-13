@@ -1,6 +1,7 @@
 from email.mime.text import MIMEText
 import email.utils
 import smtplib
+from typing import List
 
 # Constants
 SMTP_SERVER = 'mail.vgt.vito.be'
@@ -49,7 +50,7 @@ def send_email(recipient: tuple[str, str] | str, subject: str, msg_text: str, de
             server.set_debuglevel(debug_flag)  # show communication with the server
             server.sendmail(SENDER_EMAIL, [recipient_entry[1]], msg.as_string())
 
-def read_recipients_from_file(file_path: str) -> list[tuple[str, str]]:
+def read_recipients_from_file(file_path: str) -> List[tuple[str, str]]:
     """
     Reads recipients from a file, where each line contains a name and email separated by a semicolon (';').
     :param file_path: Path to the file containing recipients.

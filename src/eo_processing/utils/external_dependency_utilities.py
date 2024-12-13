@@ -8,11 +8,32 @@ import onnx
 
 
 def is_onnx_file(file_path: str) -> bool:
-    """Check if the file is an ONNX model based on its extension."""
+    """
+    Determines if the provided file path corresponds to an ONNX file.
+
+    This function checks if the file path ends with the '.onnx' extension,
+    which is the standard extension for ONNX files.
+
+    :param file_path: The path of the file to check.
+    :return: A boolean value indicating if the file path corresponds to
+        an ONNX file (True) or not (False).
+    """
     return file_path.endswith('.onnx')
 
+
 def validate_onnx_file(file_path: str) -> bool:
-    """Validate if the given file is a valid ONNX model."""
+    """
+    Validates whether a given ONNX file is loadable and properly formatted.
+
+    This function attempts to load the ONNX file specified by the provided
+    file path. If the file can be successfully loaded, the function returns
+    True, indicating that the ONNX file is valid. If the file fails to load
+    due to an exception, the function returns False after logging a validation
+    failure message.
+
+    :param file_path: The path to the ONNX file to validate.
+    :return: A boolean value indicating whether the ONNX file is valid.
+    """
     try:
         onnx.load(file_path)  # Attempt to load the ONNX model
         return True
@@ -21,7 +42,18 @@ def validate_onnx_file(file_path: str) -> bool:
         return False
 
 def download_file(url: str, max_file_size_mb: int = 100, cache_dir: str = '/tmp/cache') -> str:
-    """Download a file with concurrency protection and store it temporarily."""
+    """
+    Downloads a file from a given URL and stores it in a specified cache directory. If the file already exists
+    in the cache, it is returned immediately. The function ensures that the file size does not exceed a
+    specified limit. It also handles temporary file management during download and cleans up in case of
+    errors. The downloaded file is moved from a temporary location to the specified cache directory upon
+    successful completion.
+
+    :param url: The URL of the file to be downloaded.
+    :param max_file_size_mb: Maximum allowed file size in megabytes. Defaults to 100 MB.
+    :param cache_dir: The directory where the downloaded file will be cached. Defaults to '/tmp/cache'.
+    :return: The path of the downloaded file within the cache directory.
+    """
     
     # Extract the file name from the URL (e.g., "model_1.onnx")
     file_name = os.path.basename(urlparse(url).path)
@@ -66,8 +98,3 @@ def download_file(url: str, max_file_size_mb: int = 100, cache_dir: str = '/tmp/
         if temp_file_path and os.path.exists(temp_file_path):
             os.remove(temp_file_path)  # Clean up temporary file on error
         raise ValueError(f"Error downloading file: {e}")
-
-
-
-
-

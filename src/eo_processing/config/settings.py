@@ -1,19 +1,20 @@
 from eo_processing.openeo.processing import VI_LIST, RADAR_LIST, S2_SCALING
 from eo_processing.openeo.preprocessing import S2_BANDS
+from typing import List
 
 # ---------------------------------------------------
 # standard processing options
-TARGET_CRS = 3035                   # can be all known EPSG codes
-S1_ORBITDIRECTION = 'DESCENDING'    #
-TARGET_RESOLUTION = 10.
-TIME_INTERPOLATION = False
-TS_INTERVAL = 'dekad'
-MASKING_ALGO = 'mask_scl_dilation'
+TARGET_CRS: int = 3035                   # can be all known EPSG codes
+S1_ORBITDIRECTION: str = 'DESCENDING'    #
+TARGET_RESOLUTION: float = 10.
+TIME_INTERPOLATION: bool = False
+TS_INTERVAL: str = 'dekad'
+MASKING_ALGO: str = 'mask_scl_dilation'
 
 # ---------------------------------------------------
 # Job options for OpenEO
 
-OPENEO_EXTRACT_JOB_OPTIONS = {
+OPENEO_EXTRACT_JOB_OPTIONS: dict = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "8G",
     "driver-cores": "2",
@@ -24,7 +25,7 @@ OPENEO_EXTRACT_JOB_OPTIONS = {
     "soft-errors": "true"
 }
 
-OPENEO_EXTRACT_CREO_JOB_OPTIONS = {
+OPENEO_EXTRACT_CREO_JOB_OPTIONS: dict = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "2G",
     "driver-cores": "1",
@@ -35,7 +36,7 @@ OPENEO_EXTRACT_CREO_JOB_OPTIONS = {
     "max-executors": "200"
 }
 
-OPENEO_EXTRACT_CDSE_JOB_OPTIONS = {
+OPENEO_EXTRACT_CDSE_JOB_OPTIONS: dict = {
     "driver-memory": "8G",
     "driver-memoryOverhead": "5G",
     "driver-cores": "1",
@@ -52,34 +53,56 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS = {
 # COLLECTION options
 
 # Collection definitions on Terrascope
-_TERRASCOPE_COLLECTIONS = {
+_TERRASCOPE_COLLECTIONS: dict = {
     'S2_collection': "SENTINEL2_L2A",
     'S1_collection': "SENTINEL1_GRD"
 }
 
 # Collection definitions on CREO
-_CREO_COLLECTIONS = {
+_CREO_COLLECTIONS: dict = {
     'S2_collection': "SENTINEL2_L2A",
     'S1_collection': "SENTINEL1_GRD"
 }
 
 # Collection definitions on Sentinelhub
-_SENTINELHUB_COLLECTIONS = {
+_SENTINELHUB_COLLECTIONS: dict = {
     'S2_collection': "SENTINEL2_L2A_SENTINELHUB",
     'S1_collection': "SENTINEL1_GRD"
 }
 
 # Collection definitions on CDSE
-_CDSE_COLLECTIONS = {
+_CDSE_COLLECTIONS: dict = {
     'S2_collection': "SENTINEL2_L2A",
     'S1_collection': "SENTINEL1_GRD"
 }
 
-def _get_default_job_options():
+
+def _get_default_job_options() -> dict:
+    """
+    Retrieves the default job options for OpenEO extract operations.
+
+    This function returns a predefined dictionary containing the default job
+    options configured for use with OpenEO extract. These options are setup
+    to maintain consistency and ensure reliability when performing extract
+    operations.
+
+    :return: A dictionary representing the default job options for OpenEO extract.
+    """
     return OPENEO_EXTRACT_JOB_OPTIONS
 
-def get_job_options(provider: str = None):
+def get_job_options(provider: str = None) -> dict:
+    """
+    Retrieve job options based on the provider.
 
+    The function retrieves default job options and updates them based on the
+    specific provider given. Custom options are applied for certain provider
+    values such as 'creo', 'cdse', or 'cdse-stagging'.
+
+    :param provider: The name of the provider. Determines which custom job
+        options are applied.
+    :return: A dictionary containing the updated job options based on the
+        provider.
+    """
     job_options = _get_default_job_options()
 
     if 'creo' in provider.lower():
@@ -89,8 +112,24 @@ def get_job_options(provider: str = None):
 
     return job_options
 
-def get_collection_options(provider: str):
+def get_collection_options(provider: str) -> dict:
+    """
+    Retrieve available collection options for a given data provider.
 
+    This function takes the name of a data provider as input and returns a
+    dictionary of corresponding collection options. It maintains internal
+    mappings for different supported providers and checks the input string
+    to determine which provider's collections to return. If the provider name
+    does not match any known provider, a `ValueError` is raised.
+
+    :param provider: The name of the data provider. Supported values (case
+        insensitive) include 'terrascope', 'development', 'sentinelhub', 'shub',
+        'creo' (or any string containing 'creo'), 'cdse', and 'cdse-stagging'.
+    :return: A dictionary containing collection options for the specified
+        provider.
+
+    :raises ValueError: If the given provider is not recognized.
+    """
     if provider.lower() == 'terrascope' or provider.lower() == 'development':
         return _TERRASCOPE_COLLECTIONS
     elif provider.lower() == 'sentinelhub' or provider.lower() == 'shub':
@@ -102,8 +141,28 @@ def get_collection_options(provider: str):
     else:
         raise ValueError(f'Provider `{provider}` not known.')
 
-def get_standard_processing_options(provider: str, task: str = 'raw_extraction'):
+def get_standard_processing_options(provider: str, task: str = 'raw_extraction') -> dict:
+    """
+    Generate standard processing options based on the provider and specified task.
 
+    This function creates and returns a dictionary containing processing options
+    required to perform standard operations depending on the type of task. It can
+    handle tasks such as `raw_extraction`, `feature_generation`, and `vi_generation`.
+    The returned dictionary includes parameters such as provider, resolution,
+    coordinate reference system, time interpolation, spectral bands, and other
+    task-specific configurations. An unknown or unsupported task value will raise
+    a ValueError.
+
+    :param provider: The name of the data provider, which determines specific
+        configurations for the generated processing options.
+    :param task: The type of task for which the processing options are needed.
+        Supported tasks are 'raw_extraction', 'feature_generation', and
+        'vi_generation'. Defaults to 'raw_extraction'.
+
+    :return: A dictionary containing processing parameters tailored to the
+        specified task, including key configurations for spectral, spatial,
+        and temporal processing.
+    """
     if task == 'raw_extraction':
         proc_opt = {
             "provider": provider,
@@ -135,12 +194,39 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
         raise ValueError(f'Task `{task}` not known.')
     return proc_opt
 
-def get_advanced_options(provider: str, s1_orbitdirection=S1_ORBITDIRECTION, target_crs=TARGET_CRS,
-                         resolution=TARGET_RESOLUTION, ts_interpolation=TIME_INTERPOLATION,
-                         ts_interval=TS_INTERVAL, slc_masking=MASKING_ALGO, S2_bands = S2_BANDS,
-                         optical_vi_list=VI_LIST, radar_vi_list=RADAR_LIST,
-                         S2_scaling=S2_SCALING, S1_db_rescale=True, append=True):
-    """ validates also the given options"""
+
+def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTION, target_crs: int = TARGET_CRS,
+                         resolution: int | float = TARGET_RESOLUTION, ts_interpolation: bool = TIME_INTERPOLATION,
+                         ts_interval: str = TS_INTERVAL, slc_masking: str = MASKING_ALGO, S2_bands: List[str] = S2_BANDS,
+                         optical_vi_list: List[str] = VI_LIST, radar_vi_list: List[str] = RADAR_LIST,
+                         S2_scaling: List[int | float] = S2_SCALING, S1_db_rescale: bool = True,
+                         append: bool = True) -> dict:
+    """
+    Generates and validates advanced processing options for geospatial data, encapsulating
+    parameters such as data provider, spatial resolution, temporal interpolation, and band scaling.
+    The options include settings for Sentinel-1 and Sentinel-2 data processing, enabling users
+    to specify orbit direction, coordinate reference system, spectral and radar indices, and additional
+    customizations. Validates all input arguments to ensure conformity with expected formats and values.
+
+    :param provider: Specifies the data provider (e.g., 'ESA', 'NASA').
+    :param s1_orbitdirection: Indicates the orbit direction for Sentinel-1 data, accepting 'ASCENDING',
+        'DESCENDING', or None.
+    :param target_crs: Target coordinate reference system as an integer EPSG code (e.g., 4326 for WGS84).
+    :param resolution: Desired spatial resolution, accepting integer or float values.
+    :param ts_interpolation: Determines whether temporal interpolation is applied, as a boolean flag.
+    :param ts_interval: Temporal interval for interpolation, with valid values including 'day', 'week',
+        'dekad', 'month', 'season', 'year', or None.
+    :param slc_masking: Specifies the Sentinel-2 masking algorithm, with valid options such as
+        'mask_scl_dilation', 'satio', or None.
+    :param S2_bands: List of Sentinel-2 spectral bands to include in processing.
+    :param optical_vi_list: List of optical vegetation indices for retrieval.
+    :param radar_vi_list: List of radar vegetation indices for retrieval.
+    :param S2_scaling: List of scaling factors for Sentinel-2 bands, containing integer or float values.
+    :param S1_db_rescale: Boolean flag indicating if Sentinel-1 data should be scaled to decibels.
+    :param append: Boolean flag to determine whether to append processed data to an existing dataset.
+
+    :return: A dictionary containing validated and structured advanced processing options.
+    """
 
     if s1_orbitdirection not in ['ASCENDING', 'DESCENDING', None]:
         raise ValueError(f'parameter for s1_orbitdirection: {s1_orbitdirection} is not valid.')
@@ -194,5 +280,4 @@ def get_advanced_options(provider: str, s1_orbitdirection=S1_ORBITDIRECTION, tar
         "S1_db_rescale": S1_db_rescale,
         "append": append
     }
-
     return proc_opt

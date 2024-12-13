@@ -1,7 +1,6 @@
 from skimage.morphology import disk
 
-
-def convolve(img, radius):
+def convolve(img, radius: int):
     '''OpenEO method to apply convolution
     with a circular kernel of `radius` pixels.
     NOTE: make sure the resolution of the image
@@ -10,7 +9,6 @@ def convolve(img, radius):
     kernel = disk(radius)
     img = img.apply_kernel(kernel)
     return img
-
 
 def scl_mask_erode_dilate(session, bbox,
                           scl_layer_band="SENTINEL2_L2A:SCL",

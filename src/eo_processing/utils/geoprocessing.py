@@ -4,18 +4,30 @@ from shapely.geometry import box
 import geopandas as gpd
 import numpy as np
 import geojson
-from typing import Union
+from typing import Union, TypedDict
 from eo_processing.utils.mgrs import LL_2_UTM, floor_to_nearest_5, UTM_2_LL, UTM_2_MGRSid10, UTM_2_grid20id
 
-def laea20km_id_to_extent(laea_id: str):
-    """Method to get extent in EPSG:3035
-    from a 20km LAEA grid ID
+openEO_bbox_format = TypedDict('openEO_bbox_format', {'east': float,
+                                                      'south': float,
+                                                      'west': float,
+                                                      'north': float,
+                                                      'crs': str})
 
-    Args:
-        laea_id: an id, like 'E380N278'
+def laea20km_id_to_extent(laea_id: str) -> openEO_bbox_format:
+    """
+    Converts an LAEA 20km grid cell identifier to its spatial extent.
 
-    Returns:
+    This function interprets the given LAEA 20km grid cell identifier, which
+    provides geographical location information in the form of coordinates in
+    meters divided into cells. It calculates and returns the bounding box
+    (spatial extent) of the specified grid cell in the LAEA (EPSG:3035) projection
+    coordinate reference system. The identifier must follow the specific format
+    starting with 'E', containing coordinates split by 'N'.
 
+    :param laea_id: The LAEA grid cell identifier string in the form 'E<value>N<value>',
+        where <value> represents numeric coordinates in the grid system.
+    :return: A dictionary representing the spatial extent of the identified grid cell
+        with keys `east`, `south`, `west`, `north`, and `crs`.
     """
 
     assert laea_id[0] == 'E'
@@ -32,14 +44,25 @@ def laea20km_id_to_extent(laea_id: str):
         'crs': 'EPSG:3035'
     }
 
-def reproj_bbox_to_ll(bbox: dict, buffer: bool = False, densify: bool = False, return_geojson: bool = False) \
-        -> Union[Polygon, geojson.Feature]:
-    """ convert bbox to lat lon Polygon as shapley object or geoJSON dict including buffering and desifying if wished
+def reproj_bbox_to_ll(bbox: openEO_bbox_format, buffer: bool = False, densify: bool = False,
+                      return_geojson: bool = False) -> Union[Polygon, geojson.Feature]:
+    """
+    Transform a bounding box from its original CRS to EPSG:4326, with optional
+    buffering, densification, and return format customization. This function
+    utilizes the `pyproj` library to reproject bounding box coordinates and
+    generate a polygon representing the bounding box in EPSG:4326.
 
-    :param bbox: Dictionary containing the bounding box coordinates and coordinate reference system (CRS).
-    :param buffer: Optional boolean indicating whether to apply a small buffer to the polygon. Defaults to False.
-    :param densify: Optional boolean indicating whether to densify the polygon. Defaults to False.
-    :return: A polygon transformed to the EPSG:4326 coordinate reference system.
+    :param bbox: Input bounding box in `openEO_bbox_format` containing its
+        coordinates and CRS. Must include 'crs', 'west', 'east', 'north',
+        and 'south' fields.
+    :param buffer: Boolean flag to indicate whether the polygon should
+        be buffered by 0.003 degrees.
+    :param densify: Boolean flag to indicate whether the polygon should
+        undergo densification with a simplification of 0.05 degrees.
+    :param return_geojson: Boolean flag to specify whether the output
+        should be a GeoJSON Feature instead of a shapely `Polygon`.
+    :return: The transformed polygon in `EPSG:4326` as a shapely `Polygon`
+        or a GeoJSON Feature based on the `return_geojson` flag.
     """
     # Create the PyProj transformer objects for bbox['crs'] and EPSG 3246
     transformer_to_4326 = pyproj.Transformer.from_crs(bbox['crs'], 'EPSG:4326', always_xy=True)
@@ -58,21 +81,43 @@ def reproj_bbox_to_ll(bbox: dict, buffer: bool = False, densify: bool = False, r
         polygon_4326 = polygon_4326.simplify(0.05)
 
     if return_geojson:
-        polygon_4326 = geojson.Feature(geometry=polygon_4326, properties={})
+        return geojson.Feature(geometry=polygon_4326, properties={})
 
     return polygon_4326
 
-def bbox_area(bbox):
-    """ Calculate the area of the AOI to process in km2
-    Note: bbox must be given in a projected coordinate system to get a correct estimate
+def bbox_area(bbox: openEO_bbox_format) -> None:
+    """
+    Calculate and print the area of a bounding box (AOI) in square kilometers.
 
-    :param bbox: dict, bounding box of format {'east': x, 'south': x, 'west': x, 'north': x, 'crs': x}
+    This function takes a bounding box represented in a specific format and calculates
+    its area. The bounding box is first converted into a GeoDataFrame object using its
+    geographical boundaries and the specified coordinate reference system (CRS). The
+    function divides the calculated area by 10^6 to convert it from square meters to
+    square kilometers and prints the result.
+
+    :param bbox: A dictionary containing the bounding box details with keys `west`,
+                 `south`, `east`, `north`, and `crs`. The keys `west`, `south`,
+                 `east`, and `north` define the extent of the bounding box, while the
+                 `crs` provides the coordinate reference system of the bounding box.
+    :return: None
     """
     df = gpd.GeoDataFrame({"id": 1, "geometry": [box(bbox['west'], bbox['south'], bbox['east'], bbox['north'])]})
     df.crs = bbox['crs']
     print(f'area of AOI in km2: {df.iloc[0].geometry.area / 10 ** 6}')
 
-def bbox_of_PointsFeatureCollection(points_collection):
+def bbox_of_PointsFeatureCollection(points_collection: geojson.FeatureCollection) -> openEO_bbox_format:
+    """
+    Calculate a bounding box from a GeoJSON FeatureCollection containing points.
+
+    This function generates a bounding box (openEO spatial extent dictionary)
+    from a GeoJSON FeatureCollection that contains point geometries. The resulting
+    dictionary includes the minimum and maximum spatial extent of the points in
+    the CRS 'EPSG:4326'.
+
+    :param points_collection: A GeoJSON FeatureCollection containing point features.
+    :return: The computed bounding box as a dictionary with keys 'east', 'south',
+             'west', 'north', and 'crs'.
+    """
     # create an openEO spatial_extent dict from the GeoJSON FeatureCollection bbox of all points
     coords = np.array(list(geojson.utils.coords(points_collection)))
     return {'east': coords[:,0].max(),
@@ -82,14 +127,25 @@ def bbox_of_PointsFeatureCollection(points_collection):
             'crs': 'EPSG:4326'}
 
 def get_point_info(longitude: float, latitude: float) -> tuple[str, float, float, str]:
-    """ warper to bundle the reference point processing.
-        out of the lon/lat the MGRSid10 (geographic identifier of the reference point),
-        grid20id (corresponding 20x20km processing grid in openEO) and the center LL coordinates
-         of the corresponding 10x10 m UTM pixel are generated.
+    """
+    Gets metadata and identifiers for a geographical point based on its longitude and latitude.
 
-    :param longitude: A float representing the longitude of the location.
-    :param latitude: A float representing the latitude of the location.
-    :return: tuple of MGRSid10, center_lon, center_lat, grid20id.
+    This function performs multiple spatial transformations to extract identifiers and
+    coordinates in standardized formats. It converts the provided longitude and latitude
+    to UTM format, shifts the coordinates to the center of the corresponding UTM 10x10m
+    pixel, and computes other related spatial indices. The output includes the reference
+    point in MGRSid10 format, its geodetic longitude and latitude, and the grid20id
+    associated with the point for openEO processing.
+
+    :param longitude: The longitude of the point in decimal degrees.
+    :param latitude: The latitude of the point in decimal degrees.
+    :return: A 4-tuple containing:
+             - MGRSid10: The MGRSid10 index for the point.
+             - center_lon: The longitude of the center of the UTM 10x10m pixel, rounded
+               to 7 decimal places.
+             - center_lat: The latitude of the center of the UTM 10x10m pixel, rounded
+               to 7 decimal places.
+             - grid20id: The grid20id corresponding to the openEO processing grid.
     """
     # get the coordinates in UTM format
     try:

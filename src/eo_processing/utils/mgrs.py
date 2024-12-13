@@ -1,16 +1,19 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env python
-"""
-some functions to retrieve the MGRS identifier for a coordinate and LL-2-UTM coordinate translation
-"""
 
 import pyproj
 from math import trunc
 from typing import Union
 
 def latitude_to_zone_letter(latitude: float) -> Union[str, None]:
-    """ Helper function to get the UTM zone letter
-        from a given latitude """
+    """
+    Converts a given latitude into its corresponding UTM (Universal Transverse Mercator) zone letter.
+    This is determined based on the latitude's position within predefined zone bands.
+
+    :param latitude: Latitude in degrees. Should be in the range -80 to 84.
+    :return: The UTM zone letter corresponding to the latitude if within the valid range.
+             If the latitude is outside the valid range (-80 to 84), returns None.
+    """
     ZONE_LETTERS = "CDEFGHJKLMNPQRSTUVWXX"
     if -80 <= latitude <= 84:
         return ZONE_LETTERS[int(latitude + 80) >> 3]
@@ -18,8 +21,16 @@ def latitude_to_zone_letter(latitude: float) -> Union[str, None]:
         return None
 
 def latlon_to_zone_number(longitude: float, latitude: float) -> int:
-    """ Helper function to get the UTM zone number
-        from a given latitude and longitude """
+    """
+    Determines the UTM (Universal Transverse Mercator) zone number based on the
+    provided geographic coordinates (longitude and latitude). Special handling
+    is applied for certain areas, such as Norway and Svalbard regions, to account
+    for their unique zone allocations.
+
+    :param longitude: The geographic longitude in decimal degrees.
+    :param latitude: The geographic latitude in decimal degrees.
+    :return: The UTM zone number corresponding to the location.
+    """
     if 56 <= latitude < 64 and 3 <= longitude < 12:
         return 32
 
@@ -36,8 +47,21 @@ def latlon_to_zone_number(longitude: float, latitude: float) -> int:
     return int((longitude + 180) / 6) + 1
 
 def MGRS_100k_letters(easting: float, northing:float, zone_number: int) -> str:
-    """ Helper function to get the MGRS 100 kilometer
-        sub-grid letter for easting and northing value of UTM coordinate """
+    """
+    Generates the two-letter 100-km grid square designator for a given easting,
+    northing and zone number in the Military Grid Reference System (MGRS).
+
+    The MGRS grid is based on the UTM coordinate system. The given easting and
+    northing values are used to determine the specific 100-km grid square within
+    a UTM zone. The function calculates two letters: one representing the easting
+    sub-grid and the other representing the northing sub-grid. These letters are
+    calculated using predefined repeating patterns and the zone number.
+
+    :param easting: The easting coordinate in meters within a UTM zone.
+    :param northing: The northing coordinate in meters within a UTM zone.
+    :param zone_number: The UTM zone number (1 to 60).
+    :return: A two-character string representing the 100-km grid square designator.
+    """
     ## ini some constants
     # 100km in meter
     _100km = 100e3
@@ -78,12 +102,18 @@ def MGRS_2Mil_letter(northing: float, zone_letter: str) -> str:
         return _Ln2million_south[index]
 
 def LL_2_UTM(lon: float, lat: float, forced_epsg: Union[int, None]=None) -> tuple[float, float, int, str]:
-    """ Function to calculate the UTM coordinates plus
-        zone_number and zone_letter from a given
-        longitude and latitude.
-        NOTE: UTM zone can be forced by given the EPSG number (int) directly.
-        Note2: if you force epsg the zone_letter will be a faked one - for
-               northern_hemisphere = Z and for southern_hemisphere = A !!!!
+    """
+    Converts geographic coordinates (longitude, latitude) to UTM (Universal Transverse Mercator) coordinates.
+
+    This function calculates the UTM zone number and zone letter based on the given longitude and latitude.
+    It supports overriding the calculated EPSG (European Petroleum Survey Group) code using the optional
+    `forced_epsg` parameter. Additionally, the function performs coordinate transformation using the calculated
+    or overridden EPSG code to convert geographic coordinates into UTM coordinates.
+
+    :param lon: Longitude of the geographic coordinate.
+    :param lat: Latitude of the geographic coordinate.
+    :param forced_epsg: Optional parameter to override the calculated EPSG code with a specific one.
+    :return: A tuple containing the UTM easting, UTM northing, UTM zone number, and UTM zone letter.
     """
 
     # calculate the UTM zone_number and zone_letter from lon, lat
@@ -115,12 +145,17 @@ def LL_2_UTM(lon: float, lat: float, forced_epsg: Union[int, None]=None) -> tupl
     return target_easting, target_northing, zone_number, zone_letter
 
 def UTM_2_LL(easting: float, northing: float, zone_number: int, zone_letter:str) -> tuple[float, float]:
-    """ Function to calculate longitude and latitude coordinates
-        from a given UTM eastin and northing value plus
-        the UTM zone number and zone letter.
-        NOTE: if you are not sure of the zone_letter since you come
-              from random UTM coordinates then set 'Z' for northern hemisphere
-              and 'A' for southern hemisphere
+    """
+    Converts UTM (Universal Transverse Mercator) coordinates to latitude and longitude
+    (WGS84 coordinate system). This function takes easting, northing, zone number, and
+    zone letter as inputs and transforms them into corresponding geographic coordinates.
+
+    :param easting: The easting value (x-coordinate) of the UTM position.
+    :param northing: The northing value (y-coordinate) of the UTM position.
+    :param zone_number: The UTM zone number which designates the longitudinal zone.
+    :param zone_letter: The UTM zone letter which specifies the latitude band.
+    :return: A tuple of the form (longitude, latitude) representing the geographic
+             coordinates in decimal degrees (WGS84 datum).
     """
     # get source_crs
     northern = (zone_letter >= 'N')
@@ -136,9 +171,14 @@ def UTM_2_LL(easting: float, northing: float, zone_number: int, zone_letter:str)
     return target_lon, target_lat
 
 def LL_2_MGRSid(lon: float, lat: float) -> str:
-    """Function to calculate the MGRS identifier (used in
-       Sentinel-2 tile naming and PROBAV_UTM tile naming)
-       from a given longitude and latitude.
+    """
+    Converts geographic coordinates (longitude and latitude) to a Military Grid Reference System (MGRS) identifier.
+    This function uses the UTM coordinates as an intermediary step to calculate the MGRS identifier,
+    providing a standardized grid reference for geographic locations.
+
+    :param lon: Longitude of the location in decimal degrees.
+    :param lat: Latitude of the location in decimal degrees.
+    :return: The MGRS identifier as a string representing the geographic location.
     """
     # first calculate UTM coordinates out of the LL
     easting, northing, zone_number, zone_letter = LL_2_UTM(lon, lat)
@@ -146,9 +186,19 @@ def LL_2_MGRSid(lon: float, lat: float) -> str:
     return UTM_2_MGRSid(easting, northing, zone_number, zone_letter)
 
 def UTM_2_MGRSid(easting: float, northing: float, zone_number: int, zone_letter: str) -> str:
-    """Function to calculate the MGRS identifier (used in
-       Sentinel-2 tile naming and PROBAV_UTM tile naming)
-       from a given UTM coordinate tuple.
+    """
+    Converts UTM (Universal Transverse Mercator) coordinates to an MGRS (Military Grid
+    Reference System) coordinate identifier. This function takes in UTM parameters such as
+    easting, northing, zone number, and zone letter and returns the corresponding MGRS
+    coordinate string.
+
+    :param easting: The easting value (meters from the central meridian) for the UTM
+        coordinates.
+    :param northing: The northing value (meters from the equator) for the UTM coordinates.
+    :param zone_number: The zone number for the UTM coordinates; a number between 1 and 60.
+    :param zone_letter: The zone letter for the UTM coordinates; a single-character string
+        denoting the latitude band.
+    :return: The converted MGRS coordinate identifier as a string.
     """
     # run directly helper function
     letters_100kgrid = MGRS_100k_letters(easting, northing, zone_number)

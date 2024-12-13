@@ -3,14 +3,16 @@ from openeo.rest.datacube import DataCube
 
 from eo_processing.openeo.masking import scl_mask_erode_dilate
 from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2)
+from eo_processing.utils.geoprocessing import openEO_bbox_format
+import openeo
 
 S2_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
 
 def ts_datacube_extraction(
-        connection, bbox, start: str, end: str,
-        S2_collection='SENTINEL2_L2A',
-        S1_collection='SENTINEL1_GRD',
-        **processing_options) -> DataCube:
+        connection: openeo.Connection, bbox: openEO_bbox_format, start: str, end: str,
+        S2_collection: str ='SENTINEL2_L2A',
+        S1_collection: str ='SENTINEL1_GRD',
+        **processing_options: dict) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -40,8 +42,9 @@ def ts_datacube_extraction(
 
     return bands
 
-def extract_S1_datacube(connection, bbox, start: str, end: str,
-                        S1_collection='SENTINEL1_GRD', **processing_options) -> DataCube:
+
+def extract_S1_datacube(connection: openeo.Connection, bbox: openEO_bbox_format, start: str, end: str,
+                        S1_collection: str = 'SENTINEL1_GRD', **processing_options: dict) -> DataCube:
     """ extract the Sentinel-1 data for requested time period and preprocess the data
 
     :param connection: active openEO connection object
@@ -140,8 +143,8 @@ def extract_S1_datacube(connection, bbox, start: str, end: str,
     return bands
 
 
-def extract_S2_datacube(connection, bbox, start: str, end: str,
-                        S2_collection='SENTINEL2_L2A', **processing_options) -> DataCube:
+def extract_S2_datacube(connection: openeo.Connection, bbox: openEO_bbox_format, start: str, end: str,
+                        S2_collection: str='SENTINEL2_L2A', **processing_options: dict) -> DataCube:
     """ extract the Sentinel-2 data for requested time period and preprocess the data
 
     :param connection: active openEO connection object
@@ -226,4 +229,3 @@ def extract_S2_datacube(connection, bbox, start: str, end: str,
     bands = bands.linear_scale_range(0, 65534, 0, 65534)
 
     return bands
-

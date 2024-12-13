@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env python
-"""
-some functions to easy connection and pipeline work
-"""
 import openeo
 import requests
 import matplotlib.pyplot as plt
@@ -11,12 +8,26 @@ from shapely.geometry import box
 import importlib.resources as importlib_resources
 import eo_processing.resources
 from os.path import normpath
+from eo_processing.utils.geoprocessing import openEO_bbox_format
+import uuid
+import hashlib
+from datetime import datetime
 
 def init_connection(provider: str) -> openeo.Connection :
-    """ Warper to select the correct entry point based on the provider
+    """
+    Initializes a connection to the specified OpenEO backend provider and
+    authenticates the connection using OpenID Connect. Supports connections
+    to Terrascope, Development, CDSE, CDSE-Staging, and a standard OpenEO
+    entry point.
 
-    :param provider: str, backend like CDSE, terrascope, terascope-development
-    :return: openeo.Connection object
+    :param provider: The name of the OpenEO backend provider. Supported values
+                     are 'terrascope', 'development', 'cdse', 'cdse-stagging',
+                     or other for default OpenEO connection.
+    :return: An authenticated OpenEO connection to the specified provider.
+
+    :raises ValueError: If the provider specified does not match the supported
+                        categories and a backend-specific connection setup is
+                        unavailable.
     """
     if provider == 'terrascope':
         connection = openeo.connect("https://openeo.vito.be").authenticate_oidc()
@@ -32,14 +43,26 @@ def init_connection(provider: str) -> openeo.Connection :
         connection = openeo.connect("https://openeo.cloud").authenticate_oidc()
     return connection
 
-def location_visu(aoi_object, zoom: bool = False, region: str = 'EU', label: bool = True):
-    """ creates a figure of the location of the AOI in Europe/Globe
 
-    :param aoi_object: a bounding box dictionary with south,west,north,east and crs OR a GeoPandas GeoDataFrame
-    :param zoom: zoom in to intersected countries
-    :param region: str, in which context to show the AOI (EU, globe)
-    :param label: bool, if True will label the figure with country names
-    :return: plt object (directly viewable in jupyter notebook)
+def location_visu(aoi_object: openEO_bbox_format | gpd.GeoDataFrame, zoom: bool = False, region: str = 'EU',
+                  label: bool = True) -> None:
+    """
+    Creates and visualizes a geographical representation of the Area of Interest (AOI)
+    on a specified region, with options to zoom and include labels for countries.
+    The function supports rendering AOI as either a bounding box dictionary or a
+    GeoPandas GeoDataFrame, and can display results for Europe or the globe.
+
+    :param aoi_object: The Area of Interest (AOI) to visualize. It can be specified as
+        a dictionary containing keys 'south', 'west', 'north', 'east', and 'crs', or
+        as a `GeoDataFrame` object.
+    :param zoom: A boolean indicating whether to zoom into the region of interest
+        (default is False).
+    :param region: A string representing the region to visualize. Available options
+        are 'EU' for Europe and 'globe' for the entire world (default is 'EU').
+    :param label: A boolean indicating whether to include country or region labels
+        on the map (default is True).
+    :return: None. The function renders and displays the AOI on a map relative to
+        the specified region.
     """
     # evaluate the input
     if isinstance(aoi_object, dict):
@@ -105,11 +128,16 @@ def location_visu(aoi_object, zoom: bool = False, region: str = 'EU', label: boo
 
     plt.show()
 
-def getUDFpath(UDFname: str = None) -> normpath:
-    """ hands back the absolute path for a UDF script stored in the resources folder
+def getUDFpath(UDFname: str | None = None) -> str:
+    """
+    Retrieve the normalized file path for a specified User-Defined Function (UDF). This function is designed
+    to locate a UDF file within the `eo_processing.resources` package and return its normalized path. If the
+    specified UDF is not provided or does not exist, appropriate exceptions will be raised.
 
-    :param UDFname: name of the UDF to get the path
-    :return: absolute file path to the UDF
+    :param UDFname: The name of the User-Defined Function file to locate within the resources package.
+    :return: The normalized string representation of the UDF file's path.
+    :raises ValueError: If the UDF name is not provided (i.e., `None`).
+    :raises FileNotFoundError: If the specified UDF file does not exist within the resources package.
     """
     if UDFname is None:
         raise ValueError('The UDF name must be provided')
@@ -119,3 +147,39 @@ def getUDFpath(UDFname: str = None) -> normpath:
         return normpath(file_path)
     except FileNotFoundError:
         raise FileNotFoundError(f'UDF {UDFname} does not exist')
+
+def generate_unique_id(length: int = 25) -> str:
+    """
+    Generates a unique identifier (UUID) with a specified length. The UUID consists of
+    a timestamp in the format YYYYMMDD, followed by a unique hashed suffix. The generated
+    identifier length is adjustable within a specified range. Additionally, the suffix
+    portion includes hyphens for better readability.
+
+    Note: the standard 25 digit length (8 fixed and 14 variable hex digits) offers a virtually
+    collision-proof design. A collision probability of ( ~0.00000324% ) means you don’t
+    need to worry about collisions for practical purposes.
+
+    :param length: The length of the resulting unique identifier, which includes the
+        timestamp and the suffix. The value must be between 25 and 88, inclusive.
+    :raises ValueError: If the length is not within the valid range of 25 to 88.
+    :return: A string representing the unique identifier with the given length.
+    """
+    if length < 25 or length > 88:
+        raise ValueError("length must be between 25 and 88, inclusive.")
+
+    # Get current timestamp
+    timestamp = datetime.now().strftime('%Y%m%d')
+    # Calculate remaining length for unique suffix after timestamp (including hyphens)
+    suffix_length = max(1, length - len(timestamp) - 1)
+    # Generate UUID, hash it using SHA256
+    raw_suffix = hashlib.sha256(uuid.uuid4().hex.encode()).hexdigest()
+    # Add hyphens every 6 characters to format the suffix
+    formatted_suffix = '-'.join([raw_suffix[i:i+6] for i in range(0, len(raw_suffix), 6)])[:suffix_length]
+    # Combine timestamp and formatted suffix
+    unique_id = f"{timestamp}-{formatted_suffix}"
+    # Check for trailing hyphen and correct if necessary
+    if unique_id.endswith('-'):
+        # Replace trailing hyphen with the next character from raw_suffix
+        replacement_character = raw_suffix[len(formatted_suffix.replace('-', ''))]
+        unique_id = unique_id[:-1] + replacement_character
+    return unique_id

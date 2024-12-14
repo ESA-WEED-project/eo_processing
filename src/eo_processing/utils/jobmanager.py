@@ -457,6 +457,8 @@ class WeedJobManager(MultiBackendJobManager):
         if is_notebook():
             from IPython.display import clear_output
             clear_output(wait=True)
+            plt.rcParams['figure.figsize'] = [10, 10]
+            plt.rcParams['figure.dpi'] = 200
 
         status_df = job_db.df.copy()
 
@@ -469,9 +471,9 @@ class WeedJobManager(MultiBackendJobManager):
                       "skipped": 'darkorange',
                       "downloading": 'lightgreen',
                       "finished": 'green',
-                      "error_downloading" : "lightred",
-                      "error": 'darkred',
-                      "error_openeo": 'darkred',
+                      "error_downloading" : "lightcoral",
+                      "error": 'red',
+                      "error_openeo": 'red',
                       "OOM": 'darkred',
                       "NoDataAvailable": 'darkred',
                       "orfeo_error": 'darkred',
@@ -483,7 +485,7 @@ class WeedJobManager(MultiBackendJobManager):
 
         # plot the tiles with their status color
         fig, ax = plt.subplots()
-        status_df.plot(ax=ax, edgecolor=self.viz_edge_color, color=status_df['color'])
+        status_df.plot(ax=ax, edgecolor=self.viz_edge_color, color=status_df['color'], aspect='equal')
 
         # add labels to the tiles showing the tileID and status
         if self.viz_labels:

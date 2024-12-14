@@ -469,10 +469,17 @@ class WeedJobManager(MultiBackendJobManager):
                       "skipped": 'darkorange',
                       "downloading": 'lightgreen',
                       "finished": 'green',
-                      "download_error" : "lightred",
+                      "error_downloading" : "lightred",
                       "error": 'darkred',
+                      "error_openeo": 'darkred',
+                      "OOM": 'darkred',
+                      "NoDataAvailable": 'darkred',
+                      "orfeo_error": 'darkred',
+                      "no_VH_band": 'darkred',
+                      "no_tiff_in_S1": 'darkred',
                       "canceled": 'magenta'}
         status_df['color'] = status_df['status'].map(color_dict)
+        status_df['color'] = status_df['color'].fillna('black')
 
         # plot the tiles with their status color
         fig, ax = plt.subplots()

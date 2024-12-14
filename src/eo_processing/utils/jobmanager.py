@@ -346,13 +346,16 @@ class WeedJobManager(MultiBackendJobManager):
 
                 #this needs usage to be set
                 if new_status == "downloading":
-                    if self.download_job_too_long(the_job, active.loc[i]):
-                        # retry download
-                        if active.loc[i, "attempt"] <= self.max_attempts + 2:
-                            active.loc[i, "attempt"] += 1
-                            new_status = "running"
-                        else:
-                            new_status = "error_downloading"
+                    if previous_status == "finished":
+                        pass
+                    else:
+                        if self.download_job_too_long(the_job, active.loc[i]):
+                            # retry download
+                            if active.loc[i, "attempt"] <= self.max_attempts + 2:
+                                active.loc[i, "attempt"] += 1
+                                new_status = "running"
+                            else:
+                                new_status = "error_downloading"
 
                 active.loc[i, "status"] = new_status
 

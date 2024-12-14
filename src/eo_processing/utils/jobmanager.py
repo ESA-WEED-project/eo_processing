@@ -303,9 +303,10 @@ class WeedJobManager(MultiBackendJobManager):
 
                 logger.info(f"Status of job {job_id!r} (on backend {backend_name}) is {new_status!r} (previously {previous_status!r})")
 
-                if previous_status in {"created", "queued"} and new_status == "running":
-                    stats["job started running"] += 1
-                    active.loc[i, "running_start_time"] = rfc3339.utcnow()
+                if previous_status in {"created", "queued"} and new_status in {"running", "finished" }:
+                    if pd.isnull(active.loc[i, "running_start_time"]):
+                        stats["job started running"] += 1
+                        active.loc[i, "running_start_time"] = rfc3339.utcnow()
 
                 if new_status == "finished" and previous_status != "downloading":
                     stats["job finished"] += 1

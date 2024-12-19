@@ -303,12 +303,12 @@ class WeedJobManager(MultiBackendJobManager):
 
                 logger.info(f"Status of job {job_id!r} (on backend {backend_name}) is {new_status!r} (previously {previous_status!r})")
 
-                if previous_status in {"created", "queued"} and new_status == "running":
+                if previous_status in {"created", "queued"} and new_status in {"running", "finished", "downloading"}:
                     stats["job started running"] += 1
                     active.loc[i, "running_start_time"] = rfc3339.utcnow()
 
                 # get running_start_time for cases where job is finished too fast
-                if previous_status in {"created", "queued"} and new_status in {"finished", "downloading" }:
+                if new_status in {"running", "finished"}:
                     if pd.isnull(active.loc[i, "running_start_time"]) or active.loc[i, "running_start_time"]=='':
                         stats["job started running"] += 1
                         active.loc[i, "running_start_time"] = rfc3339.utcnow()
@@ -351,13 +351,15 @@ class WeedJobManager(MultiBackendJobManager):
 
                 #this needs usage to be set
                 if new_status == "downloading":
-                    if self.download_job_too_long(the_job, active.loc[i]):
-                        # retry download
-                        if active.loc[i, "attempt"] <= self.max_attempts + 2:
-                            active.loc[i, "attempt"] += 1
-                            new_status = "running"
-                        else:
-                            new_status = "error_downloading"
+                    # jump over the test when first status change to downloading
+                    if previous_status != "downloading":
+                        if self.download_job_too_long(the_job, active.loc[i]):
+                            # retry download
+                            if active.loc[i, "attempt"] <= self.max_attempts + 2:
+                                active.loc[i, "attempt"] += 1
+                                new_status = "running"
+                            else:
+                                new_status = "error_downloading"
 
                 active.loc[i, "status"] = new_status
 

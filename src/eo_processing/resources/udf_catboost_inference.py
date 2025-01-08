@@ -197,13 +197,6 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     More information can be found here: 
     https://open-eo.github.io/openeo-python-client/udf.html#udf-function-names-and-signatures
 
-    CAVEAT: Some users tend to extract the underlying numpy array and preprocess it for the model using Numpy functions.
-        The order of the dimensions in the numpy array might not be the same for each back-end or when running a udf locally, 
-        which can lead to unexpected results. 
-
-        It is recommended to use the named dimensions of the xarray DataArray to avoid this issue.
-        The order of the dimensions can be changed using the transpose method.
-        While it is a better practice to do preprocessing using openeo processes, most operations are also available in Xarray. 
     """
     # Define how you want to handle nan values
     cube = cube.fillna(0)

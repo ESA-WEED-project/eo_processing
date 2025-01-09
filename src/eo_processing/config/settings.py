@@ -44,10 +44,25 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS: dict = {
     "executor-request-cores": "800m",
     "executor-memory": "1500m",
     "executor-memoryOverhead": "2500m",
-    "max-executors": "25",
+    "max-executors": "15",
     "executor-threads-jvm": "7",
     "logging-threshold": "info"
 }
+
+OPENEO_INFERENCE_CDSE_JOB_OPTIONS: dict = {
+    "driver-memory": "500m",
+    "driver-memoryOverhead": "2000m",
+    "driver-cores": "1",
+    "executor-cores": "1",
+    "executor-request-cores": "800m",
+    "executor-memory": "2000m",
+    "executor-memoryOverhead": "500m",
+    "max-executors": "15",
+    "executor-threads-jvm": "7",
+    "logging-threshold": "info",
+    "python-memory": "4000m"
+}
+
 
 # ---------------------------------------------------
 # COLLECTION options
@@ -90,25 +105,37 @@ def _get_default_job_options() -> dict:
     """
     return OPENEO_EXTRACT_JOB_OPTIONS
 
-def get_job_options(provider: str = None) -> dict:
+def get_job_options(provider: str = None, task: str = 'raw_extraction') -> dict:
     """
-    Retrieve job options based on the provider.
+    Retrieve job options based on the specified provider and task.
 
-    The function retrieves default job options and updates them based on the
-    specific provider given. Custom options are applied for certain provider
-    values such as 'creo', 'cdse', or 'cdse-stagging'.
+    This function returns a dictionary of job options that are determined by the
+    given provider and task. If the provider specified belongs to certain defined
+    categories, additional job options specific to that provider and possibly the
+    task are merged into the default job options.
 
-    :param provider: The name of the provider. Determines which custom job
-        options are applied.
-    :return: A dictionary containing the updated job options based on the
-        provider.
+    :param provider:
+        The name of the provider, which is used to determine specific job options.
+        Custom job options are applied if the provider matches certain criteria.
+    :param task:
+        The type of task for which the job options are being retrieved. Default
+        is 'raw_extraction'. This parameter can affect the selected job options
+        for certain providers.
+
+    :return:
+        A dictionary containing the merged set of job options for the given
+        provider and task. This includes a combination of the default options
+        and any applicable overrides for the provider and task.
     """
     job_options = _get_default_job_options()
 
     if 'creo' in provider.lower():
         job_options.update(OPENEO_EXTRACT_CREO_JOB_OPTIONS)
     if provider.lower() == 'cdse' or provider.lower() == 'cdse-stagging':
-        job_options.update(OPENEO_EXTRACT_CDSE_JOB_OPTIONS)
+        if task in ['inference']:
+            job_options.update(OPENEO_INFERENCE_CDSE_JOB_OPTIONS)
+        else:
+            job_options.update(OPENEO_EXTRACT_CDSE_JOB_OPTIONS)
 
     return job_options
 

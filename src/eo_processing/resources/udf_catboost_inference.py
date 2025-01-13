@@ -110,7 +110,6 @@ def preprocess_input(input_xr: xr.DataArray, ort_session: ort.InferenceSession) 
     Preprocess the input DataArray by ensuring the dimensions are in the correct order,
     reshaping it, and returning the reshaped numpy array and the original shape.
     """
-    inspect(message=f"Preprocessing the input")
     input_xr = input_xr.transpose("y", "x", "bands")
     input_shape = input_xr.shape
     input_np = input_xr.values.reshape(-1, ort_session.get_inputs()[0].shape[1])
@@ -120,38 +119,33 @@ def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> tu
     """
     Run inference using the ONNX runtime session and return predicted labels and probabilities.
     """
-    inspect(message=f"Running inference")
     ort_inputs = {ort_session.get_inputs()[0].name: input_np}
     ort_outputs = ort_session.run(None, ort_inputs)
-    predicted_labels = ort_outputs[0]
     probabilities_dicts = ort_outputs[1]
-    return predicted_labels, probabilities_dicts
+    return probabilities_dicts
 
-def postprocess_output(predicted_labels: np.ndarray, probabilities_dicts: list, input_shape: tuple) -> tuple:
+def postprocess_output(probabilities_dicts: list, input_shape: tuple) -> tuple:
     """
     Postprocess the output by reshaping the predicted labels and probabilities into the original spatial structure.
     """
 
-    inspect(message=f"Postprocessing the output")
+    # Assuming class labels are the same across all dictionaries (probabilities)
     class_labels = list(probabilities_dicts[0].keys())
 
-    # Convert probabilities into a 2D array
+    # Convert probabilities from dicts into a 2D array with shape (n_samples, n_classes)
     probabilities = np.array([[prob[class_id] for class_id in class_labels] for prob in probabilities_dicts])
 
-    # Reshape to match the (y, x) spatial structure
-    predicted_labels = predicted_labels.reshape(input_shape[0], input_shape[1])
-    probabilities = probabilities.reshape(len(class_labels), input_shape[0], input_shape[1])
-    probabilities = (probabilities / probabilities.sum(axis=0, keepdims=True)) * 100
+    # Reshape probabilities into (n_classes, height, width)
+    probabilities = probabilities.T.reshape(len(class_labels), input_shape[0], input_shape[1]) * 100  # Scale by 100 as needed
+    probabilities = probabilities.astype('uint8')
 
+    return probabilities
 
-    return predicted_labels, probabilities
-
-def create_output_xarray(predicted_labels: np.ndarray, probabilities: np.ndarray, 
+def create_output_xarray(probabilities: np.ndarray, 
                          input_xr: xr.DataArray) -> xr.DataArray:
     """
     Create an xarray DataArray with predicted labels and probabilities stacked along the bands dimension.
     """
-    inspect(message=f"Ceating output xarray")
     #combined_data = np.concatenate([
     #    predicted_labels[np.newaxis, :, :],  # Shape (1, y, x) for predicted labels
     #    probabilities  # Shape (n_classes, y, x) for probabilities
@@ -181,13 +175,13 @@ def apply_model(input_xr: xr.DataArray, context: Dict) -> xr.DataArray:
     input_np, input_shape = preprocess_input(input_xr, ort_session)
 
     # Step 3: Perform inference
-    predicted_labels, probabilities_dicts = run_inference(input_np, ort_session)
+    probabilities_dicts = run_inference(input_np, ort_session)
 
     # Step 4: Postprocess the output
-    predicted_labels, probabilities = postprocess_output(predicted_labels, probabilities_dicts, input_shape)
+    probabilities = postprocess_output(probabilities_dicts, input_shape)
 
     # Step 5: Create the output xarray
-    return create_output_xarray(predicted_labels, probabilities, input_xr)
+    return create_output_xarray(probabilities, input_xr)
 
 def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     """
@@ -198,11 +192,13 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     https://open-eo.github.io/openeo-python-client/udf.html#udf-function-names-and-signatures
 
     """
-    # Define how you want to handle nan values
+
+    cube.transpose("y", "x", "bands")
     cube = cube.fillna(0)
     cube = cube.astype('float32')
 
     # Apply the model for each timestep in the chunk
     output_data = apply_model(cube, context)
+    
 
     return output_data

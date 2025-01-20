@@ -63,6 +63,19 @@ OPENEO_INFERENCE_CDSE_JOB_OPTIONS: dict = {
     "python-memory": "4000m"
 }
 
+OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: dict = {
+    "driver-memory": "1000m",
+    "driver-memoryOverhead": "1000m",
+    "driver-cores": "1",
+    "executor-cores": "1",
+    "executor-request-cores": "800m",
+    "executor-memory": "1500m",
+    "executor-memoryOverhead": "500m",
+    "max-executors": "10",
+    "executor-threads-jvm": "7",
+    "logging-threshold": "info",
+    "python-memory": "1000m"
+}
 
 # ---------------------------------------------------
 # COLLECTION options
@@ -120,7 +133,8 @@ def get_job_options(provider: str = None, task: str = 'raw_extraction') -> dict:
     :param task:
         The type of task for which the job options are being retrieved. Default
         is 'raw_extraction'. This parameter can affect the selected job options
-        for certain providers.
+        for certain providers. Currently, the following tasks are supported in CDSE:
+        ínference, point_extraction.
 
     :return:
         A dictionary containing the merged set of job options for the given
@@ -134,6 +148,8 @@ def get_job_options(provider: str = None, task: str = 'raw_extraction') -> dict:
     if provider.lower() == 'cdse' or provider.lower() == 'cdse-stagging':
         if task in ['inference']:
             job_options.update(OPENEO_INFERENCE_CDSE_JOB_OPTIONS)
+        if task in ['point_extraction']:
+            job_options.update(OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS)
         else:
             job_options.update(OPENEO_EXTRACT_CDSE_JOB_OPTIONS)
 

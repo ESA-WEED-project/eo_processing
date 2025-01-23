@@ -236,3 +236,37 @@ def get_training_features_from_model(url: str) -> dict[str, List[str]]:
         # Ensure ONNX file cleanup
         if os.path.exists(onnx_model_path):
             os.remove(onnx_model_path)
+
+def get_name_output_cube_features(model_urls: List[str]) -> List[str]:
+    """
+    Processes cube features from a list of model URLs by extracting and renaming output features.
+
+    For each model URL, this function:
+    1. Extracts metadata using the `get_training_features_from_model` function.
+    2. Renames output features by prefixing them with the model name.
+    3. Flattens the resulting list of features into a single list.
+
+    :param model_urls: A list of URLs pointing to the ONNX models.
+    :return: A flattened list of renamed output features.
+    """
+    cube_features = []
+
+    for model_url in model_urls:
+        metadata = get_training_features_from_model(model_url)
+
+        # Extract input and output features
+        input_features = metadata.get('input_features', [])
+        output_features = metadata.get('output_features', [])
+
+        # Derive the model name from the URL
+        model_name = os.path.basename(model_url).split('.')[0]
+
+        # Rename the output features with the model name prefix
+        renamed_features = [f"{model_name}_{feature}" for feature in output_features]
+        
+        # Append renamed features to the cube list
+        cube_features.append(renamed_features)
+
+    # Flatten the list of lists
+    flattened_features = [item for sublist in cube_features for item in sublist]
+    return flattened_features

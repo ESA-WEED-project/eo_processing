@@ -15,13 +15,9 @@ import numpy as np
 import shutil
 from urllib.parse import urlparse
 from openeo.udf import inspect
-from typing import Dict
+from typing import Dict, List, Tuple
 from filelock import FileLock
 
-
-def is_zip_file(url: str) -> bool:
-    """Check if the URL points to a ZIP file."""
-    return url.lower().endswith('.zip')
 
 def is_onnx_file(file_path: str) -> bool:
     """Check if the file is an ONNX model based on its extension."""
@@ -77,17 +73,22 @@ def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: st
                 os.remove(temp_file_path)  # Clean up temporary file on error
             raise ValueError(f"Error downloading file: {e}")
 
+
+
 @functools.lru_cache(maxsize=5)
-def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> ort.InferenceSession:
+def load_onnx_model(
+    model_url: str, cache_dir: str = '/tmp/cache'
+) -> Tuple[ort.InferenceSession, Dict[str, List[str]]]:
     """
-    Load an ONNX model into an ONNX Runtime session.
+    Load an ONNX model into an ONNX Runtime session and extract metadata.
 
     Args:
         model_url (str): The URL or file path to the ONNX model.
         cache_dir (str): Directory for caching or processing model files.
 
     Returns:
-        ort.InferenceSession: The ONNX Runtime session for the loaded model.
+        Tuple[ort.InferenceSession, Dict[str, List[str]]]: A tuple containing the ONNX Runtime session
+                                                           and a dictionary of metadata.
 
     Raises:
         ValueError: If the model file cannot be processed or loaded.
@@ -99,11 +100,26 @@ def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> ort.Infere
         # Initialize the ONNX Runtime session
         inspect(message=f"Initializing ONNX Runtime session for model at {model_path}...")
         ort_session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
-        inspect(message="ONNX model successfully loaded into ONNX Runtime session.")
-        return ort_session
+
+        # Extract metadata
+        model_meta = ort_session.get_modelmeta()
+
+        input_features = model_meta.custom_metadata_map.get("input_features", "").split(",")
+        input_features = [band.strip() for band in input_features]
+
+        output_features = model_meta.custom_metadata_map.get("output_features", "").split(",")
+        output_features = [band.strip() for band in output_features]
+
+        metadata = {
+            "input_features": input_features,
+            "output_features": output_features,
+        }
+
+        inspect(message=f"Successfully extracted features from model at {model_path}...")
+        return ort_session, metadata
 
     except Exception as e:
-        raise ValueError(f"Failed to load the ONNX model from {model_url}. Error: {e}")
+        raise ValueError(f"Failed to load ONNX model from {model_url}: {e}")
 
 def preprocess_input(input_xr: xr.DataArray, ort_session: ort.InferenceSession) -> tuple:
     """
@@ -160,28 +176,6 @@ def create_output_xarray(probabilities: np.ndarray,
         }
     )
 
-def apply_model(input_xr: xr.DataArray, context: Dict) -> xr.DataArray:
-    """
-    Run inference on the given input data using the provided ONNX runtime session.
-    This method is called for each timestep in the chunk received by apply_datacube.
-    """
-    # Step 1: Load the ONNX model
-    try:
-        ort_session = load_onnx_model(context.get("model_url"), cache_dir="/tmp/cache")
-    except ValueError as e:
-        raise RuntimeError(f"Model loading failed: {e}")
-
-    # Step 2: Preprocess the input
-    input_np, input_shape = preprocess_input(input_xr, ort_session)
-
-    # Step 3: Perform inference
-    probabilities_dicts = run_inference(input_np, ort_session)
-
-    # Step 4: Postprocess the output
-    probabilities = postprocess_output(probabilities_dicts, input_shape)
-
-    # Step 5: Create the output xarray
-    return create_output_xarray(probabilities, input_xr)
 
 def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     """
@@ -192,13 +186,44 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     https://open-eo.github.io/openeo-python-client/udf.html#udf-function-names-and-signatures
 
     """
+    output_cube_initialized = False 
 
     cube.transpose("y", "x", "bands")
     cube = cube.fillna(0)
     cube = cube.astype('float32')
 
-    # Apply the model for each timestep in the chunk
-    output_data = apply_model(cube, context)
-    
 
-    return output_data
+    # Apply the model for each timestep in the chunk
+
+    model_urls = context.get("model_list")
+
+
+    for i, url in enumerate(model_urls):
+
+        inspect(message=f"running inference for: {url}")
+ 
+        # Placeholder for model metadata
+        ort_session, metadata = load_onnx_model(url, cache_dir="/tmp/cache")
+        input_band = metadata['input_features']
+
+        # Subset the data array using the selected indices
+        subsampled_data_array = cube.sel(bands=input_band)
+
+        # Load and run model (assuming these functions exist)
+        input_np, input_shape = preprocess_input(subsampled_data_array, ort_session)
+        probabilities_dicts = run_inference(input_np, ort_session)
+        probabilities = postprocess_output(probabilities_dicts, input_shape)
+        model_output_cube = create_output_xarray(probabilities, subsampled_data_array)
+
+        if not output_cube_initialized:
+            # Initialize the output_cube only on the first iteration
+            output_cube = model_output_cube
+            output_cube_initialized = True
+        else:
+            # Append to output_cube starting from the second iteration
+            output_cube = xr.concat([output_cube, model_output_cube], dim="bands")
+
+            
+        output_cube = output_cube.astype('uint8')
+
+        return output_cube

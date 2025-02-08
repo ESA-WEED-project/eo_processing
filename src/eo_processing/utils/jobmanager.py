@@ -50,7 +50,7 @@ class WeedJobManager(MultiBackendJobManager):
         "cost": _ColumnProperties(dtype="float"),
     }
 
-    def __init__(self, poll_sleep: int = 5, root_dir: str = '.', viz: bool = False, max_attempts: int = 3,
+    def __init__(self, poll_sleep: int = 5, root_dir: str = '.', workspace_path: str = None, get_local:bool = True, viz: bool = False, max_attempts: int = 3,
                  viz_labels: bool = False, viz_edge_color: str = 'black', dl_cancel_time: int = 1800) -> None:
         """
         Initializes an instance of the class with configuration options for polling, directory paths,
@@ -70,6 +70,8 @@ class WeedJobManager(MultiBackendJobManager):
         :param dl_cancel_time: Timeout duration (in seconds) after which a download will be canceled.
         """
         super().__init__(poll_sleep=poll_sleep, root_dir=root_dir)
+        self.workspace_path = workspace_path
+        self.get_local = get_local
         self.viz = viz
         self.viz_labels = viz_labels
         self.viz_edge_color = viz_edge_color
@@ -249,11 +251,32 @@ class WeedJobManager(MultiBackendJobManager):
 
         results = job.get_results()
 
-        #fix prefix problem for non netcdf or GTiff files
-        if file_ext in ['netcdf','gtiff']:
-            results.download_files(job_dir, include_stac_metadata=False)
-        else :
-            results.download_file(job_dir / f"{title}.{file_ext}", name=f"timeseries.{file_ext}")
+        if self.get_local:
+            if self.workspace_path:
+                #This part is still highly experimental and needs to be discussed with Marcel
+                os.environ['AWS_PROFILE'] = 'weed'
+                import boto3
+                s3_endpoint = 'https://s3.waw3-1.cloudferro.com'
+                bucket_name = 'ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o'
+                s3_directory = self.workspace_path  # Path in the S3 bucket
+
+                session = boto3.session.Session()
+                s3_client = session.client('s3', endpoint_url=s3_endpoint)
+                if file_ext in ['netcdf','gtiff']:
+                    s3_client.download_file(bucket_name, os.path.join(s3_directory,f"{title}.{file_ext}"),
+                                            job_dir /f"{title}.{file_ext}")
+                else :
+                    s3_client.download_file(bucket_name, os.path.join(s3_directory,f"timeseries.{file_ext}"),
+                                            job_dir / f"{title}.{file_ext}")
+
+
+            else :
+                #fix prefix problem for non netcdf or GTiff files
+                if file_ext in ['netcdf','gtiff']:
+                    results.download_files(job_dir, include_stac_metadata=False)
+                else :
+                    results.download_file(job_dir / f"{title}.{file_ext}", name=f"timeseries.{file_ext}")
+
 
         with open(metadata_path, "w", encoding='utf8') as f:
             json.dump(results.get_metadata(), f, ensure_ascii=False, indent=2)
@@ -315,6 +338,7 @@ class WeedJobManager(MultiBackendJobManager):
 
                 if new_status == "finished" and previous_status != "downloading":
                     stats["job finished"] += 1
+
                     worker = Thread(target=self.on_job_done,
                                               args=(the_job, active.loc[i]))
                     worker.start()

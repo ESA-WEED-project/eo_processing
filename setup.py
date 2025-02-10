@@ -53,6 +53,7 @@ setup(
         "pyarrow>=17.0.0",
         "fastparquet>=2024.5.0",
         "pydrive2>=1.21.1",
-        "hvac>=2.3.0"
+        "hvac>=2.3.0",
+        "boto3>=1.36.16"
     ],
 )

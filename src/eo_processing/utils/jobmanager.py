@@ -9,6 +9,7 @@ import datetime
 from pathlib import Path
 import collections
 import time
+from eo_processing.utils.storage import WEED_storage
 from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_stat, JobDatabaseInterface,
                                          ignore_connection_errors, _ColumnProperties, _start_job_default,
                                          get_job_db)
@@ -50,7 +51,7 @@ class WeedJobManager(MultiBackendJobManager):
         "cost": _ColumnProperties(dtype="float"),
     }
 
-    def __init__(self, poll_sleep: int = 5, root_dir: str = '.', workspace_path: str = None, get_local:bool = True, viz: bool = False, max_attempts: int = 3,
+    def __init__(self, poll_sleep: int = 5, root_dir: str = '.', WEED_storage:WEED_storage = None,  workspace_path: str = None, get_local:bool = True, viz: bool = False, max_attempts: int = 3,
                  viz_labels: bool = False, viz_edge_color: str = 'black', dl_cancel_time: int = 1800) -> None:
         """
         Initializes an instance of the class with configuration options for polling, directory paths,
@@ -63,6 +64,9 @@ class WeedJobManager(MultiBackendJobManager):
 
         :param poll_sleep: The interval (in seconds) for polling operations.
         :param root_dir: The root directory to use for file-related operations.
+        :param WEED_storage: storage class for WEED.
+        :param workspace_path: If s3 workspace is enabled this is the prefix of the filenames
+        :param get_local: Flag to enable a local copy if export workspace is enabled.
         :param viz: Flag to enable or disable visualization.
         :param max_attempts: Maximum number of attempts allowed for retrying operations.
         :param viz_labels: Flag to toggle the visualization of labels.
@@ -77,6 +81,7 @@ class WeedJobManager(MultiBackendJobManager):
         self.viz_edge_color = viz_edge_color
         self.max_attempts = max_attempts
         self._cancel_download_after = (datetime.timedelta(seconds=dl_cancel_time))
+        self.WEED_storage = WEED_storage
 
     def download_job_too_long(self, job: openeo.BatchJob, row: pd.Series) -> bool:
         """
@@ -251,31 +256,29 @@ class WeedJobManager(MultiBackendJobManager):
 
         results = job.get_results()
 
-        if self.get_local:
-            if self.workspace_path:
-                #This part is still highly experimental and needs to be discussed with Marcel
-                os.environ['AWS_PROFILE'] = 'weed'
-                import boto3
-                s3_endpoint = 'https://s3.waw3-1.cloudferro.com'
-                bucket_name = 'ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o'
-                s3_directory = self.workspace_path  # Path in the S3 bucket
+        if self.workspace_path:
+            if self.get_local:
+                s3_client = self.WEED_storage.get_s3_client()
+                bucket_name = self.WEED_storage.s3_bucket
+                s3_directory = self.workspace_path  # Path in the S3 bucket (Move to storage in later faze)
 
-                session = boto3.session.Session()
-                s3_client = session.client('s3', endpoint_url=s3_endpoint)
                 if file_ext in ['netcdf','gtiff']:
-                    s3_client.download_file(bucket_name, os.path.join(s3_directory,f"{title}.{file_ext}"),
+                    if file_ext == 'netcdf':
+                        ext = 'nc'
+                    else: ext = 'tif'
+                    s3_client.download_file(bucket_name, os.path.join(s3_directory,f"{title}.{ext}"),
                                             job_dir /f"{title}.{file_ext}")
                 else :
-                    s3_client.download_file(bucket_name, os.path.join(s3_directory,f"timeseries.{file_ext}"),
+                    s3_client.download_file(bucket_name, os.path.join(s3_directory,f"timeseries.{ext}"),
                                             job_dir / f"{title}.{file_ext}")
 
 
+        else :
+            #fix prefix problem for non netcdf or GTiff files
+            if file_ext in ['netcdf','gtiff']:
+                results.download_files(job_dir, include_stac_metadata=False)
             else :
-                #fix prefix problem for non netcdf or GTiff files
-                if file_ext in ['netcdf','gtiff']:
-                    results.download_files(job_dir, include_stac_metadata=False)
-                else :
-                    results.download_file(job_dir / f"{title}.{file_ext}", name=f"timeseries.{file_ext}")
+                results.download_file(job_dir / f"{title}.{file_ext}", name=f"timeseries.{file_ext}")
 
 
         with open(metadata_path, "w", encoding='utf8') as f:

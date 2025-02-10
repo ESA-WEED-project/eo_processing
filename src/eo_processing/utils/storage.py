@@ -19,6 +19,7 @@ class WEED_storage:
         self.gdrive_fs = None
         self.s3_client = None
         self.s3_bucket = self.s3_credentials['bucket_name']
+        #self.s3_prefix = None
 
     def _get_credentials(self) -> dict[str, str]:
         """

@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from threading import Thread
+from threading import Thread, active_count
 from openeo.util import rfc3339
 import re
 import requests
@@ -49,9 +49,10 @@ class WeedJobManager(MultiBackendJobManager):
         "duration": _ColumnProperties(dtype="str"),
         "attempt": _ColumnProperties(dtype="int", default=0),
         "cost": _ColumnProperties(dtype="float"),
+        "S3_prefix" : _ColumnProperties(dtype="str")
     }
 
-    def __init__(self, poll_sleep: int = 5, root_dir: str = '.', WEED_storage:WEED_storage = None,  workspace_path: str = None, get_local:bool = True, viz: bool = False, max_attempts: int = 3,
+    def __init__(self, poll_sleep: int = 5, root_dir: str = '.', storage_options: dict = {}, viz: bool = False, max_attempts: int = 3,
                  viz_labels: bool = False, viz_edge_color: str = 'black', dl_cancel_time: int = 1800) -> None:
         """
         Initializes an instance of the class with configuration options for polling, directory paths,
@@ -64,9 +65,7 @@ class WeedJobManager(MultiBackendJobManager):
 
         :param poll_sleep: The interval (in seconds) for polling operations.
         :param root_dir: The root directory to use for file-related operations.
-        :param WEED_storage: storage class for WEED.
-        :param workspace_path: If s3 workspace is enabled this is the prefix of the filenames
-        :param get_local: Flag to enable a local copy if export workspace is enabled.
+        :param storage_options: storage options for data download.
         :param viz: Flag to enable or disable visualization.
         :param max_attempts: Maximum number of attempts allowed for retrying operations.
         :param viz_labels: Flag to toggle the visualization of labels.
@@ -74,14 +73,12 @@ class WeedJobManager(MultiBackendJobManager):
         :param dl_cancel_time: Timeout duration (in seconds) after which a download will be canceled.
         """
         super().__init__(poll_sleep=poll_sleep, root_dir=root_dir)
-        self.workspace_path = workspace_path
-        self.get_local = get_local
+        self.storage_options = storage_options
         self.viz = viz
         self.viz_labels = viz_labels
         self.viz_edge_color = viz_edge_color
         self.max_attempts = max_attempts
         self._cancel_download_after = (datetime.timedelta(seconds=dl_cancel_time))
-        self.WEED_storage = WEED_storage
 
     def download_job_too_long(self, job: openeo.BatchJob, row: pd.Series) -> bool:
         """
@@ -256,24 +253,23 @@ class WeedJobManager(MultiBackendJobManager):
 
         results = job.get_results()
 
-        if self.workspace_path:
-            if self.get_local:
-                s3_client = self.WEED_storage.get_s3_client()
-                bucket_name = self.WEED_storage.s3_bucket
-                s3_directory = self.workspace_path  # Path in the S3 bucket (Move to storage in later faze)
+        if self.storage_options.get('local_S3_needed', False):
+            s3_client = self.storage_options["WEED_storage"].get_s3_client()
+            bucket_name = self.storage_options["WEED_storage"].s3_bucket
+            S3_prefix = self.storage_options["S3_prefix"]
 
-                if file_ext in ['netcdf','gtiff']:
-                    if file_ext == 'netcdf':
-                        ext = 'nc'
-                    else: ext = 'tif'
-                    s3_client.download_file(bucket_name, os.path.join(s3_directory,f"{title}.{ext}"),
-                                            job_dir /f"{title}.{file_ext}")
-                else :
-                    s3_client.download_file(bucket_name, os.path.join(s3_directory,f"timeseries.{ext}"),
-                                            job_dir / f"{title}.{file_ext}")
+            if file_ext in ['netcdf','gtiff']:
+                if file_ext == 'netcdf':
+                    ext = 'nc'
+                else: ext = 'tif'
+                s3_client.download_file(bucket_name, os.path.join(S3_prefix,f"{title}.{ext}"),
+                                        job_dir /f"{title}.{ext}")
+            else :
+                s3_client.download_file(bucket_name, os.path.join(S3_prefix,f"timeseries.{file_ext}"),
+                                        job_dir / f"{title}.{file_ext}")
 
 
-        else :
+        if not self.storage_options.get('workspace_active', False):
             #fix prefix problem for non netcdf or GTiff files
             if file_ext in ['netcdf','gtiff']:
                 results.download_files(job_dir, include_stac_metadata=False)
@@ -311,6 +307,7 @@ class WeedJobManager(MultiBackendJobManager):
                       fetching, job completion, job failure, and job cancellation.
         :return: None
         """
+
         stats = stats if stats is not None else collections.defaultdict(int)
 
         active = job_db.get_by_status(statuses=["created", "queued", "running", "downloading"])
@@ -341,7 +338,10 @@ class WeedJobManager(MultiBackendJobManager):
 
                 if new_status == "finished" and previous_status != "downloading":
                     stats["job finished"] += 1
-
+                     #Implement of max threading to avoid possible overflow of Threads
+                    while active_count() > 15:
+                        logger.warning(f"To many thread busy. Max 15 threads are allowed and {active_count()} are active.")
+                        time.sleep(10)
                     worker = Thread(target=self.on_job_done,
                                               args=(the_job, active.loc[i]))
                     worker.start()
@@ -370,7 +370,6 @@ class WeedJobManager(MultiBackendJobManager):
 
                 if self._cancel_running_job_after and new_status == "running":
                     self._cancel_prolonged_job(the_job, active.loc[i])
-
                 # TODO: there is well hidden coupling here with "cpu", "memory" and "duration" from `_normalize_df`
                 for key in job_metadata.get("usage", {}).keys():
                     if key in active.columns:
@@ -547,6 +546,7 @@ class WeedJobManager(MultiBackendJobManager):
                 sum(job_db.count_by_status(statuses=["not_started", "created", "queued", "running", "downloading"]).values()) > 0
                 and not self._stop_thread
             ):
+                print(f"Job status histogram: {job_db.count_by_status()}. Run stats: {dict(stats)}")
                 self._job_update_loop(job_db=job_db, start_job=start_job)
                 stats["run_jobs loop"] += 1
 

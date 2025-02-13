@@ -257,7 +257,6 @@ class WeedJobManager(MultiBackendJobManager):
             s3_client = self.storage_options["WEED_storage"].get_s3_client()
             bucket_name = self.storage_options["WEED_storage"].s3_bucket
             S3_prefix = self.storage_options["S3_prefix"]
-
             if file_ext in ['netcdf','gtiff']:
                 if file_ext == 'netcdf':
                     ext = 'nc'
@@ -269,7 +268,7 @@ class WeedJobManager(MultiBackendJobManager):
                                         job_dir / f"{title}.{file_ext}")
 
 
-        if not self.storage_options.get('workspace_active', False):
+        if not self.storage_options.get('workspace_export', False):
             #fix prefix problem for non netcdf or GTiff files
             if file_ext in ['netcdf','gtiff']:
                 results.download_files(job_dir, include_stac_metadata=False)

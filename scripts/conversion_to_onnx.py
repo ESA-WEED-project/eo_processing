@@ -1,3 +1,8 @@
+"""
+test script to convert catboost model to onnx as reference for the UNIX tests
+
+"""
+
 from eo_processing.utils.onnx_model_utilities import convert_catboost_model_to_onnx_with_metadata
 
 # Define paths and features

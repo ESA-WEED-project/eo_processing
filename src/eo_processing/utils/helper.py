@@ -12,6 +12,9 @@ from eo_processing.utils.geoprocessing import openEO_bbox_format
 import uuid
 import hashlib
 from datetime import datetime
+import json
+from ast import literal_eval
+from typing import Union
 
 def init_connection(provider: str) -> openeo.Connection :
     """
@@ -183,3 +186,36 @@ def generate_unique_id(length: int = 25) -> str:
         replacement_character = raw_suffix[len(formatted_suffix.replace('-', ''))]
         unique_id = unique_id[:-1] + replacement_character
     return unique_id
+
+def string_to_dict(string: str) -> dict:
+    """
+    Converts a string representation of a dictionary back into a dictionary.
+
+    :param string: The string to convert.
+    :return: A dictionary object.
+    """
+    try:
+        # Attempt to load as JSON
+        return json.loads(string)
+    except json.JSONDecodeError:
+        # Fallback to evaluating as a Python literal
+        return literal_eval(string)
+
+def convert_to_list(input_value: Union[str, list[str]]) -> list[str]:
+    """
+    Parse a string representation of a list or a list object into a Python list object.
+
+    This function takes an input that can either be a string representing a list
+    or an already existing list object. If the input is a string, it utilizes
+    `string_to_dict` function to convert it into a Python list. If the input is already
+    a list, it simply returns the input without any modifications.
+
+    :param input_value: The input value to parse. It can be a string that represents
+        a list or a list object.
+    :return: A Python list object resulting from parsing the string or directly returning
+        the input list if the input is already of list type.
+    """
+    if not isinstance(input_value, list):
+        return string_to_dict(input_value)
+    else:
+        return input_value

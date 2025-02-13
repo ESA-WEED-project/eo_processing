@@ -2,7 +2,6 @@
 import os
 import json
 import openeo
-import openeo
 import sys
 
 sys.path.append(r'C:\Git_projects\eo_processing\src')

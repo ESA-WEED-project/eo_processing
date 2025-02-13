@@ -51,7 +51,6 @@ def save_model_to_onnx(model: CatBoostClassifier, output_onnx_path: str) -> None
     except Exception as e:
         raise ValueError(f"Failed to save model to ONNX format at {output_onnx_path}: {e}")
 
-
 def add_metadata_to_onnx(onnx_path: str, input_features: list = None, output_features: list = None) -> None:
     """
     Adds metadata entries to an ONNX model and saves the updated model back to the same file.
@@ -107,7 +106,6 @@ def add_metadata_to_onnx(onnx_path: str, input_features: list = None, output_fea
         inspect(message=f"ONNX model with metadata saved to {onnx_path}")
     except Exception as e:
         raise ValueError(f"Failed to save ONNX model with metadata at {onnx_path}: {e}")
-
 
 def convert_catboost_model_to_onnx_with_metadata(catboost_model_path: str, input_features: list,
                                                  output_features: list = None, output_onnx_path: str = None) -> None:
@@ -208,7 +206,6 @@ def onnx_output_path(catboost_model_path: str) -> str:
     output_onnx_path = os.path.join(directory, new_file_name)
     inspect(message=f"ONNX output path generated: {output_onnx_path}")
     return output_onnx_path
-
 
 def get_training_features_from_model(url: str) -> dict[str, List[str]]:
     """

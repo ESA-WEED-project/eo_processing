@@ -287,7 +287,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
             # Append to output_cube starting from the second iteration
             output_cube = xr.concat([output_cube, model_output_cube], dim="bands")
 
-        # make sure output Xarray has the correct dtype
-        output_cube = output_cube.astype('uint8')
+    # make sure output Xarray has the correct dtype
+    output_cube = output_cube.astype('uint8')
 
     return output_cube

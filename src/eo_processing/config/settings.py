@@ -51,7 +51,7 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS: dict = {
 }
 
 OPENEO_INFERENCE_CDSE_JOB_OPTIONS: dict = {
-    "driver-memory": "500m",
+    "driver-memory": "2G",
     "driver-memoryOverhead": "2000m",
     "driver-cores": "1",
     "executor-cores": "1",

@@ -144,7 +144,7 @@ def get_job_options(provider: str = None, task: str = 'raw_extraction') -> dict:
 
     if 'creo' in provider.lower():
         job_options.update(OPENEO_EXTRACT_CREO_JOB_OPTIONS)
-    if provider.lower() == 'cdse' or provider.lower() == 'cdse-stagging':
+    if provider.lower() == 'cdse' or provider.lower() == 'cdse-staging':
         if task in ['inference']:
             job_options.update(OPENEO_INFERENCE_CDSE_JOB_OPTIONS)
         if task in ['point_extraction']:
@@ -166,7 +166,7 @@ def get_collection_options(provider: str) -> dict:
 
     :param provider: The name of the data provider. Supported values (case
         insensitive) include 'terrascope', 'development', 'sentinelhub', 'shub',
-        'creo' (or any string containing 'creo'), 'cdse', and 'cdse-stagging'.
+        'creo' (or any string containing 'creo'), 'cdse', and 'cdse-staging'.
     :return: A dictionary containing collection options for the specified
         provider.
 
@@ -178,7 +178,7 @@ def get_collection_options(provider: str) -> dict:
         return _SENTINELHUB_COLLECTIONS
     elif 'creo' in provider.lower():
         return _CREO_COLLECTIONS
-    elif provider.lower() == 'cdse' or provider.lower() == 'cdse-stagging':
+    elif provider.lower() == 'cdse' or provider.lower() == 'cdse-staging':
         return _CDSE_COLLECTIONS
     else:
         raise ValueError(f'Provider `{provider}` not known.')

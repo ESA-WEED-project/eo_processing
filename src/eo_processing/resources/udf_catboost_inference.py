@@ -140,7 +140,7 @@ def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> Tuple[ort.
         raise ValueError(f"Failed to load ONNX model from {model_url}: {e}")
 
 def preprocess_input(input_xr: xr.DataArray,
-                     ort_session: ort.InferenceSession) -> Tuple[np.ndarray, tuple[int, int, int]]:
+                     ort_session: ort.InferenceSession) -> Tuple[np.ndarray, Tuple[int, int, int]]:
     """
     Preprocesses input data for model inference using an ONNX runtime session. This
     function takes an xarray DataArray, rearranges its dimensions, and reshapes its
@@ -162,7 +162,7 @@ def preprocess_input(input_xr: xr.DataArray,
     input_np = input_xr.values.reshape(-1, ort_session.get_inputs()[0].shape[1])
     return input_np, input_shape
 
-def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> list[dict[str, float]]:
+def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> List[Dict[str, float]]:
     """
     Executes inference using an ONNX Runtime session and input numpy array. This function
     constructs the input data for the ONNX runtime, runs the session, and extracts the
@@ -178,8 +178,8 @@ def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> li
     probabilities_dicts = ort_outputs[1] # just take probability results
     return probabilities_dicts
 
-def postprocess_output(probabilities_dicts: list[dict[str, float]],
-                       input_shape: tuple[int, int, int]) -> np.ndarray:
+def postprocess_output(probabilities_dicts: List[Dict[str, float]],
+                       input_shape: Tuple[int, int, int]) -> np.ndarray:
     """
     Processes the output probabilities of a model into a reshaped and scaled NumPy array.
 

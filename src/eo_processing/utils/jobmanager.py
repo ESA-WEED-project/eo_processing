@@ -9,7 +9,6 @@ import datetime
 from pathlib import Path
 import collections
 import time
-from eo_processing.utils.storage import WEED_storage
 from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_stat, JobDatabaseInterface,
                                          ignore_connection_errors, _ColumnProperties, _start_job_default,
                                          get_job_db)
@@ -18,6 +17,8 @@ import pandas as pd
 from typing import Optional, Mapping, Union
 import openeo
 import warnings
+from eo_processing.config.settings import storage_option_format
+from eo_processing.utils.storage import WEED_storage
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +53,10 @@ class WeedJobManager(MultiBackendJobManager):
         "S3_prefix" : _ColumnProperties(dtype="str")
     }
 
-    def __init__(self, poll_sleep: int = 5, root_dir: str = '.', storage_options: dict = {}, viz: bool = False, max_attempts: int = 3,
-                 viz_labels: bool = False, viz_edge_color: str = 'black', dl_cancel_time: int = 1800) -> None:
+    def __init__(self, poll_sleep: int = 5, root_dir: str = '.',
+                 storage_options: Optional[storage_option_format] = None, max_attempts: int = 3,
+                 viz: bool = False, viz_labels: bool = False, viz_edge_color: str = 'black',
+                 dl_cancel_time: int = 1800) -> None:
         """
         Initializes an instance of the class with configuration options for polling, directory paths,
         visualization settings, maximum retry attempts, and download cancellation timing.
@@ -63,17 +66,17 @@ class WeedJobManager(MultiBackendJobManager):
         customizable visualization settings such as label rendering and edge colors, as well as
         maximum retry attempts. It also configures a timeout for cancellation of downloads.
 
-        :param poll_sleep: The interval (in seconds) for polling operations.
-        :param root_dir: The root directory to use for file-related operations.
-        :param storage_options: storage options for data download.
-        :param viz: Flag to enable or disable visualization.
-        :param max_attempts: Maximum number of attempts allowed for retrying operations.
-        :param viz_labels: Flag to toggle the visualization of labels.
-        :param viz_edge_color: Color used to render edges in visualization.
-        :param dl_cancel_time: Timeout duration (in seconds) after which a download will be canceled.
+        :param poll_sleep: Time in seconds to wait between polling attempts.
+        :param root_dir: Path to the root directory for operations.
+        :param storage_options: Dictionary-like options for setting up storage backend.
+        :param max_attempts: Maximum number of retries for a failed operation.
+        :param viz: Flag indicating whether to enable visualization.
+        :param viz_labels: Flag indicating whether to include labels in the visualization.
+        :param viz_edge_color: Color to use for edges in visualization graphs.
+        :param dl_cancel_time: Time in seconds after which a download operation is canceled.
         """
         super().__init__(poll_sleep=poll_sleep, root_dir=root_dir)
-        self.storage_options = storage_options
+        self.storage_options = storage_options if storage_options else {}
         self.viz = viz
         self.viz_labels = viz_labels
         self.viz_edge_color = viz_edge_color

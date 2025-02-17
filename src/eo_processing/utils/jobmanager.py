@@ -14,7 +14,7 @@ from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_st
                                          get_job_db)
 from openeo.rest import OpenEoApiError
 import pandas as pd
-from typing import Optional, Mapping, Union
+from typing import Optional, Mapping, Union, Dict
 import openeo
 import warnings
 from eo_processing.config.settings import storage_option_format
@@ -289,7 +289,7 @@ class WeedJobManager(MultiBackendJobManager):
             with open(error_log_path, "w", encoding='utf8') as f:
                 json.dump(logs, f, ensure_ascii=False, indent=2)
 
-    def _track_statuses(self, job_db: JobDatabaseInterface, stats: Optional[dict] = None) -> None:
+    def _track_statuses(self, job_db: JobDatabaseInterface, stats: Optional[Dict] = None) -> None:
         """
         Tracks and updates the statuses of jobs within the specified job database. This
         method fetches the active jobs, checks their current status, and updates it based
@@ -400,7 +400,7 @@ class WeedJobManager(MultiBackendJobManager):
         if self.viz:
             self.create_viz_status(job_db)
 
-    def _launch_job(self, start_job, df, i, backend_name, stats: Optional[dict] = None):
+    def _launch_job(self, start_job, df, i, backend_name, stats: Optional[Dict] = None):
         """Helper method for launching jobs
 
         :param start_job:

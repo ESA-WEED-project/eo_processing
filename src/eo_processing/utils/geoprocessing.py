@@ -4,7 +4,7 @@ from shapely.geometry import box
 import geopandas as gpd
 import numpy as np
 import geojson
-from typing import Union, TypedDict
+from typing import Union, TypedDict, Tuple
 from eo_processing.utils.mgrs import LL_2_UTM, floor_to_nearest_5, UTM_2_LL, UTM_2_MGRSid10, UTM_2_grid20id
 
 openEO_bbox_format = TypedDict('openEO_bbox_format', {'east': float,
@@ -126,7 +126,7 @@ def bbox_of_PointsFeatureCollection(points_collection: geojson.FeatureCollection
             'north': coords[:,1].max(),
             'crs': 'EPSG:4326'}
 
-def get_point_info(longitude: float, latitude: float) -> tuple[str, float, float, str]:
+def get_point_info(longitude: float, latitude: float) -> Tuple[str, float, float, str]:
     """
     Gets metadata and identifiers for a geographical point based on its longitude and latitude.
 

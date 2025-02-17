@@ -2,7 +2,7 @@ from pydrive2.fs import GDriveFileSystem
 import hvac
 from getpass import getpass
 import tempfile
-from typing import Union
+from typing import Union, Dict, Tuple, List
 import geopandas as gpd
 import os
 import boto3
@@ -20,7 +20,7 @@ class WEED_storage:
         self.s3_bucket = self.s3_credentials['bucket_name']
         #self.s3_prefix = None
 
-    def _get_credentials(self) -> dict[str, str]:
+    def _get_credentials(self) -> Dict[str, str]:
         """
         Retrieves WEED access credentials from Terrascope VAULT using LDAP authentication.
 
@@ -78,7 +78,7 @@ class WEED_storage:
                 print('\t%s' % fname)
 
     def get_gdrive_gdf(self, gdrive_path: str,
-                       filter_bbox: Union[tuple, gpd.GeoDataFrame, None] = None) -> gpd.GeoDataFrame:
+                       filter_bbox: Union[Tuple, gpd.GeoDataFrame, None] = None) -> gpd.GeoDataFrame:
         """
         Downloads a file from Google Drive and reads it into a GeoDataFrame, with an optional bounding box filter.
 
@@ -139,7 +139,7 @@ class WEED_storage:
 
         return self.s3_client
 
-    def get_s3_content(self, s3_directory: str) -> dict:
+    def get_s3_content(self, s3_directory: str) -> Dict:
         """
         Retrieves the list of objects from an S3 bucket for the specified directory prefix.
 
@@ -159,7 +159,7 @@ class WEED_storage:
         return self.s3_client.list_objects_v2(Bucket=self.s3_bucket, Prefix=s3_directory)
 
 
-    def get_onnx_urls(self, s3_directory: str = 'models') -> list[str]:
+    def get_onnx_urls(self, s3_directory: str = 'models') -> List[str]:
         """
         Get a list of ONNX model URLs from the given S3 directory.
 
@@ -177,7 +177,7 @@ class WEED_storage:
 
         return self._extract_onnx_urls(response['Contents'], base_url)
 
-    def _extract_onnx_urls(self, contents: list[dict], base_url: str) -> list[str]:
+    def _extract_onnx_urls(self, contents: List[Dict], base_url: str) -> List[str]:
         """
         Extract ONNX model URLs from the response contents.
 

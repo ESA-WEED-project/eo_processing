@@ -1,7 +1,7 @@
 from eo_processing.openeo.processing import VI_LIST, RADAR_LIST, S2_SCALING
 from eo_processing.openeo.preprocessing import S2_BANDS
 from eo_processing.utils.storage import WEED_storage
-from typing import List, TypedDict, Optional
+from typing import List, TypedDict, Optional, Dict, Union
 
 # ---------------------------------------------------
 # standard processing options
@@ -15,7 +15,7 @@ MASKING_ALGO: str = 'mask_scl_dilation'
 # ---------------------------------------------------
 # Job options for OpenEO
 
-OPENEO_EXTRACT_JOB_OPTIONS: dict = {
+OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "8G",
     "driver-cores": "2",
@@ -26,7 +26,7 @@ OPENEO_EXTRACT_JOB_OPTIONS: dict = {
     "soft-errors": "true"
 }
 
-OPENEO_EXTRACT_CREO_JOB_OPTIONS: dict = {
+OPENEO_EXTRACT_CREO_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "2G",
     "driver-cores": "1",
@@ -37,7 +37,7 @@ OPENEO_EXTRACT_CREO_JOB_OPTIONS: dict = {
     "max-executors": "200"
 }
 
-OPENEO_EXTRACT_CDSE_JOB_OPTIONS: dict = {
+OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "8G",
     "driver-memoryOverhead": "5G",
     "driver-cores": "1",
@@ -50,7 +50,7 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS: dict = {
     "logging-threshold": "info"
 }
 
-OPENEO_INFERENCE_CDSE_JOB_OPTIONS: dict = {
+OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "2G",
     "driver-memoryOverhead": "2000m",
     "driver-cores": "1",
@@ -64,7 +64,7 @@ OPENEO_INFERENCE_CDSE_JOB_OPTIONS: dict = {
     "python-memory": "4000m"
 }
 
-OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: dict = {
+OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "2G",
     "driver-memoryOverhead": "1G",
     "driver-cores": "1",
@@ -81,25 +81,25 @@ OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: dict = {
 # COLLECTION options
 
 # Collection definitions on Terrascope
-_TERRASCOPE_COLLECTIONS: dict = {
+_TERRASCOPE_COLLECTIONS: Dict[str, str] = {
     'S2_collection': "SENTINEL2_L2A",
     'S1_collection': "SENTINEL1_GRD"
 }
 
 # Collection definitions on CREO
-_CREO_COLLECTIONS: dict = {
+_CREO_COLLECTIONS: Dict[str, str] = {
     'S2_collection': "SENTINEL2_L2A",
     'S1_collection': "SENTINEL1_GRD"
 }
 
 # Collection definitions on Sentinelhub
-_SENTINELHUB_COLLECTIONS: dict = {
+_SENTINELHUB_COLLECTIONS: Dict[str, str] = {
     'S2_collection': "SENTINEL2_L2A_SENTINELHUB",
     'S1_collection': "SENTINEL1_GRD"
 }
 
 # Collection definitions on CDSE
-_CDSE_COLLECTIONS: dict = {
+_CDSE_COLLECTIONS: Dict[str, str] = {
     'S2_collection': "SENTINEL2_L2A",
     'S1_collection': "SENTINEL1_GRD"
 }
@@ -109,8 +109,7 @@ storage_option_format = TypedDict('storage_option_format', {'workspace_export': 
                                                             'local_S3_needed': bool,
                                                             'WEED_storage': Optional[WEED_storage]})
 
-
-def _get_default_job_options() -> dict:
+def _get_default_job_options() -> Dict[str, str]:
     """
     Retrieves the default job options for OpenEO extract operations.
 
@@ -123,7 +122,7 @@ def _get_default_job_options() -> dict:
     """
     return OPENEO_EXTRACT_JOB_OPTIONS
 
-def get_job_options(provider: str = None, task: str = 'raw_extraction') -> dict:
+def get_job_options(provider: str = None, task: str = 'raw_extraction') -> Dict[str, str]:
     """
     Retrieve job options based on the specified provider and task.
 
@@ -160,7 +159,7 @@ def get_job_options(provider: str = None, task: str = 'raw_extraction') -> dict:
 
     return job_options
 
-def get_collection_options(provider: str) -> dict:
+def get_collection_options(provider: str) -> Dict[str, str]:
     """
     Retrieve available collection options for a given data provider.
 
@@ -242,13 +241,12 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
         raise ValueError(f'Task `{task}` not known.')
     return proc_opt
 
-
 def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTION, target_crs: int = TARGET_CRS,
                          resolution: int | float = TARGET_RESOLUTION, ts_interpolation: bool = TIME_INTERPOLATION,
                          ts_interval: str = TS_INTERVAL, slc_masking: str = MASKING_ALGO, S2_bands: List[str] = S2_BANDS,
                          optical_vi_list: List[str] = VI_LIST, radar_vi_list: List[str] = RADAR_LIST,
                          S2_scaling: List[int | float] = S2_SCALING, S1_db_rescale: bool = True,
-                         append: bool = True) -> dict:
+                         append: bool = True) -> Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]:
     """
     Generates and validates advanced processing options for geospatial data, encapsulating
     parameters such as data provider, spatial resolution, temporal interpolation, and band scaling.
@@ -330,8 +328,10 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
     }
     return proc_opt
 
-def generate_storage_options(workspace_export: bool = False, S3_prefix: Optional[str] = None,
-                             local_S3_needed: bool = False, storage: Optional[WEED_storage] = None):
+def generate_storage_options(workspace_export: bool = False,
+                             S3_prefix: Optional[str] = None,
+                             local_S3_needed: bool = False,
+                             storage: Optional[WEED_storage] = None) -> storage_option_format:
     """
     Generates a dictionary of storage options based on provided parameters. This function is used to configure
     the storage settings for exporting results and handling S3 storage interactions.

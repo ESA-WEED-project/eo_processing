@@ -1,10 +1,11 @@
 #%%
 import os
 import onnx
+from onnx import StringStringEntryProto
 from catboost import CatBoostClassifier
 from openeo.udf import inspect
 from eo_processing.utils.external_dependency_utilities import download_file
-from typing import List
+from typing import List, Optional, Dict
 
 def load_catboost_model(catboost_model_path: str) -> CatBoostClassifier:
     """
@@ -51,7 +52,8 @@ def save_model_to_onnx(model: CatBoostClassifier, output_onnx_path: str) -> None
     except Exception as e:
         raise ValueError(f"Failed to save model to ONNX format at {output_onnx_path}: {e}")
 
-def add_metadata_to_onnx(onnx_path: str, input_features: list = None, output_features: list = None) -> None:
+def add_metadata_to_onnx(onnx_path: str, input_features: Optional[List] = None,
+                         output_features: Optional[List] = None) -> None:
     """
     Adds metadata entries to an ONNX model and saves the updated model back to the same file.
 
@@ -69,9 +71,6 @@ def add_metadata_to_onnx(onnx_path: str, input_features: list = None, output_fea
     :raises ValueError: If the ONNX model cannot be loaded or saved, or if inputs/outputs
         are not valid non-empty lists.
     """
-    import onnx
-    from onnx import StringStringEntryProto
-
     try:
         onnx_model = onnx.load(onnx_path)
         inspect(message=f"Loaded ONNX model from {onnx_path}")
@@ -107,8 +106,10 @@ def add_metadata_to_onnx(onnx_path: str, input_features: list = None, output_fea
     except Exception as e:
         raise ValueError(f"Failed to save ONNX model with metadata at {onnx_path}: {e}")
 
-def convert_catboost_model_to_onnx_with_metadata(catboost_model_path: str, input_features: list,
-                                                 output_features: list = None, output_onnx_path: str = None) -> None:
+def convert_catboost_model_to_onnx_with_metadata(catboost_model_path: str,
+                                                 input_features: Optional[List] = None,
+                                                 output_features: Optional[List] = None,
+                                                 output_onnx_path: Optional[str] = None) -> None:
     """
     Converts a CatBoost model to ONNX format and adds metadata for input/output features.
 
@@ -139,7 +140,7 @@ def convert_catboost_model_to_onnx_with_metadata(catboost_model_path: str, input
 
     inspect(message="Model successfully converted and saved to ONNX format with input/output features in metadata.")
 
-def extract_features_from_onnx(onnx_model_path: str) -> dict[str, List[str]]:
+def extract_features_from_onnx(onnx_model_path: str) -> Dict[str, List[str]]:
     """
     Extracts input and output features from an ONNX model by reading the metadata properties.
     If no output features are defined in the metadata, it assigns default output features
@@ -207,7 +208,7 @@ def onnx_output_path(catboost_model_path: str) -> str:
     inspect(message=f"ONNX output path generated: {output_onnx_path}")
     return output_onnx_path
 
-def get_training_features_from_model(url: str) -> dict[str, List[str]]:
+def get_training_features_from_model(url: str) -> Dict[str, List[str]]:
     """
     Extract training features from an ONNX model provided by a URL.
 

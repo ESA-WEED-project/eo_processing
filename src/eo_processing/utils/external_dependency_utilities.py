@@ -20,7 +20,6 @@ def is_onnx_file(file_path: str) -> bool:
     """
     return file_path.endswith('.onnx')
 
-
 def validate_onnx_file(file_path: str) -> bool:
     """
     Validates whether a given ONNX file is loadable and properly formatted.

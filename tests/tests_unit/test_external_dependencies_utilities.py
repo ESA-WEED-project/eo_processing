@@ -1,9 +1,6 @@
-import pytest
 import os
-from unittest.mock import patch, mock_open, MagicMock
-from urllib.parse import urlparse
+from unittest.mock import patch, MagicMock
 from eo_processing.utils.external_dependency_utilities import is_onnx_file, validate_onnx_file, download_file
-
 
 # Test is_onnx_file
 def test_is_onnx_file_valid():
@@ -49,4 +46,3 @@ def test_download_file_successful(mock_tempfile, mock_exists, mock_rename, mock_
     result = download_file("http://example.com/model.onnx")
     expected_path = os.path.normpath("/tmp/cache/model.onnx")
     assert os.path.normpath(result) == expected_path  # Normalize the result for comparison
-

@@ -19,13 +19,11 @@ from typing import Dict, List, Tuple
 from filelock import FileLock
 
 
-def is_onnx_file(file_path: str) -> bool:
-    """Check if the file is an ONNX model based on its extension."""
+def is_onnx_file(file_path):
     return file_path.endswith('.onnx')
     
-def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: str = '/tmp/cache') -> str:
-    """Download a file with concurrency protection and store it temporarily."""
-    
+def download_file_with_lock(url, max_file_size_mb = 100, cache_dir = '/tmp/cache'):
+
     # Extract the file name from the URL (e.g., "model_1.onnx")
     file_name = os.path.basename(urlparse(url).path)
     
@@ -62,9 +60,7 @@ def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: st
                 
                 # After download is complete, move the file from temp to the final destination
                 shutil.move(temp_file_path, file_path)  # Move the file to final location
-
                 return file_path  # Return path of the final model file
-
             else:
                 raise ValueError(f"Failed to download file, status code: {response.status_code}")
 
@@ -73,26 +69,8 @@ def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: st
                 os.remove(temp_file_path)  # Clean up temporary file on error
             raise ValueError(f"Error downloading file: {e}")
 
-
-
 @functools.lru_cache(maxsize=5)
-def load_onnx_model(
-    model_url: str, cache_dir: str = '/tmp/cache'
-) -> Tuple[ort.InferenceSession, Dict[str, List[str]]]:
-    """
-    Load an ONNX model into an ONNX Runtime session and extract metadata.
-
-    Args:
-        model_url (str): The URL or file path to the ONNX model.
-        cache_dir (str): Directory for caching or processing model files.
-
-    Returns:
-        Tuple[ort.InferenceSession, Dict[str, List[str]]]: A tuple containing the ONNX Runtime session
-                                                           and a dictionary of metadata.
-
-    Raises:
-        ValueError: If the model file cannot be processed or loaded.
-    """
+def load_onnx_model(model_url, cache_dir = '/tmp/cache'):
     try:
         # Process the model file to ensure it's a valid ONNX model
         model_path = download_file_with_lock(model_url, cache_dir=cache_dir)
@@ -121,51 +99,36 @@ def load_onnx_model(
     except Exception as e:
         raise ValueError(f"Failed to load ONNX model from {model_url}: {e}")
 
-def preprocess_input(input_xr: xr.DataArray, ort_session: ort.InferenceSession) -> tuple:
-    """
-    Preprocess the input DataArray by ensuring the dimensions are in the correct order,
-    reshaping it, and returning the reshaped numpy array and the original shape.
-    """
+def preprocess_input(input_xr,
+                     ort_session) :
     input_xr = input_xr.transpose("y", "x", "bands")
     input_shape = input_xr.shape
     input_np = input_xr.values.reshape(-1, ort_session.get_inputs()[0].shape[1])
     return input_np, input_shape
 
-def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> tuple:
-    """
-    Run inference using the ONNX runtime session and return predicted labels and probabilities.
-    """
+def run_inference(input_np, ort_session):
     ort_inputs = {ort_session.get_inputs()[0].name: input_np}
     ort_outputs = ort_session.run(None, ort_inputs)
-    probabilities_dicts = ort_outputs[1]
+    probabilities_dicts = ort_outputs[1] # just take probability results
     return probabilities_dicts
 
-def postprocess_output(probabilities_dicts: list, input_shape: tuple) -> tuple:
-    """
-    Postprocess the output by reshaping the predicted labels and probabilities into the original spatial structure.
-    """
+def postprocess_output(probabilities_dicts,
+                       input_shape) :
 
-    # Assuming class labels are the same across all dictionaries (probabilities)
+    # get the class labels assuming they are the same across all dictionaries (probabilities)
     class_labels = list(probabilities_dicts[0].keys())
 
-    # Convert probabilities from dicts into a 2D array with shape (n_samples, n_classes)
+    # Convert probabilities from dicts for each sample into a 2D array with shape (n_samples, n_classes)
     probabilities = np.array([[prob[class_id] for class_id in class_labels] for prob in probabilities_dicts])
 
-    # Reshape probabilities into (n_classes, height, width)
-    probabilities = probabilities.T.reshape(len(class_labels), input_shape[0], input_shape[1]) * 100  # Scale by 100 as needed
+    # Reshape probabilities into (bands, y, x), scale and convert to Byte
+    probabilities = probabilities.T.reshape(len(class_labels), input_shape[0], input_shape[1]) * 100  # Scale by 100
     probabilities = probabilities.astype('uint8')
 
     return probabilities
 
-def create_output_xarray(probabilities: np.ndarray, 
-                         input_xr: xr.DataArray) -> xr.DataArray:
-    """
-    Create an xarray DataArray with predicted labels and probabilities stacked along the bands dimension.
-    """
-    #combined_data = np.concatenate([
-    #    predicted_labels[np.newaxis, :, :],  # Shape (1, y, x) for predicted labels
-    #    probabilities  # Shape (n_classes, y, x) for probabilities
-    #], axis=0)
+def create_output_xarray(probabilities,
+                         input_xr) :
 
     return xr.DataArray(
         probabilities,
@@ -176,45 +139,38 @@ def create_output_xarray(probabilities: np.ndarray,
         }
     )
 
+def apply_datacube(cube, context) :
 
-def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
-    """
-    Function that is called for each chunk of data that is processed.
-    The function name and arguments are defined by the UDF API.
-    
-    More information can be found here: 
-    https://open-eo.github.io/openeo-python-client/udf.html#udf-function-names-and-signatures
-
-    """
-    output_cube_initialized = False 
-
-    cube.transpose("y", "x", "bands")
+    # fill nan in cube and make sure cube is in right dtype for inference
     cube = cube.fillna(0)
     cube = cube.astype('float32')
 
-
-    # Apply the model for each timestep in the chunk
-
+    # get the list of models to apply on the cube from context
     model_urls = context.get("model_list")
 
-
+    # loop over the models and apply on input array
+    output_cube_initialized = False
     for i, url in enumerate(model_urls):
 
         inspect(message=f"running inference for: {url}")
  
-        # Placeholder for model metadata
+        # load the ONNX model and extract metadata
         ort_session, metadata = load_onnx_model(url, cache_dir="/tmp/cache")
         input_band = metadata['input_features']
 
         # Subset the data array using the selected indices
         subsampled_data_array = cube.sel(bands=input_band)
 
-        # Load and run model (assuming these functions exist)
+        # preprocess input array to numpy array in correct shape
         input_np, input_shape = preprocess_input(subsampled_data_array, ort_session)
+        # run inference
         probabilities_dicts = run_inference(input_np, ort_session)
+        # post-process probabilities to correct shape and Byte dtype
         probabilities = postprocess_output(probabilities_dicts, input_shape)
+        # convert back to Xarray DataArray
         model_output_cube = create_output_xarray(probabilities, subsampled_data_array)
 
+        # merge the model results into one super-cube
         if not output_cube_initialized:
             # Initialize the output_cube only on the first iteration
             output_cube = model_output_cube
@@ -223,7 +179,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
             # Append to output_cube starting from the second iteration
             output_cube = xr.concat([output_cube, model_output_cube], dim="bands")
 
-            
-        output_cube = output_cube.astype('uint8')
+    # make sure output Xarray has the correct dtype
+    output_cube = output_cube.astype('uint8')
 
-        return output_cube
+    return output_cube

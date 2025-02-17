@@ -1,6 +1,7 @@
 from eo_processing.openeo.processing import VI_LIST, RADAR_LIST, S2_SCALING
 from eo_processing.openeo.preprocessing import S2_BANDS
-from typing import List
+from eo_processing.utils.storage import WEED_storage
+from typing import List, TypedDict, Optional
 
 # ---------------------------------------------------
 # standard processing options
@@ -50,7 +51,7 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS: dict = {
 }
 
 OPENEO_INFERENCE_CDSE_JOB_OPTIONS: dict = {
-    "driver-memory": "500m",
+    "driver-memory": "2G",
     "driver-memoryOverhead": "2000m",
     "driver-cores": "1",
     "executor-cores": "1",
@@ -102,6 +103,11 @@ _CDSE_COLLECTIONS: dict = {
     'S2_collection': "SENTINEL2_L2A",
     'S1_collection': "SENTINEL1_GRD"
 }
+
+storage_option_format = TypedDict('storage_option_format', {'workspace_export': bool,
+                                                            'S3_prefix': Optional[str],
+                                                            'local_S3_needed': bool,
+                                                            'WEED_storage': Optional[WEED_storage]})
 
 
 def _get_default_job_options() -> dict:
@@ -323,3 +329,42 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
         "append": append
     }
     return proc_opt
+
+def generate_storage_options(workspace_export: bool = False, S3_prefix: Optional[str] = None,
+                             local_S3_needed: bool = False, storage: Optional[WEED_storage] = None):
+    """
+    Generates a dictionary of storage options based on provided parameters. This function is used to configure
+    the storage settings for exporting results and handling S3 storage interactions.
+
+    :param workspace_export: A boolean indicating whether the results should be exported to the workspace (S3).
+    :param S3_prefix: A string representing the S3 bucket prefix to use for exporting. Mandatory if workspace
+                      export to S3 is enabled.
+    :param local_S3_needed: A boolean specifying whether a local copy of the S3 data is required.
+    :param storage: A WEED_storage object representing the storage configuration when a local copy of S3 data
+                    is needed.
+
+    :return: A dictionary containing the configured storage options, including the workspace export flag,
+             S3 prefix, local S3 requirements, and storage details.
+
+    :raises ValueError: If `workspace_export` is True but no `S3_prefix` value is provided.
+    :raises ValueError: If both `local_S3_needed` and `workspace_export` are True but no storage object is defined.
+    """
+    if not workspace_export:
+       return {'workspace_export': workspace_export, 'S3_prefix': None, 'local_S3_needed': False, 'storage': None}
+    else:
+        storage_options =  {'workspace_export':workspace_export,
+                            'S3_prefix': S3_prefix,
+                            'local_S3_needed':local_S3_needed}
+
+    #just some checks to avoid missing parameters
+    if workspace_export and not S3_prefix  :
+        raise print("You want to export the openEO results to S3, please specify the S3_prefix parameter.")
+
+    if local_S3_needed and workspace_export:
+        if not storage:
+            raise print("A local copy S3 data is wanted but no storage object is defined")
+        storage_options.update({'WEED_storage': storage})
+    else:
+        storage_options.update({'WEED_storage': None})
+
+    return storage_options

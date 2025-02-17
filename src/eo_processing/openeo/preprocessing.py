@@ -5,13 +5,14 @@ from eo_processing.openeo.masking import scl_mask_erode_dilate
 from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2)
 from eo_processing.utils.geoprocessing import openEO_bbox_format
 import openeo
+from typing import Optional
 
 S2_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
 
 def ts_datacube_extraction(
-        connection: openeo.Connection, bbox: openEO_bbox_format, start: str, end: str,
+        connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         S2_collection: str ='SENTINEL2_L2A',
-        S1_collection: str ='SENTINEL1_GRD',
+        S1_collection: Optional[str] ='SENTINEL1_GRD',
         **processing_options: dict) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
@@ -42,8 +43,7 @@ def ts_datacube_extraction(
 
     return bands
 
-
-def extract_S1_datacube(connection: openeo.Connection, bbox: openEO_bbox_format, start: str, end: str,
+def extract_S1_datacube(connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
                         S1_collection: str = 'SENTINEL1_GRD', **processing_options: dict) -> DataCube:
     """ extract the Sentinel-1 data for requested time period and preprocess the data
 
@@ -51,7 +51,7 @@ def extract_S1_datacube(connection: openeo.Connection, bbox: openEO_bbox_format,
     :param bbox: dict, bounding box of format {'east': x, 'south': x, 'west': x, 'north': x, 'crs': x}
     :param start: str, Start date for requested input data (yyyy-mm-dd)
     :param end: str, End date for requested input data (yyyy-mm-dd)
-    :param S1_collection: (str, optional): Collection name for S1 data
+    :param S1_collection: (str): Collection name for S1 data
     :param processing_options: (dict, optional), processing options for preprocessing routine (provider, target_crs,
             resolution, ts_interval, time_interpolation, s1_orbitdirection)
     :return: DataCube
@@ -142,8 +142,7 @@ def extract_S1_datacube(connection: openeo.Connection, bbox: openEO_bbox_format,
 
     return bands
 
-
-def extract_S2_datacube(connection: openeo.Connection, bbox: openEO_bbox_format, start: str, end: str,
+def extract_S2_datacube(connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
                         S2_collection: str='SENTINEL2_L2A', **processing_options: dict) -> DataCube:
     """ extract the Sentinel-2 data for requested time period and preprocess the data
 

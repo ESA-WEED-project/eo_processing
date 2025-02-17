@@ -1,30 +1,58 @@
 from skimage.morphology import disk
+from openeo.rest.datacube import DataCube
+import openeo
+from eo_processing.utils.geoprocessing import openEO_bbox_format
+from typing import Union
 
-def convolve(img, radius: int):
-    '''OpenEO method to apply convolution
-    with a circular kernel of `radius` pixels.
-    NOTE: make sure the resolution of the image
-    matches the expected radius in pixels!
-    '''
+def convolve(img: DataCube, radius: int) -> DataCube:
+    """
+    Perform 2D convolution on the data cube using a disk-shaped kernel.
+
+    This function applies a convolution to an input data cube using
+    a kernel generated with a specified radius. The kernel is disk-shaped.
+    The operation modifies the data cube by blending pixel values
+    within the shape defined by the kernel to produce a smoothed
+    or averaged result depending on the input parameters.
+
+    :param img: Input data cube on which the convolution will be applied.
+    :param radius: Radius to generate the disk-shaped kernel for convolution.
+    :return: A new data cube after applying the convolution operation.
+    """
     kernel = disk(radius)
     img = img.apply_kernel(kernel)
     return img
 
-def scl_mask_erode_dilate(session, bbox,
-                          scl_layer_band="SENTINEL2_L2A:SCL",
-                          erode_r=3, dilate_r=21, target_crs=None):
-    """OpenEO method to construct a Sentinel-2 mask based on SCL.
-    It involves an erosion step followed by a dilation step.
+def scl_mask_erode_dilate(session: openeo.Connection, bbox: openEO_bbox_format,
+                          scl_layer_band: str ="SENTINEL2_L2A:SCL",
+                          erode_r: int =3, dilate_r: int =21, target_crs: Union[int, None] =None) -> DataCube:
+    """
+    Generates a binary mask from the Sentinel-2 Scene Classification Layer (SCL) by performing
+    controlled erosion and dilation operations. This function applies a sequence of convolution
+    operations to refine the mask based on specified erosion and dilation radii.
 
-    Args:
-        session (openeo.Session): the connection openeo session
-        scl_layer_band (str, optional): Which SCL band to use.
-                Defaults to "TERRASCOPE_S2_TOC_V2:SCL".
-        erode_r (int, optional): Erosion radius (pixels). Defaults to 3.
-        dilate_r (int, optional): Dilation radius (pixels). Defaults to 13.
+    The workflow involves:
+    1. Resampling the classification layer to a resolution of 10m in the specified coordinate
+       reference system (CRS).
+    2. Creating an initial mask based on given classification values.
+    3. Applying erosion to the inverted mask by dilating it with a specified radius.
+    4. Reverting the erosion effect by binary inversion.
+    5. Finally, dilating the refined mask with a specified dilation radius.
+    6. Ensuring binary output by thresholding the processed mask to handle small oscillation
+       effects post-convolution.
 
-    Returns:
-        DataCube: DataCube containing the resulting mask
+    :param session: OpenEO session used to load and process the Sentinel-2 Scene Classification Layer.
+    :param bbox: Bounding box defining the spatial extent of the area of interest for the mask
+        generation.
+    :param scl_layer_band: Name of the Sentinel-2 Scene Classification collection and band,
+        provided in the format "collection:band". For example, "SENTINEL2_L2A:SCL".
+    :param erode_r: Radius to be used for erosion. This value dictates the size of the inverted
+        mask dilation.
+    :param dilate_r: Radius to be used for dilation. This determines the size of the
+        final mask dilation applied after erosion.
+    :param target_crs: Target coordinate reference system (CRS) of the output data. If None,
+        the existing CRS is used.
+
+    :return: A DataCube object containing the final binary mask after erosion and dilation.
     """
 
     layer_band = scl_layer_band.split(':')

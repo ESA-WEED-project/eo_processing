@@ -13,7 +13,6 @@ DATE_END = "2021-12-31"
 API_URL = "https://oeo.test"
 GROUNDTRUTH_DIR = "tests//resources"
 
-
 DEFAULT_S1_METADATA = {
     "cube:dimensions": {"x": {"type": "spatial"}, "y": {"type": "spatial"}, "t": {"type": "temporal"},
                         "bands": {"type": "bands", "values": ["VV", "VH"]}},
@@ -43,12 +42,10 @@ DEFAULT_S2_METADATA = {
     ]}
 }
 
-
 # Helper to load JSON files from a given path
 def load_json_from_path(filepath):
     with open(filepath, "r") as json_file:
         return json.load(json_file)
-
 
 # Mock connection setup
 @pytest.fixture

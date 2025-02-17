@@ -6,18 +6,17 @@ from typing import Union
 import geopandas as gpd
 import os
 import boto3
-import json
-from ast import literal_eval
+from eo_processing.utils.helper import string_to_dict
 
 class WEED_storage:
     def __init__(self, username: str = 'buchhornm', gdrive_entry_point: str = "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu"):
         self.username = username
         self.credentials = self._get_credentials()
-        self.s3_credentials = self._string_to_dict(self.credentials['S3-auth'])
+        self.s3_credentials = string_to_dict(self.credentials['S3-auth'])
         self.gdrive_credentials = self.credentials['gdrive-access']
         self.gdrive_entry_point = gdrive_entry_point
-        self.gdrive_fs = None
-        self.s3_client = None
+        self.gdrive_fs: GDriveFileSystem = None
+        self.s3_client: boto3.client = None
         self.s3_bucket = self.s3_credentials['bucket_name']
         #self.s3_prefix = None
 
@@ -44,20 +43,6 @@ class WEED_storage:
                                                                            raise_on_deleted_version=True)
         client.logout()
         return secret_version_response['data']['data']
-
-    def _string_to_dict(self, string: str) -> dict:
-        """
-        Converts a string representation of a dictionary back into a dictionary.
-
-        :param string: The string to convert.
-        :return: A dictionary object.
-        """
-        try:
-            # Attempt to load as JSON
-            return json.loads(string)
-        except json.JSONDecodeError:
-            # Fallback to evaluating as a Python literal
-            return literal_eval(string)
 
     def _init_GDRIVE(self) -> None:
         """

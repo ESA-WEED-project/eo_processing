@@ -256,16 +256,15 @@ class WeedJobManager(MultiBackendJobManager):
         results = job.get_results()
 
         if self.storage_options.get('local_S3_needed', False):
-            s3_client = self.storage_options["WEED_storage"].get_s3_client()
-            bucket_name = self.storage_options["WEED_storage"].s3_bucket
             S3_prefix = self.storage_options["S3_prefix"]
+            s3_objects = os.path.join(S3_prefix, title)
+             
             if file_ext in ['netcdf','gtiff']:
-                if file_ext == 'netcdf':
-                    ext = 'nc'
-                else: ext = 'tif'
-                s3_client.download_file(bucket_name, os.path.join(S3_prefix,f"{title}.{ext}"),
-                                        job_dir /f"{title}.{ext}")
+                self.storage_options["WEED_storage"].download_s3_content(s3_objects, job_dir)
+
             else :
+                s3_client = self.storage_options["WEED_storage"].get_s3_client()
+                bucket_name= self.storage_options["WEED_storage"].s3_bucket()
                 s3_client.download_file(bucket_name, os.path.join(S3_prefix,f"timeseries.{file_ext}"),
                                         job_dir / f"{title}.{file_ext}")
 

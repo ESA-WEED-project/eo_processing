@@ -14,7 +14,7 @@ import hashlib
 from datetime import datetime
 import json
 from ast import literal_eval
-from typing import Union
+from typing import Union, Dict, List
 
 def init_connection(provider: str) -> openeo.Connection :
     """
@@ -187,7 +187,7 @@ def generate_unique_id(length: int = 25) -> str:
         unique_id = unique_id[:-1] + replacement_character
     return unique_id
 
-def string_to_dict(string: str) -> dict:
+def string_to_dict(string: str) -> Dict|List:
     """
     Converts a string representation of a dictionary back into a dictionary.
 
@@ -201,7 +201,7 @@ def string_to_dict(string: str) -> dict:
         # Fallback to evaluating as a Python literal
         return literal_eval(string)
 
-def convert_to_list(input_value: Union[str, list[str]]) -> list[str]:
+def convert_to_list(input_value: Union[str, List[str]]) -> List[str]:
     """
     Parse a string representation of a list or a list object into a Python list object.
 

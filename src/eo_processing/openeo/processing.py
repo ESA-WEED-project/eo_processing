@@ -5,7 +5,7 @@ from openeo.processes import array_create, ProcessBuilder, array_concat, subtrac
 from eo_processing.openeo.preprocessing import (extract_S2_datacube, extract_S1_datacube)
 import openeo
 from eo_processing.utils.geoprocessing import openEO_bbox_format
-from typing import Optional
+from typing import Optional, Dict, Union, List
 
 VI_LIST = ['NDVI',
            'AVI',
@@ -26,7 +26,9 @@ RADAR_LIST = ['VHVVD',
 
 S2_SCALING = [0, 10000, 0, 1.0]
 
-def optical_indices(input_cube: DataCube, **processing_options: dict) -> DataCube:
+def optical_indices(
+        input_cube: DataCube,
+        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
     """creates vegetation indices times series cube from given datacube of optical EO data
 
     :param input_cube: openEO DataCube
@@ -52,7 +54,9 @@ def optical_indices(input_cube: DataCube, **processing_options: dict) -> DataCub
 
     return vi_cube
 
-def radar_indices(input_cube: DataCube, **processing_options: dict) -> DataCube:
+def radar_indices(
+        input_cube: DataCube,
+        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
     """creates radar indices times series cube from given datacube of radar EO data
 
     :param input_cube: openEO DataCube
@@ -139,8 +143,10 @@ def radar_indices(input_cube: DataCube, **processing_options: dict) -> DataCube:
 
     return vi_cube
 
-def generate_S1_indices(connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
-                        S1_collection: str ='SENTINEL1_GRD', **processing_options: dict) -> DataCube:
+def generate_S1_indices(
+        connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
+        S1_collection: str ='SENTINEL1_GRD',
+        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -160,8 +166,10 @@ def generate_S1_indices(connection: openeo.Connection, bbox: Optional[openEO_bbo
 
     return result_cube
 
-def generate_S2_indices(connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
-                        S2_collection: str ='SENTINEL2_L2A', **processing_options: dict) -> DataCube:
+def generate_S2_indices(
+        connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
+        S2_collection: str ='SENTINEL2_L2A',
+        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -181,9 +189,10 @@ def generate_S2_indices(connection: openeo.Connection, bbox: Optional[openEO_bbo
 
     return result_cube
 
-def generate_indices_master_cube(connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str,
-                                 end: str, S2_collection: str ='SENTINEL2_L2A', S1_collection: str ='SENTINEL1_GRD',
-                                 **processing_options: dict) -> DataCube:
+def generate_indices_master_cube(
+        connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
+        S2_collection: str ='SENTINEL2_L2A', S1_collection: str ='SENTINEL1_GRD',
+        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -206,7 +215,6 @@ def generate_indices_master_cube(connection: openeo.Connection, bbox: Optional[o
                                                                     S1_collection=S1_collection,
                                                                     **processing_options))
     return indices_cube
-
 
 def _compute_features(input_timeseries: DataCube) -> ProcessBuilder:
     """
@@ -264,8 +272,10 @@ def calculate_features_cube(input_data: DataCube) -> DataCube:
 
     return features_cube
 
-def generate_S1_feature_cube(connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
-                             S1_collection: str ='SENTINEL1_GRD', **processing_options: dict) -> DataCube:
+def generate_S1_feature_cube(
+        connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
+        S1_collection: str ='SENTINEL1_GRD',
+        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -285,8 +295,10 @@ def generate_S1_feature_cube(connection: openeo.Connection, bbox: Optional[openE
 
     return features_cube
 
-def generate_S2_feature_cube(connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
-                             S2_collection: str ='SENTINEL2_L2A', **processing_options: dict) -> DataCube:
+def generate_S2_feature_cube(
+        connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
+        S2_collection: str ='SENTINEL2_L2A',
+        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -306,9 +318,10 @@ def generate_S2_feature_cube(connection: openeo.Connection, bbox: Optional[openE
 
     return features_cube
 
-def generate_master_feature_cube(connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str,
-                                 end: str, S2_collection: str ='SENTINEL2_L2A', S1_collection: str ='SENTINEL1_GRD',
-                                 **processing_options: dict) -> DataCube:
+def generate_master_feature_cube(
+        connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
+        S2_collection: str ='SENTINEL2_L2A', S1_collection: str ='SENTINEL1_GRD',
+        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object

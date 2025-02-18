@@ -1,7 +1,7 @@
 from email.mime.text import MIMEText
 import email.utils
 import smtplib
-from typing import List
+from typing import List, Tuple
 
 # Constants
 SMTP_SERVER = 'mail.vgt.vito.be'
@@ -9,7 +9,7 @@ SENDER_NAME = 'WEED openEO processing cluster'
 SENDER_EMAIL = 'esa.weed.project@vito.be'
 
 
-def format_email_address(name_email_pair: tuple[str, str]) -> str:
+def format_email_address(name_email_pair: Tuple[str, str]) -> str:
     """
     Formats a name and email address pair into a properly formatted email address.
 
@@ -20,7 +20,7 @@ def format_email_address(name_email_pair: tuple[str, str]) -> str:
     """
     return email.utils.formataddr(name_email_pair)
 
-def send_email(recipient: tuple[str, str] | str, subject: str, msg_text: str, debug_flag: bool = False) -> None:
+def send_email(recipient: Tuple[str, str] | str, subject: str, msg_text: str, debug_flag: bool = False) -> None:
     """
     Sends an email message using an SMTP server.
     :param recipient: The recipient's information. Can be either:
@@ -50,7 +50,7 @@ def send_email(recipient: tuple[str, str] | str, subject: str, msg_text: str, de
             server.set_debuglevel(debug_flag)  # show communication with the server
             server.sendmail(SENDER_EMAIL, [recipient_entry[1]], msg.as_string())
 
-def read_recipients_from_file(file_path: str) -> List[tuple[str, str]]:
+def read_recipients_from_file(file_path: str) -> List[Tuple[str, str]]:
     """
     Reads recipients from a file, where each line contains a name and email separated by a semicolon (';').
     :param file_path: Path to the file containing recipients.

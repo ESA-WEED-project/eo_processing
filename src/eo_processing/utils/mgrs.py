@@ -3,7 +3,7 @@
 
 import pyproj
 from math import trunc
-from typing import Union
+from typing import Union, Tuple
 
 def latitude_to_zone_letter(latitude: float) -> Union[str, None]:
     """
@@ -101,7 +101,7 @@ def MGRS_2Mil_letter(northing: float, zone_letter: str) -> str:
     else:
         return _Ln2million_south[index]
 
-def LL_2_UTM(lon: float, lat: float, forced_epsg: Union[int, None]=None) -> tuple[float, float, int, str]:
+def LL_2_UTM(lon: float, lat: float, forced_epsg: Union[int, None]=None) -> Tuple[float, float, int, str]:
     """
     Converts geographic coordinates (longitude, latitude) to UTM (Universal Transverse Mercator) coordinates.
 
@@ -144,7 +144,7 @@ def LL_2_UTM(lon: float, lat: float, forced_epsg: Union[int, None]=None) -> tupl
 
     return target_easting, target_northing, zone_number, zone_letter
 
-def UTM_2_LL(easting: float, northing: float, zone_number: int, zone_letter:str) -> tuple[float, float]:
+def UTM_2_LL(easting: float, northing: float, zone_number: int, zone_letter:str) -> Tuple[float, float]:
     """
     Converts UTM (Universal Transverse Mercator) coordinates to latitude and longitude
     (WGS84 coordinate system). This function takes easting, northing, zone number, and
@@ -241,7 +241,7 @@ def LL_2_MGRSid10(longitude: float, latitude: float) -> str:
 
     return UTM_2_MGRSid10(easting, northing, zone_number, zone_letter)
 
-def get_MGRSid10_centerLL(longitude: float, latitude: float) -> tuple[float, float]:
+def get_MGRSid10_centerLL(longitude: float, latitude: float) -> Tuple[float, float]:
     """
     Calculate the MGRSid10 Geolocation center coordinates in latitude and longitude of the corresponding
     reference point location in MGRS 10-meter grid.

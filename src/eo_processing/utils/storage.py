@@ -163,15 +163,13 @@ class WEED_storage:
         """
         Downloads all files (not jsons) with a specific prefix on S3. This can be as single file or mulitple files
 
-        This function connects to the configured S3 bucket and fetches the metadata
-        for all objects matching the specified directory prefix. It initializes the
+        This function connects to the configured S3 bucket and fetches data
+        for all objects matching the specified S3_objects. It initializes the
         S3 client if it has not already been initialized.
 
-        :param s3_directory: The directory prefix within the S3 bucket. This should
-            represent the folder path within the bucket whose contents need to be
-            fetched.
-        :return: A dictionary containing the metadata of objects in the specified
-            S3 directory, as returned by the S3 client's list_objects_v2 method.
+        :param s3_objects: This is the exact s3 object name or the s3 prefix (standaard S3 prefix + filename prefix)
+        :param out_dir: directory for the download. the function will create subdirectories if needed
+        :param retry: amount of retries alreaday done
         """
 
 

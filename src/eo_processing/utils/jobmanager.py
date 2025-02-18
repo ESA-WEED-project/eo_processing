@@ -49,8 +49,7 @@ class WeedJobManager(MultiBackendJobManager):
         "memory": _ColumnProperties(dtype="str"),
         "duration": _ColumnProperties(dtype="str"),
         "attempt": _ColumnProperties(dtype="int", default=0),
-        "cost": _ColumnProperties(dtype="float"),
-        "S3_prefix" : _ColumnProperties(dtype="str")
+        "cost": _ColumnProperties(dtype="float")
     }
 
     def __init__(self, poll_sleep: int = 5, root_dir: str = '.',

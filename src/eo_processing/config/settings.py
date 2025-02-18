@@ -45,23 +45,23 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "executor-request-cores": "800m",
     "executor-memory": "1500m",
     "executor-memoryOverhead": "2500m",
-    "max-executors": "15",
+    "max-executors": "25",
     "executor-threads-jvm": "7",
     "logging-threshold": "info"
 }
 
 OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
-    "driver-memory": "2G",
-    "driver-memoryOverhead": "2000m",
+    "driver-memory": "4G",
+    "driver-memoryOverhead": "2G",
     "driver-cores": "1",
     "executor-cores": "1",
     "executor-request-cores": "800m",
-    "executor-memory": "2000m",
-    "executor-memoryOverhead": "500m",
-    "max-executors": "15",
+    "executor-memory": "1500m",
+    "executor-memoryOverhead": "1500m",
+    "max-executors": "25",
     "executor-threads-jvm": "7",
     "logging-threshold": "info",
-    "python-memory": "4000m"
+    "python-memory": "5500m"
 }
 
 OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
@@ -72,7 +72,7 @@ OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "executor-request-cores": "800m",
     "executor-memory": "1500m",
     "executor-memoryOverhead": "2500m",
-    "max-executors": "15",
+    "max-executors": "25",
     "executor-threads-jvm": "7",
     "logging-threshold": "info"
 }
@@ -120,7 +120,7 @@ def _get_default_job_options() -> Dict[str, str]:
 
     :return: A dictionary representing the default job options for OpenEO extract.
     """
-    return OPENEO_EXTRACT_JOB_OPTIONS
+    return OPENEO_EXTRACT_JOB_OPTIONS.copy()
 
 def get_job_options(provider: str = None, task: str = 'raw_extraction') -> Dict[str, str]:
     """
@@ -152,7 +152,7 @@ def get_job_options(provider: str = None, task: str = 'raw_extraction') -> Dict[
     if provider.lower() == 'cdse' or provider.lower() == 'cdse-staging':
         if task in ['inference']:
             job_options.update(OPENEO_INFERENCE_CDSE_JOB_OPTIONS)
-        if task in ['point_extraction']:
+        elif task in ['point_extraction']:
             job_options.update(OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS)
         else:
             job_options.update(OPENEO_EXTRACT_CDSE_JOB_OPTIONS)

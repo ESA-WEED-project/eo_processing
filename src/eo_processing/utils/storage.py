@@ -6,6 +6,7 @@ from typing import Union, Dict, Tuple, List
 import geopandas as gpd
 import os
 import boto3
+import time
 from eo_processing.utils.helper import string_to_dict
 
 class WEED_storage:
@@ -157,6 +158,60 @@ class WEED_storage:
             self._init_boto3()
 
         return self.s3_client.list_objects_v2(Bucket=self.s3_bucket, Prefix=s3_directory)
+
+    def download_s3_content(self, s3_objects: str, out_dir: str, retry: int = 0) :
+        """
+        Downloads all files (not jsons) with a specific prefix on S3. This can be as single file or mulitple files
+
+        This function connects to the configured S3 bucket and fetches data
+        for all objects matching the specified S3_objects. It initializes the
+        S3 client if it has not already been initialized.
+
+        :param s3_objects: This is the exact s3 object name or the s3 prefix (standaard S3 prefix + filename prefix)
+        :param out_dir: directory for the download. the function will create subdirectories if needed
+        :param retry: amount of retries alreaday done
+        """
+
+
+        if self.s3_client is None:
+            self._init_boto3()
+
+        # Create a reusable Paginator
+        paginator = self.s3_client.get_paginator('list_objects')
+
+        lst = []
+        operation_parameters = {'Bucket': self.s3_bucket,
+        'Prefix': s3_objects}
+        # Create a PageIterator from the Paginator
+        page_iterator = paginator.paginate(**operation_parameters)
+
+        for page in page_iterator:
+            for line in page['Contents']:
+                try:
+                    lst.append(line['Key'])
+                except:
+                    pass
+        try:
+            for element in lst:
+                if not element.endswith('/') and not element.endswith('.json'):
+                    dirname = os.path.dirname(s3_objects)
+                    # basename = os.path.basename(s3_objects)
+                    outname = os.path.join(out_dir, os.path.relpath(element, dirname))
+                    if os.path.exists(outname):
+                        continue
+                    if not os.path.exists(os.path.dirname(outname)):
+                        os.makedirs(os.path.dirname(outname), exist_ok=True)
+
+                    self.s3_client.download_file(self.s3_bucket, element, outname)
+                    #print(f"Successfully copied {element} to {outname}")
+
+        except:
+            if retry < 5:
+                time.sleep(10)
+                self.download_s3_content(s3_objects, out_dir, retry=retry+1)
+            else:
+                raise Exception('Copying data from S3 failed: ' + str(self.s3_bucket + '/' + s3_objects))
+
 
 
     def get_onnx_urls(self, s3_directory: str = 'models') -> List[str]:

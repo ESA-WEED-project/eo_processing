@@ -1,5 +1,5 @@
 # eo_processing repository
-repro for EO data processing pipelines in openEO
+repro for EO data processing in openEO
 
 ## WEED: Python development environment
 install the Python miniconda environment -> detailed instructions here: [python_dev_environment](https://github.com/ESA-WEED-project/.github/tree/main/python_dev_environment)

@@ -61,7 +61,7 @@ OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "max-executors": "25",
     "executor-threads-jvm": "7",
     "logging-threshold": "info",
-    "python-memory": "5500m"
+    "python-memory": "4000m"
 }
 
 OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {

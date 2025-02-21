@@ -90,7 +90,7 @@ def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: st
                 os.remove(temp_file_path)  # Clean up temporary file on error
             raise ValueError(f"Error downloading file: {e}")
 
-@functools.lru_cache(maxsize=5)
+@functools.lru_cache(maxsize=1)
 def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> Tuple[ort.InferenceSession, Dict[str, List[str]]]:
     """
     Loads an ONNX model from a given URL, caches the model locally, and initializes an ONNX Runtime

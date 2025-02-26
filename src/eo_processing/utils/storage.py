@@ -159,20 +159,21 @@ class WEED_storage:
 
         return self.s3_client.list_objects_v2(Bucket=self.s3_bucket, Prefix=s3_directory)
 
-    def download_s3_content(self, s3_objects: str, out_dir: str, retry: int = 0) :
+    def download_s3_content(self, s3_objects: str, out_dir: str, retry: int = 0, download_json: bool = False) -> None :
         """
-        Downloads all files (not jsons) with a specific prefix on S3. This can be as single file or mulitple files
+        Downloads content from an Amazon S3 bucket based on the provided prefix. This function retrieves
+        all objects under the specified prefix from the S3 bucket, creates any necessary local directories,
+        and downloads the objects to a local directory. It also supports retrying the download process
+        a specified number of times in case of failure. Optionally, JSON files can be excluded from
+        the download.
 
-        This function connects to the configured S3 bucket and fetches data
-        for all objects matching the specified S3_objects. It initializes the
-        S3 client if it has not already been initialized.
-
-        :param s3_objects: This is the exact s3 object name or the s3 prefix (standaard S3 prefix + filename prefix)
-        :param out_dir: directory for the download. the function will create subdirectories if needed
-        :param retry: amount of retries alreaday done
+        :param s3_objects: The prefix path in the S3 bucket to retrieve objects from.
+        :param out_dir: The local directory to which the retrieved S3 objects will be downloaded.
+        :param retry: The current retry attempt count. Defaults to 0.
+        :param download_json: Indicates whether JSON files should be downloaded. If False, such files
+                              will be excluded from the download. Defaults to False.
+        :return: None
         """
-
-
         if self.s3_client is None:
             self._init_boto3()
 
@@ -193,26 +194,25 @@ class WEED_storage:
                     pass
         try:
             for element in lst:
-                if not element.endswith('/') and not element.endswith('.json'):
+                if element.endswith('/'):
+                    continue
+                elif element.endswith('.json') and not download_json:
+                    continue
+                else:
                     dirname = os.path.dirname(s3_objects)
                     # basename = os.path.basename(s3_objects)
                     outname = os.path.join(out_dir, os.path.relpath(element, dirname))
                     if os.path.exists(outname):
                         continue
-                    if not os.path.exists(os.path.dirname(outname)):
-                        os.makedirs(os.path.dirname(outname), exist_ok=True)
+                    os.makedirs(os.path.dirname(outname), exist_ok=True)
 
                     self.s3_client.download_file(self.s3_bucket, element, outname)
-                    #print(f"Successfully copied {element} to {outname}")
-
         except:
             if retry < 5:
                 time.sleep(10)
-                self.download_s3_content(s3_objects, out_dir, retry=retry+1)
+                self.download_s3_content(s3_objects, out_dir, retry=retry+1, download_json=download_json)
             else:
                 raise Exception('Copying data from S3 failed: ' + str(self.s3_bucket + '/' + s3_objects))
-
-
 
     def get_onnx_urls(self, s3_directory: str = 'models') -> List[str]:
         """

@@ -1,22 +1,17 @@
-# /// script
-# dependencies = [
-# "filelock",
-# "onnxruntime",
-# ]
-# ///
-
 import os
+import sys
 import functools
 import requests
 import tempfile
-import onnxruntime as ort
 import xarray as xr
 import numpy as np
 import shutil
 from urllib.parse import urlparse
 from openeo.udf import inspect
 from typing import Dict, List, Tuple, Union
-from filelock import FileLock
+
+sys.path.append("onnx_deps") 
+import onnxruntime as ort
 
 def is_onnx_file(file_path: str) -> bool:
     """
@@ -30,10 +25,10 @@ def is_onnx_file(file_path: str) -> bool:
     """
     return file_path.endswith('.onnx')
 
-def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: str = '/tmp/cache') -> str:
+def download_file(url: str, max_file_size_mb: int = 100, cache_dir: str = '/tmp/cache') -> str:
     """
-    Downloads a file from the specified URL, ensuring thread safety and limiting file size. The file is
-    cached in a given directory, and concurrent downloads of the same file are prevented using a locking
+    Downloads a file from the specified URL. The file is
+    cached in a given directory, and downloads of the same file are prevented using a locking
     mechanism. If the file already exists in the cache, it will not be downloaded again.
 
     :param url: The URL of the file to download.
@@ -44,51 +39,36 @@ def download_file_with_lock(url: str, max_file_size_mb: int = 100, cache_dir: st
     :raises ValueError: If the file size exceeds the maximum limit or if there is an issue during the
         download process.
     """
-
-    # Extract the file name from the URL (e.g., "model_1.onnx")
-    file_name = os.path.basename(urlparse(url).path)
-
     # Construct the file path within the cache directory (e.g., '/tmp/cache/model.onnx')
+    os.makedirs(cache_dir, exist_ok=True)  # Ensure cache directory exists
+
+    file_name = os.path.basename(urlparse(url).path)
     file_path = os.path.join(cache_dir, file_name)
 
-    # Lock file to prevent concurrent downloads
-    lock_path = file_path + '.download.lock'
-    lock = FileLock(lock_path)
+    if os.path.exists(file_path):
+        print(f"File {file_path} already exists in cache.")
+        return file_path
 
-    with lock:
-        # Check if the file already exists in the cache
-        if os.path.exists(file_path):
-            print(f"File {file_path} already exists in cache.")
-            return file_path
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()  # Raise error if the request fails
 
-        try:
-            # Download the file to a temporary location
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".onnx")
-            temp_file_path = temp_file.name  # Store the temporary file path
+        file_size = 0
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".onnx") as temp_file:
+            temp_file_path = temp_file.name
+            for chunk in response.iter_content(chunk_size=1024):
+                temp_file.write(chunk)
+                file_size += len(chunk)
+                if file_size > max_file_size_mb * 1024 * 1024:
+                    raise ValueError(f"Downloaded file exceeds the size limit of {max_file_size_mb} MB")
 
-            inspect(message=f"Downloading file from {url}...")
-            response = requests.get(url, stream=True)
-            if response.status_code == 200:
-                file_size = 0
-                with temp_file:
-                    for chunk in response.iter_content(chunk_size=1024):
-                        temp_file.write(chunk)
-                        file_size += len(chunk)
-                        if file_size > max_file_size_mb * 1024 * 1024:
-                            raise ValueError(f"Downloaded file exceeds the size limit of {max_file_size_mb} MB")
+        shutil.move(temp_file_path, file_path)  # Move AFTER the `with` block, so the file isn't deleted
+        return file_path
 
-                inspect(message=f"Downloaded file to {temp_file_path}")
-
-                # After download is complete, move the file from temp to the final destination
-                shutil.move(temp_file_path, file_path)  # Move the file to final location
-                return file_path  # Return path of the final model file
-            else:
-                raise ValueError(f"Failed to download file, status code: {response.status_code}")
-
-        except Exception as e:
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)  # Clean up temporary file on error
-            raise ValueError(f"Error downloading file: {e}")
+    except Exception as e:
+        if os.path.exists(temp_file_path):
+            os.remove(temp_file_path)  # Cleanup if an error occurs
+        raise ValueError(f"Error downloading file: {e}")
 
 @functools.lru_cache(maxsize=1)
 def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> Tuple[ort.InferenceSession, Dict[str, List[str]]]:
@@ -112,7 +92,7 @@ def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> Tuple[ort.
     """
     try:
         # Process the model file to ensure it's a valid ONNX model
-        model_path = download_file_with_lock(model_url, cache_dir=cache_dir)
+        model_path = download_file(model_url, cache_dir=cache_dir)
 
         # Initialize the ONNX Runtime session
         inspect(message=f"Initializing ONNX Runtime session for model at {model_path}...")

@@ -8,6 +8,8 @@ import os
 import boto3
 import time
 from eo_processing.utils.helper import string_to_dict
+from hashlib import md5
+from tqdm import tqdm
 
 class WEED_storage:
     def __init__(self, username: str = 'buchhornm', gdrive_entry_point: str = "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu"):
@@ -161,7 +163,7 @@ class WEED_storage:
 
     def download_s3_content(self, s3_objects: str, out_dir: str, retry: int = 0, download_json: bool = False) -> None :
         """
-        Downloads content from an Amazon S3 bucket based on the provided prefix. This function retrieves
+        Downloads content from an CreoDIAS S3 bucket based on the provided prefix. This function retrieves
         all objects under the specified prefix from the S3 bucket, creates any necessary local directories,
         and downloads the objects to a local directory. It also supports retrying the download process
         a specified number of times in case of failure. Optionally, JSON files can be excluded from
@@ -216,24 +218,226 @@ class WEED_storage:
 
     def get_file_urls(self, s3_directory: str = 'models', extension: str = '.onnx') -> List[str]:
         """
-        Retrieves a list of file URLs from a specific S3 directory based on the given file extension. The method constructs
-        the base URL using the S3 credentials and bucket name, fetches the contents of the specified directory, and filters
-        the files that match the given extension. If no contents are found, an empty list is returned.
+        Retrieves the full URLs of files in the specified S3 directory that match the given
+        file extension. The URLs are constructed using the base URL derived from S3 credentials
+        and bucket information along with file keys.
 
-        :param s3_directory: Directory path within the S3 bucket to search for files. Defaults to 'models'.
-        :param extension: File extension to filter the files by. Defaults to '.onnx'.
-        :return: A list of URLs of files in the S3 directory matching the given extension.
+        :param s3_directory: The directory in the S3 storage to search for files.
+        :param extension: The file extension to filter the files.
+        :return: A list of URLs for the files matching the specified directory and
+                 extension.
         """
         # define the base URL to the specified S3 Model storage
-        base_url = f"{self.s3_credentials['s3_endpoint']}/swift/v1/{self.s3_bucket}/{s3_directory}/"
+        base_url = f"{self.s3_credentials['s3_endpoint']}/swift/v1/{self.s3_bucket}/"
+
+        # get all filtered file_keys
+        file_keys = self.get_file_keys(s3_directory, extension)
+
+        return [f"{base_url}{element}" for element in file_keys]
+
+    def get_file_keys(self, s3_directory: str = 'results', extension: str = '.tif') -> List[str]:
+        """
+        Retrieves a list of file keys from an S3 directory that match the specified file extension.
+
+        This method fetches the content of a specified subfolder within an S3 bucket. It filters
+        the objects in the folder to include only those whose keys end with the given file extension.
+        If no content is found in the folder, a message is printed, and an empty list is returned.
+
+        :param s3_directory: The S3 directory from which the files should be listed.
+        :param extension: The file extension used to filter the objects in the directory.
+        :return: A list of file keys from the specified S3 directory that match the given file extension.
+        """
         # get all content of the model subfolder in the bucket
         response = self.get_s3_content(s3_directory)
 
         if 'Contents' not in response:
-            print('No models found in the selected folder')
+            print('No files found in the selected folder with the given extension.')
             return []
 
-        return [
-            f"{base_url}{obj['Key'].split('/')[-1]}"
-            for obj in contents if obj['Key'].endswith(extension)
+        return [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith(extension)]
+
+    def download_file_key(self, s3_object_key: str, temp_folder: str, progress_bar: bool = False) -> str:
+        """
+        Downloads a file from an S3 bucket using the specified object key and saves it
+        in a temporary folder. Optionally displays a progress bar for tracking download
+        progress. Ensures the `temp_folder` exists and handles various S3 client download
+        methods based on the `progress_bar` value.
+
+        :param s3_object_key: The key of the S3 object to be downloaded. It must be a
+            single valid object key within the specified S3 bucket.
+        :param temp_folder: The local folder path where the downloaded file will be
+            saved. If the folder does not exist, it will be created automatically.
+        :param progress_bar: A boolean indicating whether to display a progress bar
+            during the file download. Defaults to `False`.
+
+        :return: The local file path where the downloaded file is saved.
+        """
+        if self.s3_client is None:
+            self._init_boto3()
+
+        if not isinstance(s3_object_key, str):
+            raise TypeError("s3_object_key must be a string. One single s3_file_key.")
+
+        os.makedirs(os.path.normpath(temp_folder), exist_ok=True)
+
+        # Local path to save the file
+        local_file_path = os.path.join(os.path.normpath(temp_folder), os.path.basename(s3_object_key))
+
+        try:
+            if progress_bar:
+                total_size = self.s3_client.head_object(Bucket=self.s3_bucket, Key=s3_object_key)['ContentLength']
+
+                with open(local_file_path, 'wb') as f:
+                    self.s3_client.download_fileobj(self.s3_bucket, s3_object_key, f,
+                                               Callback=ProgressPercentage(s3_object_key, total_size))
+            else:
+                self.s3_client.download_file(self.s3_bucket, s3_object_key, local_file_path)
+        except Exception as e:
+            raise FileExistsError(f"Error downloading file {s3_object_key}: {e}")
+
+        return local_file_path
+
+    def get_etag(self, s3_object_key: str) -> str:
+        """
+        Retrieves the ETag of an S3 object specified by the given object key. The ETag
+        is typically used to verify the integrity of the object.
+
+        This method initializes the boto3 S3 client if it has not been already and
+        validates that the parameter `s3_object_key` is of type `str`. If the key is
+        not a string (e.g., it is a list or dictionary), a `TypeError` will be raised.
+        The function fetches the metadata of the object from the S3 bucket and extracts
+        the ETag value after removing any surrounding double quotes.
+
+        :param s3_object_key: The key of the object in the S3 bucket whose ETag needs
+            to be retrieved. Must be a string.
+        :return: The ETag of the specified S3 object as a string.
+        :raises TypeError: If `s3_object_key` is not a string or is of an unsupported
+            data type (e.g., list or dictionary).
+        """
+        if self.s3_client is None:
+            self._init_boto3()
+
+        if not isinstance(s3_object_key, str):
+            raise TypeError("s3_object_key must be a string. One single s3_file_key.")
+
+        s3_resp = self.s3_client.head_object(Bucket=self.s3_bucket, Key=s3_object_key)
+        return s3_resp['ETag'].strip('"')
+
+    def evaluate_etag(self, local_file_path: str, s3_object_key: str) -> bool:
+        """
+        Evaluates whether the ETag of a local file matches the ETag of a corresponding S3 object.
+        The ETag comparison is performed by calculating potential multipart ETags using different part sizes
+        and comparing them to the ETag retrieved from S3. If a matching ETag is found, it returns True;
+        otherwise, it returns False.
+
+        :param local_file_path: The file path of the local file to be compared.
+        :param s3_object_key: The object key of the file in S3 to retrieve its ETag.
+        :return: True if the calculated ETag of the local file matches the S3 ETag, False otherwise.
+
+        :raises ValueError: If the S3 ETag cannot be split into valid multipart format.
+        :raises FileNotFoundError: If the specified local file path does not exist.
+        :raises OSError: If there is an issue accessing the local file to determine its size.
+        """
+        # get etag of s3_file
+        s3_etag = self.get_etag(s3_object_key)
+
+        # calculate etag of local downloaded file
+        filesize = os.path.getsize(os.path.normpath(local_file_path))
+        num_parts = int(s3_etag.split('-')[1])
+
+        partsizes = [  ## Default Partsizes Map
+            8388608,  # aws_cli/boto3
+            15728640,  # s3cmd
+            _factor_of_1MB(filesize, num_parts)  # Used by many clients to upload large files
         ]
+
+        for partsize in filter(_possible_partsizes(filesize, num_parts), partsizes):
+            if s3_etag == _calc_etag(os.path.normpath(local_file_path), partsize):
+                return True
+
+        return False
+
+
+class ProgressPercentage:
+    """
+    Tracks the progress of a download and displays a progress bar via the tqdm library.
+
+    This class is designed to monitor the amount of data downloaded for a given file and
+    update a tqdm-based progress bar accordingly. It is callable, meaning that an
+    instance of the class can be called with the amount of bytes downloaded to update progress.
+
+    :ivar filename: The name of the file being downloaded.
+    :ivar _total_size: The total size of the file being downloaded in bytes.
+    :ivar _downloaded: The amount of bytes downloaded so far.
+    :ivar _progress_bar: The tqdm progress bar instance for displaying download progress.
+    """
+    def __init__(self, filename, total_size):
+        self.filename = filename
+        self._total_size = total_size
+        self._downloaded = 0
+        self._progress_bar = tqdm(total=total_size, unit='B', unit_scale=True, desc=f"Downloading {self.filename}")
+
+    def __call__(self, bytes_amount):
+        self._downloaded += bytes_amount
+        self._progress_bar.update(bytes_amount)
+        if self._downloaded >= self._total_size:
+            self._progress_bar.close()
+
+
+def _factor_of_1MB(filesize: int, num_parts: int) -> int:
+    """
+    Determine a factor of 1MB based on file size and number of parts.
+
+    The function calculates a size factor aligned with 1MB blocks for evenly splitting a
+    given file size into the specified number of parts. It ensures that the determined
+    size for each part is rounded up to the nearest 1MB boundary.
+
+    :param filesize: The size of the file in bytes.
+    :param num_parts: The number of parts to divide the file into.
+    :return: The computed factor in bytes aligned to the nearest 1MB boundary.
+    """
+    x = filesize / int(num_parts)
+    y = x % 1048576
+    return int(x + 1048576 - y)
+
+def _calc_etag(inputfile: str, partsize: int) -> str:
+    """
+    Calculate the Amazon S3 ETag for a file uploaded in parts.
+
+    The ETag is an MD5 hash of the file's contents or, in the case of a multipart
+    upload, a hash of the concatenated binary MD5 digests of each part, followed
+    by a dash and the number of parts. This function reads the file in chunks
+    of the specified size, computes the MD5 digest for each chunk, and combines
+    them to compute the final ETag.
+
+    :param inputfile: The path to the file for which the ETag is to be calculated.
+    :param partsize: The size of each part to be considered for multipart
+        hashing, in bytes. If the file size exceeds this, it will simulate
+        a multipart upload.
+    :return: The computed ETag value as a string, optionally including the
+        multipart part count if applicable.
+    """
+    md5_digests = []
+    with open(inputfile, 'rb') as f:
+        for chunk in iter(lambda: f.read(partsize), b''):
+            md5_digests.append(md5(chunk).digest())
+    return md5(b''.join(md5_digests)).hexdigest() + '-' + str(len(md5_digests))
+
+def _possible_partsizes(filesize: int, num_parts: int) -> callable:
+    """
+    Calculate possible part sizes for dividing a file into the desired number of parts.
+
+    This function returns a callable that can determine whether a given part
+    size is suitable for dividing a file of the specified size into the specified
+    number of parts. The callable checks whether the proposed part size is less
+    than the total file size and whether dividing the file by the part size results
+    in a number of parts not exceeding the allowed number.
+
+    :param filesize: The total size of the file that needs to be divided, in bytes.
+    :param num_parts: The desired maximum number of parts into which the file
+        can be divided.
+    :return: A callable function that takes a part size as input and evaluates
+        whether the given part size satisfies the conditions for dividing the file.
+    """
+    return lambda partsize: partsize < filesize and (float(filesize) / float(partsize)) <= num_parts
+

@@ -1,0 +1,105 @@
+{
+  "type": "Feature",
+  "stac_version": "1.0.0",
+  "id": "Level2_class-X_54predictors_v1",
+  "properties": {
+    "model_url": "https://s3.waw3-1.cloudferro.com/swift/v1/ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/models/Level2_class-X_54predictors_v1.onnx",
+    "input_features": [
+      "gst",
+      "DEM",
+      "gdd5",
+      "pop",
+      "scd",
+      "NDVI_median",
+      "bdod",
+      "B8A_sd",
+      "dist",
+      "clay",
+      "B11_sd",
+      "VH_p2",
+      "NDVIMNDWI_sd",
+      "B06_sd",
+      "B07_sd",
+      "B05_sum",
+      "soc",
+      "NDWI_median",
+      "NDWI_sd",
+      "VHVVR_sd",
+      "NDVI_sum",
+      "B12_sum",
+      "sand",
+      "NDWI_sum",
+      "NDWI_p25",
+      "RVI_sd",
+      "bio12",
+      "gsp",
+      "VV_p2",
+      "B04_sd",
+      "VHVVR_p75",
+      "NDWI_mean",
+      "VV_p98",
+      "phh2o",
+      "B11_sum",
+      "AVI_sd",
+      "NDVI_p75",
+      "VV_p25",
+      "cfvo",
+      "B05_p75",
+      "VV_p75",
+      "VH_p25",
+      "B12_p75",
+      "VV_median",
+      "RVI_sum",
+      "RVI_mean",
+      "NIRv_iqr",
+      "VH_mean",
+      "MNDWI_sum",
+      "B12_sd",
+      "VHVVR_p98",
+      "NDVIMNDWI_sum",
+      "NDVI_p98",
+      "VV_mean"
+    ],
+    "output_features": [
+      "110400",
+      "110700",
+      "110800",
+      "110900",
+      "112100"
+    ],
+    "model_format": "ONNX",
+    "spatial_extent": [
+      -30.0,
+      30.0,
+      60.0,
+      80.0
+    ],
+    "temporal_extent": [
+      [
+        "2020-01-01T00:00:00",
+        "2024-12-31T00:00:00"
+      ]
+    ],
+    "datetime": "2025-02-27T14:26:08.950478Z"
+  },
+  "geometry": null,
+  "links": [
+    {
+      "rel": "root",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "model": {
+      "href": "https://s3.waw3-1.cloudferro.com/swift/v1/ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/models/Level2_class-X_54predictors_v1.onnx",
+      "type": "application/onnx"
+    }
+  },
+  "stac_extensions": []
+}

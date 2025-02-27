@@ -1,0 +1,99 @@
+{
+  "type": "Feature",
+  "stac_version": "1.0.0",
+  "id": "Level3_class-H2_50predictors_v1",
+  "properties": {
+    "model_url": "https://s3.waw3-1.cloudferro.com/swift/v1/ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/models/Level3_class-H2_50predictors_v1.onnx",
+    "input_features": [
+      "scd",
+      "gst",
+      "sand",
+      "bio12",
+      "DEM",
+      "gdd5",
+      "NDVI_median",
+      "NDVIMNDWI_sum",
+      "NDWI_sum",
+      "NDVI_sum",
+      "BLFEI_sum",
+      "CIRE_sum",
+      "cec",
+      "cfvo",
+      "CIRE_median",
+      "NDWI_median",
+      "MNDWI_sum",
+      "BLFEI_median",
+      "NDVIMNDWI_p25",
+      "BLFEI_p75",
+      "NDWI_p75",
+      "IRECI_sum",
+      "CIRE_mean",
+      "NDVIMNDWI_median",
+      "AVI_sum",
+      "NIRv_sum",
+      "CIRE_p75",
+      "bdod",
+      "NDVI_p25",
+      "B07_sum",
+      "B02_median",
+      "B8A_sum",
+      "BLFEI_mean",
+      "B03_p25",
+      "CIRE_p98",
+      "soc",
+      "NDVI_mean",
+      "NDWI_mean",
+      "BLFEI_p25",
+      "NDVIMNDWI_mean",
+      "NDVIMNDWI_p75",
+      "NDWI_p25",
+      "BLFEI_p2",
+      "NDVI_p75",
+      "B02_p25",
+      "B04_median",
+      "MNDWI_p2",
+      "B04_p75",
+      "B02_p75",
+      "B08_sum"
+    ],
+    "output_features": [
+      "80203",
+      "80204",
+      "80206"
+    ],
+    "model_format": "ONNX",
+    "spatial_extent": [
+      -30.0,
+      30.0,
+      60.0,
+      80.0
+    ],
+    "temporal_extent": [
+      [
+        "2020-01-01T00:00:00",
+        "2024-12-31T00:00:00"
+      ]
+    ],
+    "datetime": "2025-02-27T14:26:35.335394Z"
+  },
+  "geometry": null,
+  "links": [
+    {
+      "rel": "root",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "model": {
+      "href": "https://s3.waw3-1.cloudferro.com/swift/v1/ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/models/Level3_class-H2_50predictors_v1.onnx",
+      "type": "application/onnx"
+    }
+  },
+  "stac_extensions": []
+}

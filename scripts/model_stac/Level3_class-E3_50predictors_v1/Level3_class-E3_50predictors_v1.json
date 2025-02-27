@@ -1,0 +1,98 @@
+{
+  "type": "Feature",
+  "stac_version": "1.0.0",
+  "id": "Level3_class-E3_50predictors_v1",
+  "properties": {
+    "model_url": "https://s3.waw3-1.cloudferro.com/swift/v1/ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/models/Level3_class-E3_50predictors_v1.onnx",
+    "input_features": [
+      "clay",
+      "B11_p98",
+      "sand",
+      "scd",
+      "VHVVD_p98",
+      "B06_p25",
+      "gsp",
+      "bio12",
+      "RVI_iqr",
+      "VV_sd",
+      "VH_sd",
+      "cec",
+      "B11_sum",
+      "DEM",
+      "dist",
+      "gdd5",
+      "gst",
+      "S2WI_iqr",
+      "B11_sd",
+      "VV_median",
+      "B03_mean",
+      "soc",
+      "B02_mean",
+      "VHVVR_p75",
+      "S2WI_median",
+      "RVI_p75",
+      "NDMI_p75",
+      "cfvo",
+      "RVI_p98",
+      "VHVVR_p98",
+      "VHVVR_mean",
+      "VHVVR_sum",
+      "VV_p75",
+      "NDWI_mean",
+      "B05_mean",
+      "B12_mean",
+      "B05_p98",
+      "B03_sd",
+      "B12_sd",
+      "B02_sum",
+      "NDVIMNDWI_mean",
+      "B02_sd",
+      "NIRv_p2",
+      "NDVIMNDWI_p2",
+      "B11_p75",
+      "B02_p25",
+      "B04_p98",
+      "VHVVR_sd",
+      "B02_p98",
+      "B12_p98"
+    ],
+    "output_features": [
+      "50304",
+      "50305"
+    ],
+    "model_format": "ONNX",
+    "spatial_extent": [
+      -30.0,
+      30.0,
+      60.0,
+      80.0
+    ],
+    "temporal_extent": [
+      [
+        "2020-01-01T00:00:00",
+        "2024-12-31T00:00:00"
+      ]
+    ],
+    "datetime": "2025-02-27T14:26:26.677184Z"
+  },
+  "geometry": null,
+  "links": [
+    {
+      "rel": "root",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "model": {
+      "href": "https://s3.waw3-1.cloudferro.com/swift/v1/ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/models/Level3_class-E3_50predictors_v1.onnx",
+      "type": "application/onnx"
+    }
+  },
+  "stac_extensions": []
+}

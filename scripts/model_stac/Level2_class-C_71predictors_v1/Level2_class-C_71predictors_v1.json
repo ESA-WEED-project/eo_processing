@@ -1,0 +1,120 @@
+{
+  "type": "Feature",
+  "stac_version": "1.0.0",
+  "id": "Level2_class-C_71predictors_v1",
+  "properties": {
+    "model_url": "https://s3.waw3-1.cloudferro.com/swift/v1/ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/models/Level2_class-C_71predictors_v1.onnx",
+    "input_features": [
+      "B12_p25",
+      "B12_median",
+      "B05_sum",
+      "B11_p25",
+      "B11_median",
+      "B12_p75",
+      "B05_p75",
+      "B04_p25",
+      "B05_median",
+      "B12_mean",
+      "B12_sum",
+      "NDMI_median",
+      "B12_p2",
+      "B04_p2",
+      "B04_median",
+      "gst",
+      "NDMI_mean",
+      "B02_p25",
+      "B02_p2",
+      "NIRv_iqr",
+      "B07_iqr",
+      "NDMI_sum",
+      "DEM",
+      "S2WI_p25",
+      "B04_sum",
+      "B03_p25",
+      "B07_p75",
+      "IRECI_iqr",
+      "scd",
+      "B11_p75",
+      "B11_sum",
+      "B05_mean",
+      "NDMI_p25",
+      "bio12",
+      "B04_p75",
+      "S2WI_p98",
+      "B08_median",
+      "B03_median",
+      "B06_p75",
+      "NIRv_sd",
+      "gsp",
+      "B05_p25",
+      "B06_iqr",
+      "B03_p2",
+      "B04_mean",
+      "IRECI_sd",
+      "B08_p75",
+      "S2WI_median",
+      "B08_iqr",
+      "MNDWI_p75",
+      "gdd5",
+      "B04_iqr",
+      "VH_p75",
+      "BLFEI_p75",
+      "B12_iqr",
+      "S2WI_mean",
+      "B11_mean",
+      "NDWI_p75",
+      "NDMI_p75",
+      "B8A_median",
+      "B05_p98",
+      "B06_median",
+      "VV_mean",
+      "B02_median",
+      "NDMI_p98",
+      "B07_median",
+      "NDVI_p25",
+      "CIRE_p25",
+      "B08_p25",
+      "B07_mean",
+      "B08_mean"
+    ],
+    "output_features": [
+      "30100",
+      "30200",
+      "30300"
+    ],
+    "model_format": "ONNX",
+    "spatial_extent": [
+      -30.0,
+      30.0,
+      60.0,
+      80.0
+    ],
+    "temporal_extent": [
+      [
+        "2020-01-01T00:00:00",
+        "2024-12-31T00:00:00"
+      ]
+    ],
+    "datetime": "2025-02-27T14:25:57.349120Z"
+  },
+  "geometry": null,
+  "links": [
+    {
+      "rel": "root",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "model": {
+      "href": "https://s3.waw3-1.cloudferro.com/swift/v1/ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/models/Level2_class-C_71predictors_v1.onnx",
+      "type": "application/onnx"
+    }
+  },
+  "stac_extensions": []
+}

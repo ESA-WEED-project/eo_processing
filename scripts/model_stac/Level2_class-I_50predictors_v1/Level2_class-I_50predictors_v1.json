@@ -1,0 +1,98 @@
+{
+  "type": "Feature",
+  "stac_version": "1.0.0",
+  "id": "Level2_class-I_50predictors_v1",
+  "properties": {
+    "model_url": "https://s3.waw3-1.cloudferro.com/swift/v1/ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/models/Level2_class-I_50predictors_v1.onnx",
+    "input_features": [
+      "bio12",
+      "scd",
+      "DEM",
+      "B12_iqr",
+      "gdd5",
+      "gsp",
+      "B05_iqr",
+      "NDMI_p2",
+      "NDMI_iqr",
+      "soc",
+      "cfvo",
+      "NDVI_p2",
+      "B04_sd",
+      "B04_p98",
+      "NDVI_p25",
+      "BLFEI_p98",
+      "NDVIMNDWI_p2",
+      "VH_mean",
+      "gst",
+      "B02_p98",
+      "VH_p2",
+      "B12_p75",
+      "B11_sd",
+      "B12_sd",
+      "NDVI_sd",
+      "NDVI_iqr",
+      "NDMI_sd",
+      "B04_iqr",
+      "NDWI_iqr",
+      "S2WI_iqr",
+      "NDWI_sd",
+      "B04_sum",
+      "B12_sum",
+      "clay",
+      "phh2o",
+      "S2WI_p98",
+      "S2WI_sd",
+      "S2REP_p75",
+      "B02_sum",
+      "B05_p75",
+      "B04_p75",
+      "B03_sum",
+      "B06_p98",
+      "B02_median",
+      "sand",
+      "B12_mean",
+      "B11_p75",
+      "B07_p98",
+      "NDMI_p25",
+      "S2REP_median"
+    ],
+    "output_features": [
+      "90100",
+      "90200"
+    ],
+    "model_format": "ONNX",
+    "spatial_extent": [
+      -30.0,
+      30.0,
+      60.0,
+      80.0
+    ],
+    "temporal_extent": [
+      [
+        "2020-01-01T00:00:00",
+        "2024-12-31T00:00:00"
+      ]
+    ],
+    "datetime": "2025-02-27T14:26:06.421993Z"
+  },
+  "geometry": null,
+  "links": [
+    {
+      "rel": "root",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "model": {
+      "href": "https://s3.waw3-1.cloudferro.com/swift/v1/ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/models/Level2_class-I_50predictors_v1.onnx",
+      "type": "application/onnx"
+    }
+  },
+  "stac_extensions": []
+}

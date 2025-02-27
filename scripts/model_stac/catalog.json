@@ -1,0 +1,132 @@
+{
+  "type": "Catalog",
+  "id": "model-catalog",
+  "stac_version": "1.0.0",
+  "description": "Catalog of machine learning models",
+  "links": [
+    {
+      "rel": "root",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "self",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level1_class-0_129predictors_v1/Level1_class-0_129predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level2_class-C_71predictors_v1/Level2_class-C_71predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level2_class-D_68predictors_v1/Level2_class-D_68predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level2_class-E_85predictors_v1/Level2_class-E_85predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level2_class-F_90predictors_v1/Level2_class-F_90predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level2_class-G_164predictors_v1/Level2_class-G_164predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level2_class-H_65predictors_v1/Level2_class-H_65predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level2_class-I_50predictors_v1/Level2_class-I_50predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level2_class-J_62predictors_v1/Level2_class-J_62predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level2_class-X_54predictors_v1/Level2_class-X_54predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-C1_62predictors_v1/Level3_class-C1_62predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-C3_62predictors_v1/Level3_class-C3_62predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-E1_50predictors_v1/Level3_class-E1_50predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-E2_50predictors_v1/Level3_class-E2_50predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-E3_50predictors_v1/Level3_class-E3_50predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-E4_50predictors_v1/Level3_class-E4_50predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-E5_50predictors_v1/Level3_class-E5_50predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-F2_60predictors_v1/Level3_class-F2_60predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-F3_50predictors_v1/Level3_class-F3_50predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-G1_74predictors_v1/Level3_class-G1_74predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-G3_98predictors_v1/Level3_class-G3_98predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-H2_50predictors_v1/Level3_class-H2_50predictors_v1.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "item",
+      "href": "c:/Git_projects/eo_processing/scripts/Level3_class-H3_50predictors_v1/Level3_class-H3_50predictors_v1.json",
+      "type": "application/json"
+    }
+  ]
+}

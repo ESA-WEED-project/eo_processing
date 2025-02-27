@@ -1,0 +1,98 @@
+{
+  "type": "Feature",
+  "stac_version": "1.0.0",
+  "id": "Level3_class-E1_50predictors_v1",
+  "properties": {
+    "model_url": "https://s3.waw3-1.cloudferro.com/swift/v1/ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/models/Level3_class-E1_50predictors_v1.onnx",
+    "input_features": [
+      "gsp",
+      "sand",
+      "bio12",
+      "NIRv_p25",
+      "AVI_p25",
+      "S2REP_p75",
+      "B08_p25",
+      "VHVVD_p98",
+      "cec",
+      "dist",
+      "S2REP_median",
+      "B03_p25",
+      "clay",
+      "scd",
+      "B12_mean",
+      "B05_p75",
+      "VV_iqr",
+      "B05_p25",
+      "B03_median",
+      "DEM",
+      "B05_median",
+      "VHVVR_p2",
+      "B11_median",
+      "B05_mean",
+      "B03_p75",
+      "B03_mean",
+      "RVI_p2",
+      "VHVVD_median",
+      "VV_p2",
+      "cfvo",
+      "VHVVD_mean",
+      "B04_mean",
+      "S2WI_p98",
+      "VHVVD_p25",
+      "VH_p2",
+      "gdd5",
+      "VV_sd",
+      "bdod",
+      "CIRE_p25",
+      "B06_p98",
+      "VHVVD_p75",
+      "soc",
+      "S2WI_sd",
+      "AVI_median",
+      "VH_sd",
+      "NIRv_median",
+      "gst",
+      "AVI_p2",
+      "B07_p25",
+      "B06_p25"
+    ],
+    "output_features": [
+      "50101",
+      "50102"
+    ],
+    "model_format": "ONNX",
+    "spatial_extent": [
+      -30.0,
+      30.0,
+      60.0,
+      80.0
+    ],
+    "temporal_extent": [
+      [
+        "2020-01-01T00:00:00",
+        "2024-12-31T00:00:00"
+      ]
+    ],
+    "datetime": "2025-02-27T14:26:25.518564Z"
+  },
+  "geometry": null,
+  "links": [
+    {
+      "rel": "root",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    },
+    {
+      "rel": "parent",
+      "href": "c:/Git_projects/eo_processing/scripts/catalog.json",
+      "type": "application/json"
+    }
+  ],
+  "assets": {
+    "model": {
+      "href": "https://s3.waw3-1.cloudferro.com/swift/v1/ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/models/Level3_class-E1_50predictors_v1.onnx",
+      "type": "application/onnx"
+    }
+  },
+  "stac_extensions": []
+}

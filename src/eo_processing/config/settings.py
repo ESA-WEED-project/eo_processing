@@ -51,17 +51,18 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, str] = {
 }
 
 OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
-    "driver-memory": "4G",
-    "driver-memoryOverhead": "2G",
+    "driver-memory": "1000m",
+    "driver-memoryOverhead": "1000m",
     "driver-cores": "1",
-    "executor-cores": "1",
-    "executor-request-cores": "800m",
     "executor-memory": "1500m",
     "executor-memoryOverhead": "1500m",
-    "max-executors": "25",
-    "executor-threads-jvm": "7",
-    "logging-threshold": "info",
-    "python-memory": "5500m"
+    "executor-cores": "1",
+    "max-executors": "20",
+    "soft-errors": "true",
+    "python-memory": "4000m",
+    "udf-dependency-archives": [
+        "https://s3.waw3-1.cloudferro.com/swift/v1/project_dependencies/onnx_dependencies_1.16.3.zip#onnx_deps"
+    ]
 }
 
 OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {

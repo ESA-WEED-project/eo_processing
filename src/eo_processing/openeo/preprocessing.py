@@ -200,6 +200,10 @@ def extract_S2_datacube(
             temporal_extent=[start, end],
             max_cloud_cover=95
         )
+        # to avoid sub-pixel shift error we have to resample SCL mask if requested and not just trust mask process
+        if target_crs is not None:
+            sub_collection = sub_collection.resample_spatial(projection=target_crs, resolution=target_res)
+
         scl_dilated_mask = sub_collection.process(
             "to_scl_dilation_mask",
             data=sub_collection,

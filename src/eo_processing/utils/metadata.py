@@ -26,6 +26,15 @@ def get_base_metadata(project: str = 'WEED') -> Dict[str, str]:
             "references": "https://esa-worldecosystems.org/",
             "producer": "VITO NV"
         }
+    elif project == 'OBSGESSION':
+        file_metadata = {
+            "copyright": "OBSGESSION project 2025 / Contains modified Copernicus Sentinel data processed by VITO",
+            "creation_time": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "processing_platform": f"openEO platform - client version: {openEO_version}",
+            "PROCESSING_SOFTWARE": f"eo_processing, version {eo_processing_version}",
+            "references": "https://obsgession.eu/",
+            "producer": "VITO NV"
+        }
     else:
         file_metadata = {}
 

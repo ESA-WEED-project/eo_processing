@@ -214,12 +214,15 @@ class WEED_storage:
             else:
                 raise Exception('Copying data from S3 failed: ' + str(self.s3_bucket + '/' + s3_objects))
 
-    def get_onnx_urls(self, s3_directory: str = 'models') -> List[str]:
+    def get_file_urls(self, s3_directory: str = 'models', extension: str = '.onnx') -> List[str]:
         """
-        Get a list of ONNX model URLs from the given S3 directory.
+        Retrieves a list of file URLs from a specific S3 directory based on the given file extension. The method constructs
+        the base URL using the S3 credentials and bucket name, fetches the contents of the specified directory, and filters
+        the files that match the given extension. If no contents are found, an empty list is returned.
 
-        :param s3_directory: The S3 directory to search for ONNX models. Defaults to 'models'.
-        :return: A list of ONNX model URLs.
+        :param s3_directory: Directory path within the S3 bucket to search for files. Defaults to 'models'.
+        :param extension: File extension to filter the files by. Defaults to '.onnx'.
+        :return: A list of URLs of files in the S3 directory matching the given extension.
         """
         # define the base URL to the specified S3 Model storage
         base_url = f"{self.s3_credentials['s3_endpoint']}/swift/v1/{self.s3_bucket}/{s3_directory}/"
@@ -230,17 +233,7 @@ class WEED_storage:
             print('No models found in the selected folder')
             return []
 
-        return self._extract_onnx_urls(response['Contents'], base_url)
-
-    def _extract_onnx_urls(self, contents: List[Dict], base_url: str) -> List[str]:
-        """
-        Extract ONNX model URLs from the response contents.
-
-        :param contents: S3 content dictionary with keys and metadata.
-        :param base_url: The base URL to prepend to model keys.
-        :return: A list of ONNX model URLs.
-        """
         return [
             f"{base_url}{obj['Key'].split('/')[-1]}"
-            for obj in contents if obj['Key'].endswith('.onnx')
+            for obj in contents if obj['Key'].endswith(extension)
         ]

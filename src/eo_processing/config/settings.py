@@ -351,7 +351,7 @@ def generate_storage_options(workspace_export: bool = False,
     :raises ValueError: If both `local_S3_needed` and `workspace_export` are True but no storage object is defined.
     """
     if not workspace_export:
-       return {'workspace_export': workspace_export, 'S3_prefix': None, 'local_S3_needed': False, 'storage': None}
+       return {'workspace_export': workspace_export, 'S3_prefix': None, 'local_S3_needed': False, 'WEED_storage': None}
     else:
         storage_options =  {'workspace_export':workspace_export,
                             'S3_prefix': S3_prefix,

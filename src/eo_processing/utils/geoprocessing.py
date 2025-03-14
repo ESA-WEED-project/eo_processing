@@ -1,10 +1,15 @@
+import os.path
+
 import pyproj
 from shapely.geometry import Polygon
 from shapely.geometry import box
+from shapely.geometry import shape
+from shapely.ops import unary_union
 import geopandas as gpd
 import numpy as np
 import geojson
-from typing import Union, TypedDict, Tuple
+import json
+from typing import Union, TypedDict, Tuple, Optional
 from eo_processing.utils.mgrs import LL_2_UTM, floor_to_nearest_5, UTM_2_LL, UTM_2_MGRSid10, UTM_2_grid20id
 
 openEO_bbox_format = TypedDict('openEO_bbox_format', {'east': float,
@@ -85,25 +90,31 @@ def reproj_bbox_to_ll(bbox: openEO_bbox_format, buffer: bool = False, densify: b
 
     return polygon_4326
 
-def bbox_area(bbox: openEO_bbox_format) -> None:
+def bbox_area(bbox: openEO_bbox_format, only_number: bool = False) -> float | None:
     """
-    Calculate and print the area of a bounding box (AOI) in square kilometers.
+    Calculates the area of a bounding box (bbox) in square kilometers (km²). This function supports two modes of
+    operation. If `only_number` is set to True, it returns the calculated area as a number. Otherwise, it prints
+    the area of the bounding box to the console.
 
-    This function takes a bounding box represented in a specific format and calculates
-    its area. The bounding box is first converted into a GeoDataFrame object using its
-    geographical boundaries and the specified coordinate reference system (CRS). The
-    function divides the calculated area by 10^6 to convert it from square meters to
-    square kilometers and prints the result.
-
-    :param bbox: A dictionary containing the bounding box details with keys `west`,
-                 `south`, `east`, `north`, and `crs`. The keys `west`, `south`,
-                 `east`, and `north` define the extent of the bounding box, while the
-                 `crs` provides the coordinate reference system of the bounding box.
-    :return: None
+    :param bbox: Dictionary defining the bounding box with keys `'west'`, `'south'`, `'east'`, `'north'`, and `'crs'`.
+        - `'west'`, `'south'`, `'east'`, `'north'`: Float values representing the geographical bounds.
+        - `'crs'`: Coordinate Reference System (CRS) of the bounding box.
+    :param only_number: Boolean flag to control output. When set to True, the method returns the area as a float
+        number. Otherwise, the method prints the area information instead of returning it.
+    :return: If `only_number` is True, returns the area of the bounding box in square kilometers. Otherwise,
+        returns None.
     """
     df = gpd.GeoDataFrame({"id": 1, "geometry": [box(bbox['west'], bbox['south'], bbox['east'], bbox['north'])]})
     df.crs = bbox['crs']
-    print(f'area of AOI in km2: {df.iloc[0].geometry.area / 10 ** 6}')
+
+    # if EPSG not projected convert to an equal-area projection
+    if df.crs == 'EPSG:4326':
+        df = df.to_crs('EPSG:6933')
+
+    if only_number:
+        return df.iloc[0].geometry.area / 10 ** 6
+    else:
+        print(f'area of AOI in km2: {df.iloc[0].geometry.area / 10 ** 6}')
 
 def bbox_of_PointsFeatureCollection(points_collection: geojson.FeatureCollection) -> openEO_bbox_format:
     """
@@ -165,3 +176,71 @@ def get_point_info(longitude: float, latitude: float) -> Tuple[str, float, float
     grid20id = UTM_2_grid20id(rounded_easting, rounded_northing, zone_number, zone_letter)
 
     return MGRSid10, round(center_lon, 7), round(center_lat, 7), grid20id
+
+def geoJson_2_BBOX(file_path: str, delete_file: bool = False, size_check: Optional[int] = None) -> openEO_bbox_format:
+    """
+    Processes a GeoJSON file to extract the bounding box (BBOX) of all geometries combined
+    and converts it into an openEO-compliant bounding box format. Optionally, the function
+    can delete the input file after processing and enforce a bounding box size limit.
+
+    :param file_path:
+        Path to the GeoJSON file to be processed.
+    :param delete_file:
+        Whether to delete the file after processing. Defaults to False.
+    :param size_check:
+        Optional maximum allowable area for the BBOX. If the calculated BBOX
+        area exceeds this value, an error is raised.
+    :return:
+        A dictionary containing the calculated BBOX in the openEO format
+        with keys 'west', 'south', 'east', 'north', and 'crs'.
+    :raises FileNotFoundError:
+        If the specified file does not exist.
+    :raises ValueError:
+        If the GeoJSON file contains no features or if the calculated BBOX area
+        exceeds the allowed size (when size_check is specified).
+    :raises Exception:
+        For any unexpected errors occurring during file processing.
+    """
+    exported_file_path = os.path.normpath(file_path)
+
+    try:
+        # Step 1: Open and parse the GeoJSON export file
+        with open(exported_file_path, "r") as f:
+            geojson_data = json.load(f)
+
+        # Step 2: Combine individual bounding boxes
+        all_geometries = []
+        if geojson_data["features"]:
+            for feature in geojson_data["features"]:
+                # Use Shapely to convert feature geometry to a Polygon/LineString/Shape
+                geom = shape(feature["geometry"])
+                all_geometries.append(geom)
+
+            # Step 3: Calculate the total bounding box using unary_union
+            combined = unary_union(all_geometries)
+            total_bbox = combined.bounds  # (minx, miny, maxx, maxy)
+            openEO_bbox: openEO_bbox_format = {
+                "west": total_bbox[0],  # minx
+                "south": total_bbox[1],  # miny
+                "east": total_bbox[2],  # maxx
+                "north": total_bbox[3],  # maxy
+                'crs': 'EPSG:4326'}
+        else:
+            raise ValueError("No features found in the GeoJSON file.")
+
+        # Step 4: Delete the file after processing
+        if delete_file:
+            os.remove(exported_file_path)
+
+        if size_check:
+            if bbox_area(openEO_bbox, only_number=True) > size_check:
+                raise ValueError(f"bbox area of {bbox_area(openEO_bbox, only_number=True)} is larger than allowed "
+                                 f"size of {size_check}, please check your input data and try again.")
+
+        return openEO_bbox
+
+    except FileNotFoundError:
+        print(f"File '{exported_file_path}' not found.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+

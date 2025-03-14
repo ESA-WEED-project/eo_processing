@@ -14,11 +14,10 @@ from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_st
                                          get_job_db)
 from openeo.rest import OpenEoApiError
 import pandas as pd
-from typing import Optional, Mapping, Union, Dict
+from typing import Optional, Mapping, Union, Dict, Tuple
 import openeo
 import warnings
 from eo_processing.config.settings import storage_option_format
-from eo_processing.utils.storage import WEED_storage
 
 logger = logging.getLogger(__name__)
 
@@ -678,3 +677,43 @@ def check_reason(log_text: str) -> Union[str, bool]:
     if re.search("sar_backscatter: No tiffs found in", log_text):
         return "no_tiff_in_S1"
     return False
+
+def get_AOI_interactive(map_center: Tuple[float, float] = (51.22, 5.08), zoom: int = 16) -> None:
+    """
+    Display an interactive map within a Jupyter notebook environment, enabling users to draw and export areas
+    of interest (AOI) as GeoJSON files. The map is initialized with specified geographical coordinates as its
+    center and a customizable zoom level. Additional toolsets provide options for drawing polygons and
+    rectangles while disabling other shapes like circles, markers, or polylines.
+
+    :param map_center: Tuple of geographical coordinates (latitude, longitude) for setting the center of the map.
+    :param zoom: Zoom level for the map where higher values indicate closer zoom.
+    :return: None
+    """
+    if is_notebook():
+        import folium
+        from folium.plugins import Draw
+
+        # Initialize the Folium map
+        m = folium.Map(location=map_center, zoom_start=zoom)
+
+        # Add drawing tools
+        draw = Draw(
+            export=True,  # Enable export tool
+            filename="polygon.geojson",
+            draw_options={
+                "polyline": False,  # Disable polyline drawing
+                "circle": False,  # Disable circle drawing
+                "circlemarker": False,  # Disable circle marker drawing
+                "polygon": True,  # Enable polygon drawing
+                "rectangle": True,  # Enable rectangle drawing
+                "marker": False  # Disable marker drawing
+            },
+        )
+
+        # Add the drawing tools to the map
+        draw.add_to(m)
+
+        print('Please draw the AOI and press the EXPORT button.')
+        return m
+    else:
+        print('this function is only available in a jupyter notebook')

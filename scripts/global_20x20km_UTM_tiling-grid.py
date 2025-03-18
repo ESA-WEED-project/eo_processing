@@ -89,7 +89,7 @@ for UTMzone in lZones:
             'south': math.floor(row.geometry.bounds[1] / 100) * 100.,
             'east': math.ceil(row.geometry.bounds[2] / 100) * 100.,
             'north': math.ceil(row.geometry.bounds[3] / 100) * 100.,
-            'epsg': epsg
+            'crs': epsg
         }, axis=1
     )
 

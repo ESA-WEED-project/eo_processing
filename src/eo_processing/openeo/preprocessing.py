@@ -83,6 +83,9 @@ def extract_S1_datacube(
     else:
         properties = {}
 
+    # fix no-VH-data issue
+    properties.update({"polarisation": lambda pol: pol == "VV&VH"})
+
     # Load collection
     bands = connection.load_collection(S1_collection,
                                        bands=['VH', 'VV'],

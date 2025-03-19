@@ -2,7 +2,7 @@ import requests
 import json
 import pandas as pd
 from eo_processing.utils.geoprocessing import reproj_bbox_to_ll
-from eo_processing.utils.geoprocessing import openEO_bbox_format
+from eo_processing.utils.data_formats import openEO_bbox_format
 import geojson
 
 def catalogue_check_S1(orbit_direction: str, start: str, end: str, bbox: openEO_bbox_format) -> str | None:

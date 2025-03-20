@@ -1,7 +1,7 @@
 from skimage.morphology import disk
 from openeo.rest.datacube import DataCube
 import openeo
-from eo_processing.utils.geoprocessing import openEO_bbox_format
+from eo_processing.utils.data_formats import openEO_bbox_format
 from typing import Union
 
 def convolve(img: DataCube, radius: int) -> DataCube:

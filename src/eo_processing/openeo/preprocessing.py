@@ -3,7 +3,7 @@ from openeo.rest.datacube import DataCube
 
 from eo_processing.openeo.masking import scl_mask_erode_dilate
 from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2)
-from eo_processing.utils.geoprocessing import openEO_bbox_format
+from eo_processing.utils.data_formats import openEO_bbox_format
 import openeo
 from typing import Optional, Dict, Union, List
 

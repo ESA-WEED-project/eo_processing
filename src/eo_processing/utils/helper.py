@@ -8,7 +8,7 @@ from shapely.geometry import box
 import importlib.resources as importlib_resources
 import eo_processing.resources
 from os.path import normpath
-from eo_processing.utils.geoprocessing import openEO_bbox_format
+from eo_processing.utils.data_formats import openEO_bbox_format
 import uuid
 import hashlib
 from datetime import datetime

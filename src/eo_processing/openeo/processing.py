@@ -4,7 +4,7 @@ from openeo.processes import array_create, ProcessBuilder, array_concat, subtrac
 
 from eo_processing.openeo.preprocessing import (extract_S2_datacube, extract_S1_datacube)
 import openeo
-from eo_processing.utils.geoprocessing import openEO_bbox_format
+from eo_processing.utils.data_formats import openEO_bbox_format
 from typing import Optional, Dict, Union, List
 
 VI_LIST = ['NDVI',

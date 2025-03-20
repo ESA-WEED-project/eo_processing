@@ -118,7 +118,7 @@ def AOI_tiler(AOI: Union[gpd.GeoDataFrame, openEO_bbox_format, geojson.GeoJSON, 
         tiling_grid_gdf = tiling_grid_gdf[tiling_grid_gdf.geometry.intersects(bbox_polygon)]
     elif (isinstance(tiling_grid, str)) and (tiling_grid in ['EU', 'global']):
         if tiling_grid == 'EU':
-            grid_path = importlib_resources.files(eo_processing.resources).joinpath('LAEA-20km.gpkg')
+            grid_path = importlib_resources.files(eo_processing.resources).joinpath('LAEA-20km_add-info.gpkg')
             tiling_grid_gdf = gpd.read_file(os.path.normpath(grid_path), bbox=total_bbox)
         elif tiling_grid == 'global':
             if isinstance(storage, WEED_storage):

@@ -1,8 +1,9 @@
+from __future__ import annotations
 from pydrive2.fs import GDriveFileSystem
 import hvac
 from getpass import getpass
 import tempfile
-from typing import Union, Dict, Tuple, List
+from typing import Union, Dict, Tuple, List, Optional, TYPE_CHECKING
 import geopandas as gpd
 import os
 import boto3
@@ -11,99 +12,71 @@ from eo_processing.utils.helper import string_to_dict
 from hashlib import md5
 from tqdm import tqdm
 
-class WEED_storage:
-    def __init__(self, username: str = 'buchhornm', gdrive_entry_point: str = "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu"):
-        self.username = username
-        self.credentials = self._get_credentials()
-        self.s3_credentials = string_to_dict(self.credentials['S3-auth'])
-        self.gdrive_credentials = self.credentials['gdrive-access']
-        self.gdrive_entry_point = gdrive_entry_point
-        self.gdrive_fs: GDriveFileSystem = None
-        self.s3_client: boto3.client = None
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import s3_credentials_format
+
+class storage:
+    """
+    Manages interaction with S3 storage, including initialization, content retrieval, and file
+    operations.
+
+    The class provides a set of methods for accessing and working with data stored in S3-compatible
+    cloud storage. This includes initializing an S3 client, fetching content metadata, downloading
+    files, and building URLs. It uses Boto3 for communication with the S3 API and offers features
+    such as retrying downloads and filtering file types.
+
+    :ivar s3_credentials: Dictionary containing S3 access and storage information. Contains
+        the following keys:
+            - AWS_ACCESS_KEY_ID: S3 access key required for authentication.
+            - AWS_SECRET_ACCESS_KEY: Secret key associated with the S3 access key.
+            - s3_endpoint: Endpoint URL for accessing the S3 bucket.
+            - bucket_name: Name of the S3 bucket.
+
+    :ivar s3_client: Initialized S3 client object created using the provided credentials.
+        Defaults to None when credentials are not set.
+
+    :ivar s3_bucket: Name of the associated S3 bucket extracted from the credentials. Will
+        be `None` if no credentials are provided.
+    """
+    def __init__(self, s3_credentials: Optional[s3_credentials_format] = None):
+        """
+        Initializes the instance with S3 credentials and sets up the related attributes.
+
+        This constructor initializes the object with provided S3 credentials in a dictionary
+        format or defaults to an uninitialized state if no credentials are provided. If the
+        credentials are not in the expected format, an error will be raised. Warning messages
+        are printed if no credentials are supplied and the storage is not initialized.
+
+        :param s3_credentials: Optional S3 credentials with specific keys defined by
+            the `s3_credentials_format`. When provided, it should be a dictionary containing
+            the keys `s3_access_key`, `s3_secret_key`, `s3_endpoint`, and `bucket_name`.
+
+        :raises ValueError: If the supplied S3 credentials do not match the expected format,
+            this exception is raised.
+        """
+        from eo_processing.config.data_formats import s3_credentials_format
+        if s3_credentials is None:
+            print('WARNING: no S3 credentials were given or found in the environment variables. '
+                  'The storage object is not initialized.')
+            self.s3_credentials = {
+                "AWS_ACCESS_KEY_ID": None,
+                "AWS_SECRET_ACCESS_KEY": None,
+                "s3_endpoint": None,
+                "bucket_name": None
+            }
+        elif ((isinstance(s3_credentials, dict))
+              and (set(s3_credentials.keys()) == set(s3_credentials_format.__annotations__.keys()))):
+            self.s3_credentials = {
+                "AWS_ACCESS_KEY_ID": s3_credentials['s3_access_key'],
+                "AWS_SECRET_ACCESS_KEY": s3_credentials['s3_secret_key'],
+                "s3_endpoint": s3_credentials['s3_endpoint'],
+                "bucket_name": s3_credentials['bucket_name']
+            }
+        else:
+            raise ValueError('The provided S3 credentials are not valid. Please check the documentation '
+                             'for the correct format.')
+        self.s3_client: Optional[boto3.client] = None
         self.s3_bucket = self.s3_credentials['bucket_name']
-        #self.s3_prefix = None
-
-    def _get_credentials(self) -> Dict[str, str]:
-        """
-        Retrieves WEED access credentials from Terrascope VAULT using LDAP authentication.
-
-        This method prompts the user to enter their password for Terrascope VAULT, authenticates
-        with the VAULT using LDAP, and fetches credentials from the WEED KV storage path.
-
-        :return: credentials as a dictionary
-        """
-        password_prompt = 'Please enter your password for the Terrascope VAULT: '
-        service_account_password = getpass(prompt=password_prompt)
-
-        client = hvac.Client(url='https://vault.vgt.vito.be')
-        client.auth.ldap.login(
-            username=self.username,
-            password=service_account_password,
-            mount_point='ldap'
-        )
-        secret_version_response = client.secrets.kv.v2.read_secret_version(mount_point='kv',
-                                                                           path='TAP/apps/WEED',
-                                                                           raise_on_deleted_version=True)
-        client.logout()
-        return secret_version_response['data']['data']
-
-    def _init_GDRIVE(self) -> None:
-        """
-        Initializes the GDriveFileSystem for accessing files and folders using
-        service account credentials. This method configures the file system
-        client specifically for Google Drive and uses the provided service
-        account credentials and entry point.
-
-        :raises GDriveFileSystemError: If the initialization fails or the service
-                                       account credentials are invalid.
-        """
-        # return the fsspec filesystem to access the files & folders available for the service account credentials
-        self.gdrive_fs = GDriveFileSystem(self.gdrive_entry_point, use_service_account=True,
-                                          client_json=self.gdrive_credentials)
-
-    def print_gdrive_overview(self) -> None:
-        """
-        Prints an overview of the Google Drive filesystem structure starting from
-        the root directory. It iterates through each directory and subdirectory,
-        listing all files found.
-
-        This function walks through the file system using the provided GDriveFileSystem
-        instance, and prints the name of each directory and files contained therein.
-
-        :return: None
-        """
-        if self.gdrive_fs is None:
-            self._init_GDRIVE()
-
-        for dirName, subdirList, fileList in self.gdrive_fs.walk(self.gdrive_fs.root):
-            print('Found directory: %s' % dirName)
-            for fname in fileList:
-                print('\t%s' % fname)
-
-    def get_gdrive_gdf(self, gdrive_path: str,
-                       filter_bbox: Union[Tuple, gpd.GeoDataFrame, None] = None) -> gpd.GeoDataFrame:
-        """
-        Downloads a file from Google Drive and reads it into a GeoDataFrame, with an optional bounding box filter.
-
-        This function creates a temporary directory to store the downloaded file, which is automatically deleted
-        after the function execution. It can also filter the GeoDataFrame with the provided bounding box.
-
-
-        :param gdrive_path: Path to the file on Google Drive
-        :param filter_bbox: Optional bounding box to filter the GeoDataFrame, could be a tuple or GeoDataFrame
-        :return: A GeoDataFrame containing the data from the downloaded file, optionally filtered by the bounding box
-        """
-        if self.gdrive_fs is None:
-            self._init_GDRIVE()
-
-        # Create a temporary directory that will be automatically deleted
-        with tempfile.TemporaryDirectory() as temp_dir:
-            self.gdrive_fs.download(f'{self.gdrive_fs.root}/{gdrive_path}', os.path.join(temp_dir, 'temp.gpkg'))
-
-            if filter_bbox:
-                return gpd.read_file(os.path.join(temp_dir, 'temp.gpkg'), bbox=filter_bbox)
-            else:
-                return gpd.read_file(os.path.join(temp_dir, 'temp.gpkg'))
 
     def _init_boto3(self) -> None:
         """
@@ -119,13 +92,19 @@ class WEED_storage:
 
         :return: None
         """
+        if any(value is None for value in self.s3_credentials.values()):
+            raise KeyError('Missing required S3 credentials. Please ini storage object correctly.')
+
         session = boto3.session.Session()
-        self.s3_client = session.client(
-            service_name='s3',
-            endpoint_url=self.s3_credentials['s3_endpoint'],
-            aws_access_key_id=self.s3_credentials['AWS_ACCESS_KEY_ID'],
-            aws_secret_access_key=self.s3_credentials['AWS_SECRET_ACCESS_KEY']
-        )
+        try:
+            self.s3_client = session.client(
+                service_name='s3',
+                endpoint_url=self.s3_credentials['s3_endpoint'],
+                aws_access_key_id=self.s3_credentials['AWS_ACCESS_KEY_ID'],
+                aws_secret_access_key=self.s3_credentials['AWS_SECRET_ACCESS_KEY']
+            )
+        except:
+            raise Exception('Error connecting to S3: ' + str(self.s3_credentials['s3_endpoint']))
 
     def get_s3_client(self) -> boto3.client:
         """
@@ -227,11 +206,11 @@ class WEED_storage:
         :return: A list of URLs for the files matching the specified directory and
                  extension.
         """
-        # define the base URL to the specified S3 Model storage
-        base_url = f"{self.s3_credentials['s3_endpoint']}/swift/v1/{self.s3_bucket}/"
-
         # get all filtered file_keys
         file_keys = self.get_file_keys(s3_directory, extension)
+
+        # define the base URL to the specified S3 Model storage
+        base_url = f"{self.s3_credentials['s3_endpoint']}/swift/v1/{self.s3_bucket}/"
 
         return [f"{base_url}{element}" for element in file_keys]
 
@@ -357,6 +336,140 @@ class WEED_storage:
 
         return False
 
+class WEED_storage(storage):
+    """
+    Handles storage operations for the WEED application, including managing access
+    to Google Drive and Amazon S3 using credentials retrieved from the Terrascope
+    VAULT. This class provides methods to initialize necessary file systems, retrieve
+    files, and download data as GeoDataFrames.
+
+    The class leverages user authentication for secure access, offering the ability
+    to interact with both Google Drive and S3 storage.
+
+    :ivar username: Username utilized for LDAP authentication during credential
+        retrieval.
+    :ivar credentials: Dictionary containing storage credentials fetched from the
+        Terrascope VAULT.
+    :ivar s3_credentials: AWS S3-specific credentials retrieved from the stored
+        data.
+    :ivar gdrive_credentials: Google Drive-specific credentials required for
+        accessing files and folders.
+    :ivar gdrive_entry_point: Entry point directory in Google Drive where
+        operations begin.
+    :ivar gdrive_fs: Google Drive file system object for handling file interactions.
+    :ivar s3_client: AWS S3 client for storage operations.
+    :ivar s3_bucket: AWS S3 bucket name derived from the fetched credentials.
+    """
+    def __init__(self, username: str = 'buchhornm', gdrive_entry_point: str = "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu"):
+        """
+        Initializes an object that manages credentials and handles access to GDrive and S3
+        services for processing data. The instance stores the provided username and Google
+        Drive entry point to establish connections with respective services and authenticate
+        through credentials.
+
+        :param username: The username to associate with this instance, which is also used
+            to fetch credentials. Defaults to 'buchhornm'.
+        :param gdrive_entry_point: The entry point ID for accessing Google Drive.
+            Defaults to "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu".
+        """
+        super().__init__()
+        self.username = username
+        self.credentials = self._get_credentials()
+        self.s3_credentials = string_to_dict(self.credentials['S3-auth'])
+        self.gdrive_credentials = self.credentials['gdrive-access']
+        self.gdrive_entry_point = gdrive_entry_point
+        self.gdrive_fs: Optional[GDriveFileSystem] = None
+        self.s3_client: Optional[boto3.client] = None
+        self.s3_bucket = self.s3_credentials['bucket_name']
+
+    def _get_credentials(self) -> Dict[str, str]:
+        """
+        Retrieves WEED access credentials from Terrascope VAULT using LDAP authentication.
+
+        This method prompts the user to enter their password for Terrascope VAULT, authenticates
+        with the VAULT using LDAP, and fetches credentials from the WEED KV storage path.
+
+        :return: credentials as a dictionary
+        """
+        password_prompt = 'Please enter your password for the Terrascope VAULT: '
+        service_account_password = getpass(prompt=password_prompt)
+
+        try:
+            client = hvac.Client(url='https://vault.vgt.vito.be')
+            client.auth.ldap.login(
+                username=self.username,
+                password=service_account_password,
+                mount_point='ldap'
+            )
+            secret_version_response = client.secrets.kv.v2.read_secret_version(mount_point='kv',
+                                                                               path='TAP/apps/WEED',
+                                                                               raise_on_deleted_version=True)
+            client.logout()
+        except:
+            raise Exception('Could not retrieve WEED credentials from Terrascope VAULT. '
+                            'Are you connected to the VITO VPN?')
+        return secret_version_response['data']['data']
+
+    def _init_GDRIVE(self) -> None:
+        """
+        Initializes the GDriveFileSystem for accessing files and folders using
+        service account credentials. This method configures the file system
+        client specifically for Google Drive and uses the provided service
+        account credentials and entry point.
+
+        :raises GDriveFileSystemError: If the initialization fails or the service
+                                       account credentials are invalid.
+        """
+        # return the fsspec filesystem to access the files & folders available for the service account credentials
+        try:
+            self.gdrive_fs = GDriveFileSystem(self.gdrive_entry_point, use_service_account=True,
+                                              client_json=self.gdrive_credentials)
+        except:
+            raise Exception('Could not initialize GDriveFileSystem.')
+
+    def print_gdrive_overview(self) -> None:
+        """
+        Prints an overview of the Google Drive filesystem structure starting from
+        the root directory. It iterates through each directory and subdirectory,
+        listing all files found.
+
+        This function walks through the file system using the provided GDriveFileSystem
+        instance, and prints the name of each directory and files contained therein.
+
+        :return: None
+        """
+        if self.gdrive_fs is None:
+            self._init_GDRIVE()
+
+        for dirName, subdirList, fileList in self.gdrive_fs.walk(self.gdrive_fs.root):
+            print('Found directory: %s' % dirName)
+            for fname in fileList:
+                print('\t%s' % fname)
+
+    def get_gdrive_gdf(self, gdrive_path: str,
+                       filter_bbox: Union[Tuple, gpd.GeoDataFrame, None] = None) -> gpd.GeoDataFrame:
+        """
+        Downloads a file from Google Drive and reads it into a GeoDataFrame, with an optional bounding box filter.
+
+        This function creates a temporary directory to store the downloaded file, which is automatically deleted
+        after the function execution. It can also filter the GeoDataFrame with the provided bounding box.
+
+
+        :param gdrive_path: Path to the file on Google Drive
+        :param filter_bbox: Optional bounding box to filter the GeoDataFrame, could be a tuple or GeoDataFrame
+        :return: A GeoDataFrame containing the data from the downloaded file, optionally filtered by the bounding box
+        """
+        if self.gdrive_fs is None:
+            self._init_GDRIVE()
+
+        # Create a temporary directory that will be automatically deleted
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.gdrive_fs.download(f'{self.gdrive_fs.root}/{gdrive_path}', os.path.join(temp_dir, 'temp.gpkg'))
+
+            if filter_bbox:
+                return gpd.read_file(os.path.join(temp_dir, 'temp.gpkg'), bbox=filter_bbox)
+            else:
+                return gpd.read_file(os.path.join(temp_dir, 'temp.gpkg'))
 
 class ProgressPercentage:
     """

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env python
+from __future__ import annotations
 import openeo
 import requests
 import matplotlib.pyplot as plt
@@ -8,13 +9,15 @@ from shapely.geometry import box
 import importlib.resources as importlib_resources
 import eo_processing.resources
 from os.path import normpath
-from eo_processing.utils.data_formats import openEO_bbox_format
 import uuid
 import hashlib
 from datetime import datetime
 import json
 from ast import literal_eval
-from typing import Union, Dict, List
+from typing import Union, Dict, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import openEO_bbox_format
 
 def init_connection(provider: str) -> openeo.Connection :
     """

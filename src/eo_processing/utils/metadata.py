@@ -1,5 +1,5 @@
 from eo_processing import __version__ as eo_processing_version
-from typing import Dict, List, Tuple, Optional
+from typing import Dict
 from datetime import datetime
 from openeo import __version__ as openEO_version
 

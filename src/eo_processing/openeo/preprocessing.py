@@ -1,13 +1,15 @@
+from __future__ import annotations
 from openeo.processes import array_create, if_, is_nodata, power
 from openeo.rest.datacube import DataCube
 
 from eo_processing.openeo.masking import scl_mask_erode_dilate
 from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2)
-from eo_processing.utils.data_formats import openEO_bbox_format
+from eo_processing.config.settings import S2_BANDS
 import openeo
-from typing import Optional, Dict, Union, List
+from typing import Optional, Dict, Union, List, TYPE_CHECKING
 
-S2_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import openEO_bbox_format
 
 def ts_datacube_extraction(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,

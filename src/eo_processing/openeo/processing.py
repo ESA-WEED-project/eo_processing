@@ -1,30 +1,16 @@
+from __future__ import annotations
 from openeo.rest.datacube import DataCube
 from openeo.extra.spectral_indices import append_indices, compute_indices
 from openeo.processes import array_create, ProcessBuilder, array_concat, subtract
 
 from eo_processing.openeo.preprocessing import (extract_S2_datacube, extract_S1_datacube)
 import openeo
-from eo_processing.utils.data_formats import openEO_bbox_format
-from typing import Optional, Dict, Union, List
 
-VI_LIST = ['NDVI',
-           'AVI',
-           'CIRE',
-           'NIRv',
-           'NDMI',
-           'NDWI',
-           'BLFEI',
-           'MNDWI',
-           'NDVIMNDWI',
-           'S2WI',
-           'S2REP',
-           'IRECI']
+from typing import Optional, Dict, Union, List, TYPE_CHECKING
+from eo_processing.config.settings import VI_LIST, RADAR_LIST, S2_SCALING
 
-RADAR_LIST = ['VHVVD',
-              'VHVVR',
-              'RVI']
-
-S2_SCALING = [0, 10000, 0, 1.0]
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import openEO_bbox_format
 
 def optical_indices(
         input_cube: DataCube,

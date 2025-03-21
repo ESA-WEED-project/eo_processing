@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import json
 import logging
@@ -14,10 +15,12 @@ from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_st
                                          get_job_db)
 from openeo.rest import OpenEoApiError
 import pandas as pd
-from typing import Optional, Mapping, Union, Dict, Tuple
+from typing import Optional, Mapping, Union, Dict, Tuple, TYPE_CHECKING
 import openeo
 import warnings
-from eo_processing.config.settings import storage_option_format
+
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import storage_option_format
 
 logger = logging.getLogger(__name__)
 

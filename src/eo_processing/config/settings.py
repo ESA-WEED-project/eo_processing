@@ -1,7 +1,9 @@
-from eo_processing.openeo.processing import VI_LIST, RADAR_LIST, S2_SCALING
-from eo_processing.openeo.preprocessing import S2_BANDS
-from eo_processing.utils.storage import WEED_storage
-from typing import List, TypedDict, Optional, Dict, Union
+from __future__ import annotations
+from typing import List, Optional, Dict, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import storage_option_format
+    from eo_processing.utils.storage import WEED_storage
 
 # ---------------------------------------------------
 # standard processing options
@@ -11,6 +13,26 @@ TARGET_RESOLUTION: float = 10.
 TIME_INTERPOLATION: bool = False
 TS_INTERVAL: str = 'dekad'
 MASKING_ALGO: str = 'mask_scl_dilation'
+S2_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
+
+VI_LIST = ['NDVI',
+           'AVI',
+           'CIRE',
+           'NIRv',
+           'NDMI',
+           'NDWI',
+           'BLFEI',
+           'MNDWI',
+           'NDVIMNDWI',
+           'S2WI',
+           'S2REP',
+           'IRECI']
+
+RADAR_LIST = ['VHVVD',
+              'VHVVR',
+              'RVI']
+
+S2_SCALING = [0, 10000, 0, 1.0]
 
 # ---------------------------------------------------
 # Job options for OpenEO
@@ -104,11 +126,6 @@ _CDSE_COLLECTIONS: Dict[str, str] = {
     'S2_collection': "SENTINEL2_L2A",
     'S1_collection': "SENTINEL1_GRD"
 }
-
-storage_option_format = TypedDict('storage_option_format', {'workspace_export': bool,
-                                                            'S3_prefix': Optional[str],
-                                                            'local_S3_needed': bool,
-                                                            'WEED_storage': Optional[WEED_storage]})
 
 def _get_default_job_options() -> Dict[str, str]:
     """

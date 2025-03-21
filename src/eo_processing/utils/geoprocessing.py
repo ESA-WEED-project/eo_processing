@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os.path
 from os import PathLike
 import pyproj
@@ -9,14 +10,18 @@ import geopandas as gpd
 import numpy as np
 import geojson
 import json
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, TYPE_CHECKING
 from eo_processing.utils.mgrs import LL_2_UTM, floor_to_nearest_5, UTM_2_LL, UTM_2_MGRSid10, UTM_2_grid20id
-from eo_processing.utils.storage import WEED_storage
+
 from urllib3.util.url import parse_url
 import importlib_resources as importlib_resources
 import eo_processing.resources
-from eo_processing.utils.data_formats import openEO_bbox_format
+
 import fsspec
+
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import openEO_bbox_format
+    from eo_processing.utils.storage import WEED_storage
 
 def laea20km_id_to_extent(laea_id: str) -> openEO_bbox_format:
     """
@@ -70,11 +75,13 @@ def AOI_tiler(AOI: Union[gpd.GeoDataFrame, openEO_bbox_format, geojson.GeoJSON, 
 
     :return: The resulting GeoDataFrame containing the intersected and processed tiling grid for the AOI.
     """
+    from eo_processing.config.data_formats import openEO_bbox_format
+
     # load the AOI and make sure it is in EPSG: 4326
     if isinstance(AOI, gpd.GeoDataFrame):
         gdf_aoi = AOI.copy()
         gdf_aoi = gdf_aoi.to_crs('EPSG:4326')
-    elif (isinstance(AOI, dict)) and (set(AOI.keys()).issubset(set(openEO_bbox_format.__annotations__.keys()))):
+    elif (isinstance(AOI, dict)) and (set(AOI.keys()) == set(openEO_bbox_format.__annotations__.keys())):
         gdf_aoi = gpd.GeoDataFrame(geometry=[reproj_bbox_to_ll(AOI, densify=True)])
         gdf_aoi.crs = 'EPSG:4326'
     elif is_geojson(AOI):
@@ -316,7 +323,8 @@ def get_point_info(longitude: float, latitude: float) -> Tuple[str, float, float
 
     return MGRSid10, round(center_lon, 7), round(center_lat, 7), grid20id
 
-def geoJson_2_BBOX(file_path: str, delete_file: bool = False, size_check: Optional[int] = None) -> openEO_bbox_format:
+def geoJson_2_BBOX(file_path: str, delete_file: bool = False,
+                   size_check: Optional[int] = None) -> Optional[openEO_bbox_format]:
     """
     Processes a GeoJSON file to extract the bounding box (BBOX) of all geometries combined
     and converts it into an openEO-compliant bounding box format. Optionally, the function

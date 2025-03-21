@@ -1,9 +1,13 @@
+from __future__ import annotations
 import requests
 import json
 import pandas as pd
 from eo_processing.utils.geoprocessing import reproj_bbox_to_ll
-from eo_processing.utils.data_formats import openEO_bbox_format
 import geojson
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import openEO_bbox_format
 
 def catalogue_check_S1(orbit_direction: str, start: str, end: str, bbox: openEO_bbox_format) -> str | None:
     """

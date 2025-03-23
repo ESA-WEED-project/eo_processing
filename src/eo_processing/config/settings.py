@@ -100,6 +100,18 @@ OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "logging-threshold": "info"
 }
 
+OPENEO_CUBEEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
+    "driver-memory": "3G",
+    "driver-memoryOverhead": "2G",
+    "driver-cores": "1",
+    "executor-memory": "1500m",
+    "executor-memoryOverhead": "2500m",
+    "executor-cores": "1",
+    "executor-request-cores": "800m",
+    "max-executors": "20",
+    "executor-threads-jvm": "7",
+    "logging-threshold": "info"
+}
 # ---------------------------------------------------
 # COLLECTION options
 
@@ -172,6 +184,8 @@ def get_job_options(provider: str = None, task: str = 'raw_extraction') -> Dict[
             job_options.update(OPENEO_INFERENCE_CDSE_JOB_OPTIONS)
         elif task in ['point_extraction']:
             job_options.update(OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS)
+        elif task in ['feature_generation']:
+            job_options.update(OPENEO_CUBEEXTRACTION_CDSE_JOB_OPTIONS)
         else:
             job_options.update(OPENEO_EXTRACT_CDSE_JOB_OPTIONS)
 

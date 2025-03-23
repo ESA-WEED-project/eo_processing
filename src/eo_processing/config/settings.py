@@ -63,12 +63,10 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "8G",
     "driver-memoryOverhead": "5G",
     "driver-cores": "1",
-    "executor-cores": "1",
-    "executor-request-cores": "800m",
     "executor-memory": "1500m",
-    "executor-memoryOverhead": "2500m",
+    "executor-memoryOverhead": "3000m",
+    "executor-cores": "1",
     "max-executors": "25",
-    "executor-threads-jvm": "7",
     "logging-threshold": "info"
 }
 
@@ -80,8 +78,8 @@ OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "executor-memoryOverhead": "1500m",
     "executor-cores": "1",
     "max-executors": "20",
-    "soft-errors": "true",
     "python-memory": "4000m",
+    "logging-threshold": "info",
     "udf-dependency-archives": [
         "https://s3.waw3-1.cloudferro.com/swift/v1/project_dependencies/onnx_dependencies_1.16.3.zip#onnx_deps"
     ]
@@ -91,25 +89,21 @@ OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "2G",
     "driver-memoryOverhead": "1G",
     "driver-cores": "1",
-    "executor-cores": "1",
-    "executor-request-cores": "800m",
     "executor-memory": "1500m",
-    "executor-memoryOverhead": "2500m",
+    "executor-memoryOverhead": "3000m",
+    "executor-cores": "1",
     "max-executors": "25",
-    "executor-threads-jvm": "7",
     "logging-threshold": "info"
 }
 
 OPENEO_CUBEEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
-    "driver-memory": "3G",
-    "driver-memoryOverhead": "2G",
+    "driver-memory": "4G",
+    "driver-memoryOverhead": "4G",
     "driver-cores": "1",
     "executor-memory": "1500m",
-    "executor-memoryOverhead": "2500m",
+    "executor-memoryOverhead": "3000m",
     "executor-cores": "1",
-    "executor-request-cores": "800m",
     "max-executors": "20",
-    "executor-threads-jvm": "7",
     "logging-threshold": "info"
 }
 # ---------------------------------------------------

@@ -64,7 +64,8 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memoryOverhead": "5G",
     "driver-cores": "1",
     "executor-memory": "1500m",
-    "executor-memoryOverhead": "3000m",
+    "executor-memoryOverhead": "2500m",
+    "python-memory": "2500m",
     "executor-cores": "1",
     "max-executors": "25",
     "logging-threshold": "info"
@@ -90,7 +91,8 @@ OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memoryOverhead": "1G",
     "driver-cores": "1",
     "executor-memory": "1500m",
-    "executor-memoryOverhead": "3000m",
+    "executor-memoryOverhead": "2500m",
+    "python-memory": "2500m",
     "executor-cores": "1",
     "max-executors": "25",
     "logging-threshold": "info"
@@ -101,7 +103,8 @@ OPENEO_CUBEEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memoryOverhead": "4G",
     "driver-cores": "1",
     "executor-memory": "1500m",
-    "executor-memoryOverhead": "3000m",
+    "executor-memoryOverhead": "2500m",
+    "python-memory": "2500m",
     "executor-cores": "1",
     "max-executors": "20",
     "logging-threshold": "info"

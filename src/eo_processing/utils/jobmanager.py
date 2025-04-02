@@ -2,6 +2,7 @@ from __future__ import annotations
 import os
 import json
 import logging
+import geopandas as gpd
 from threading import Thread, active_count
 from openeo.util import rfc3339
 import re
@@ -15,9 +16,10 @@ from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_st
                                          get_job_db)
 from openeo.rest import OpenEoApiError
 import pandas as pd
-from typing import Optional, Mapping, Union, Dict, Tuple, TYPE_CHECKING
+from typing import Optional, Mapping, Union, Dict, Tuple, TYPE_CHECKING, List
 import openeo
 import warnings
+from eo_processing.utils.helper import string_to_dict
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import storage_option_format
@@ -720,3 +722,90 @@ def get_AOI_interactive(map_center: Tuple[float, float] = (51.22, 5.08), zoom: i
         return m
     else:
         print('this function is only available in a jupyter notebook')
+
+def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, processing_type: str,
+                         discriminator: Optional[str] = None, target_crs: Optional[int] = None, version: Optional[str] = None,
+                         model_urls: Optional[List[str]] = None, output_band_names: Optional[List[str]] = None,
+                         storage_options: Optional[storage_option_format] = None,
+                         organization_id : Optional[int] = None) -> gpd.GeoDataFrame:
+
+    '''
+    gdf: geo pandas dataframe create with the foramt of the AOI_tiler function
+    param processing_type : feature_generation or EUNIS habitat probabilities @Marcel this could then be extended to more if needed
+                    or made more general
+    organization_id : int (4digit) that represents the organization under which the costs should be booked
+    discriminator : str an columns in de the gdf which will be used as an extra discriminator eg zone_name eg hEUNIS step5....ipynb
+    '''
+
+    columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix','organization_id', 'geometry']
+    dtypes = {'name': 'string', 'tileID': 'string', 'target_epsg': 'UInt16',
+              'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string',
+              's3_prefix': 'string','geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16'}
+
+    job_df = gdf.copy()
+
+    # evaluate if tileID is given by 'name' or 'grid20id'
+    if 'grid20id' in job_df.columns:
+        tile_col = 'grid20id'
+    else:
+        tile_col = 'name'
+
+    # the time context is given by start and end date
+    job_df['start_date'] = f'{year}-01-01'
+    job_df['end_date'] = f'{year+1}-01-01'  # the end is always exclusive
+
+    #organization ID is the same for all rows
+    job_df['organization_id'] = organization_id
+
+    # set the target epsg
+    if target_crs is None:
+        job_df['target_epsg'] = job_df.apply(lambda row: int(string_to_dict(row['bbox_dict'])['crs']), axis=1)
+    else:
+        job_df['target_epsg'] = target_crs
+
+    job_df['bbox'] = job_df['bbox_dict']
+
+    # set the s3_prefix which is needed for the path to S3 storage relative to bucket if we export
+    if storage_options:
+        job_df['s3_prefix'] = storage_options.get('S3_prefix', None)
+    else:
+        job_df['s3_prefix'] = None
+
+    # a fix since the "name" column has to be unique
+    job_df['tileID'] = job_df[tile_col].copy()
+    if discriminator:
+        job_df['name'] = job_df[tile_col] + f'_{year}' + f'_' + job_df[discriminator]
+    else:
+        job_df['name'] = job_df[tile_col] + f'_{year}'
+
+    #get version
+    if version:
+        version = f'_{version}'
+
+    #now we'll add some process dependant parameters
+    if processing_type == 'feature_generation':
+        # adding the output file name pre-fix
+        if discriminator:
+            job_df['file_prefix'] = job_df.apply(lambda row: f'{file_name_base}_feature-cube_year{year}_{row[tile_col]}_{row[discriminator]}'+ version, axis=1)
+        else: job_df['file_prefix'] = job_df.apply(lambda row: f'{file_name_base}_feature-cube_year{year}_{row[tile_col]}'+ version, axis=1)
+
+    elif processing_type.lower() == 'eunis_habitat_probabilities':
+        if discriminator:
+            job_df['file_prefix'] = job_df.apply(
+                lambda row: f'{file_name_base}_EUNIS-habitat-proba-cube_year{year}_{row[tile_col]}_{row[discriminator]}' + version, axis=1)
+        else: job_df['file_prefix'] = job_df.apply(
+                lambda row: f'{file_name_base}_EUNIS-habitat-proba-cube_year{year}_{row[tile_col]}' + version, axis=1)
+        # adding the model_urls and output_band_names (all the same for all tiles)
+        job_df['model_urls'] = [model_urls] * len(job_df)
+        job_df['output_band_names'] = [output_band_names] * len(job_df)
+        #update dtypes dict
+        columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix', 'organization_id',
+                   'model_urls', 'output_band_names', 'geometry']
+        dtypes.update({'model_urls':'string','output_band_names':'string'})
+    else:
+        logger.error(f"{processing_type} is not an implemented option for processing_type. Please extended the function"+
+                     f"or use feature_generation or EUNIS_habitat_probabilities")
+
+
+
+    return job_df[columns].astype(dtypes)

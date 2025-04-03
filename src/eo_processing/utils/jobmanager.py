@@ -728,16 +728,35 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
                          model_urls: Optional[List[str]] = None, output_band_names: Optional[List[str]] = None,
                          storage_options: Optional[storage_option_format] = None,
                          organization_id : Optional[int] = None) -> gpd.GeoDataFrame:
+    """
+    Creates a new GeoDataFrame containing job-related configurations for processing geospatial data. The input
+    GeoDataFrame is copied and augmented with new columns based on the input parameters and processing type.
 
-    '''
-    gdf: geo pandas dataframe create with the foramt of the AOI_tiler function
-    param processing_type : feature or EUNIS habitat proba @Marcel this could then be extended to more if needed
-                    or made more general
-    organization_id : int (4digit) that represents the organization under which the costs should be booked
-    discriminator : str an columns in de the gdf which will be used as an extra discriminator eg zone_name eg hEUNIS step5....ipynb
-    '''
+    The resulting GeoDataFrame is structured to include columns needed for subsequent geospatial data processing
+    tasks, such as file naming, bounding box information, projection details, date ranges, and additional
+    process-specific fields when applicable.
 
-    columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix','organization_id', 'geometry']
+    :param gdf: Input GeoDataFrame containing the geospatial data.
+    :param year: Year used for setting start and end dates, as well as constructing unique identifiers.
+    :param file_name_base: Base string utilized for generating file prefixes.
+    :param processing_type: Specifies the type of processing, e.g., 'feature' or 'eunis_habitat_probabilities'.
+    :param discriminator: Optional column name used for further distinguishing rows during file naming and job identification.
+    :param target_crs: Optional target CRS (Coordinate Reference System) EPSG code for reprojection. If not provided,
+                       inferred from existing data.
+    :param version: Optional string denoting the version identifier to append to the generated file prefix.
+    :param model_urls: Optional list of model URLs; added to the output GeoDataFrame for the 'eunis_habitat_probabilities'
+                       processing type.
+    :param output_band_names: Optional list of band names required for specific processing types like
+                              'eunis_habitat_probabilities'.
+    :param storage_options: Optional dictionary containing storage configuration parameters. Expected to contain a key
+                            'S3_prefix', which specifies the storage path prefix.
+    :param organization_id: Optional integer representing the organization ID; added to every row in the resulting GeoDataFrame.
+
+    :return: A GeoDataFrame containing the input data along with additional columns tailored to the specified processing type.
+    """
+
+    columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix',
+               'organization_id', 'geometry']
     dtypes = {'name': 'string', 'tileID': 'string', 'target_epsg': 'UInt16',
               'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string',
               's3_prefix': 'string','geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16'}
@@ -798,8 +817,8 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
         job_df['model_urls'] = [model_urls] * len(job_df)
         job_df['output_band_names'] = [output_band_names] * len(job_df)
         #update dtypes dict
-        columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix', 'organization_id',
-                   'model_urls', 'output_band_names', 'geometry']
+        columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix',
+                   'organization_id', 'model_urls', 'output_band_names', 'geometry']
         dtypes.update({'model_urls':'string','output_band_names':'string'})
     else:
         logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. If needed, extended the function"+

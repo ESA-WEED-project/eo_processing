@@ -12,12 +12,13 @@ import geojson
 import json
 from typing import Union, Tuple, Optional, TYPE_CHECKING
 from eo_processing.utils.mgrs import LL_2_UTM, floor_to_nearest_5, UTM_2_LL, UTM_2_MGRSid10, UTM_2_grid20id
-
 from urllib3.util.url import parse_url
-import importlib_resources as importlib_resources
 import eo_processing.resources
-
 import fsspec
+try:
+    import importlib.resources as importlib_resources
+except:
+    import importlib_resources
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import openEO_bbox_format

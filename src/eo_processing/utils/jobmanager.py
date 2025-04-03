@@ -731,7 +731,7 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
 
     '''
     gdf: geo pandas dataframe create with the foramt of the AOI_tiler function
-    param processing_type : feature_generation or EUNIS habitat probabilities @Marcel this could then be extended to more if needed
+    param processing_type : feature or EUNIS habitat proba @Marcel this could then be extended to more if needed
                     or made more general
     organization_id : int (4digit) that represents the organization under which the costs should be booked
     discriminator : str an columns in de the gdf which will be used as an extra discriminator eg zone_name eg hEUNIS step5....ipynb
@@ -781,21 +781,20 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
     #get version
     if version:
         version = f'_{version}'
+    else: version = ''
 
-    #now we'll add some process dependant parameters
-    if processing_type == 'feature_generation':
-        # adding the output file name pre-fix
-        if discriminator:
-            job_df['file_prefix'] = job_df.apply(lambda row: f'{file_name_base}_feature-cube_year{year}_{row[tile_col]}_{row[discriminator]}'+ version, axis=1)
-        else: job_df['file_prefix'] = job_df.apply(lambda row: f'{file_name_base}_feature-cube_year{year}_{row[tile_col]}'+ version, axis=1)
+    if discriminator:
+        job_df['file_prefix'] = job_df.apply(lambda
+                                                 row: f'{file_name_base}_{processing_type}-cube_year{year}_{row[tile_col]}_{row[discriminator]}{version}',
+                                             axis=1)
+    else:
+        job_df['file_prefix'] = job_df.apply(
+            lambda row: f'{file_name_base}_{processing_type}-cube_year{year}_{row[tile_col]}{version}', axis=1)
 
-    elif processing_type.lower() == 'eunis_habitat_probabilities':
-        if discriminator:
-            job_df['file_prefix'] = job_df.apply(
-                lambda row: f'{file_name_base}_EUNIS-habitat-proba-cube_year{year}_{row[tile_col]}_{row[discriminator]}' + version, axis=1)
-        else: job_df['file_prefix'] = job_df.apply(
-                lambda row: f'{file_name_base}_EUNIS-habitat-proba-cube_year{year}_{row[tile_col]}' + version, axis=1)
-        # adding the model_urls and output_band_names (all the same for all tiles)
+
+
+    if 'proba' in processing_type.lower():
+        # adding the model_urls and output_band_names (all the same for all tiles) for inference
         job_df['model_urls'] = [model_urls] * len(job_df)
         job_df['output_band_names'] = [output_band_names] * len(job_df)
         #update dtypes dict
@@ -803,8 +802,8 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
                    'model_urls', 'output_band_names', 'geometry']
         dtypes.update({'model_urls':'string','output_band_names':'string'})
     else:
-        logger.error(f"{processing_type} is not an implemented option for processing_type. Please extended the function"+
-                     f"or use feature_generation or EUNIS_habitat_probabilities")
+        logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. If needed, extended the function"+
+                     f" for specific options for processing_type {processing_type}")
 
 
 

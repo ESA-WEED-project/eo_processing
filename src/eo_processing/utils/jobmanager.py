@@ -724,8 +724,7 @@ def get_AOI_interactive(map_center: Tuple[float, float] = (51.22, 5.08), zoom: i
         print('this function is only available in a jupyter notebook')
 
 def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, processing_type: str,
-                         discriminator: Optional[str] = None, target_crs: Optional[int] = None,
-                         version: Optional[str] = None,
+                         discriminator: Optional[str] = None, target_crs: Optional[int] = None, version: Optional[str] = None,
                          model_urls: Optional[List[str]] = None, output_band_names: Optional[List[str]] = None,
                          storage_options: Optional[storage_option_format] = None,
                          organization_id : Optional[int] = None) -> gpd.GeoDataFrame:
@@ -740,7 +739,7 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
     :param gdf: Input GeoDataFrame containing the geospatial data.
     :param year: Year used for setting start and end dates, as well as constructing unique identifiers.
     :param file_name_base: Base string utilized for generating file prefixes.
-    :param processing_type: Specifies the type of processing, e.g., 'feature_generation' or 'eunis_habitat_probabilities'.
+    :param processing_type: Specifies the type of processing, e.g., 'feature' or 'eunis_habitat_probabilities'.
     :param discriminator: Optional column name used for further distinguishing rows during file naming and job identification.
     :param target_crs: Optional target CRS (Coordinate Reference System) EPSG code for reprojection. If not provided,
                        inferred from existing data.
@@ -801,21 +800,20 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
     #get version
     if version:
         version = f'_{version}'
+    else: version = ''
 
-    #now we'll add some process dependant parameters
-    if processing_type == 'feature_generation':
-        # adding the output file name pre-fix
-        if discriminator:
-            job_df['file_prefix'] = job_df.apply(lambda row: f'{file_name_base}_feature-cube_year{year}_{row[tile_col]}_{row[discriminator]}'+ version, axis=1)
-        else: job_df['file_prefix'] = job_df.apply(lambda row: f'{file_name_base}_feature-cube_year{year}_{row[tile_col]}'+ version, axis=1)
+    if discriminator:
+        job_df['file_prefix'] = job_df.apply(lambda
+                                                 row: f'{file_name_base}_{processing_type}-cube_year{year}_{row[tile_col]}_{row[discriminator]}{version}',
+                                             axis=1)
+    else:
+        job_df['file_prefix'] = job_df.apply(
+            lambda row: f'{file_name_base}_{processing_type}-cube_year{year}_{row[tile_col]}{version}', axis=1)
 
-    elif processing_type.lower() == 'eunis_habitat_probabilities':
-        if discriminator:
-            job_df['file_prefix'] = job_df.apply(
-                lambda row: f'{file_name_base}_EUNIS-habitat-proba-cube_year{year}_{row[tile_col]}_{row[discriminator]}' + version, axis=1)
-        else: job_df['file_prefix'] = job_df.apply(
-                lambda row: f'{file_name_base}_EUNIS-habitat-proba-cube_year{year}_{row[tile_col]}' + version, axis=1)
-        # adding the model_urls and output_band_names (all the same for all tiles)
+
+
+    if 'proba' in processing_type.lower():
+        # adding the model_urls and output_band_names (all the same for all tiles) for inference
         job_df['model_urls'] = [model_urls] * len(job_df)
         job_df['output_band_names'] = [output_band_names] * len(job_df)
         #update dtypes dict
@@ -823,7 +821,9 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
                    'organization_id', 'model_urls', 'output_band_names', 'geometry']
         dtypes.update({'model_urls':'string','output_band_names':'string'})
     else:
-        logger.error(f"{processing_type} is not an implemented option for processing_type. Please extended the "
-                     f"function or use feature_generation or EUNIS_habitat_probabilities")
+        logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. If needed, extended the function"+
+                     f" for specific options for processing_type {processing_type}")
+
+
 
     return job_df[columns].astype(dtypes)

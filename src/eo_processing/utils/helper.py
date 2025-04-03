@@ -6,7 +6,6 @@ import requests
 import matplotlib.pyplot as plt
 import geopandas as gpd
 from shapely.geometry import box
-import importlib.resources as importlib_resources
 import eo_processing.resources
 from os.path import normpath
 import uuid
@@ -15,6 +14,10 @@ from datetime import datetime
 import json
 from ast import literal_eval
 from typing import Union, Dict, List, TYPE_CHECKING
+try:
+    import importlib.resources as importlib_resources
+except:
+    import importlib_resources
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import openEO_bbox_format

@@ -316,6 +316,10 @@ class WeedJobManager(MultiBackendJobManager):
 
         active = job_db.get_by_status(statuses=["created", "queued", "running", "downloading"])
 
+        jobs_done = []
+        jobs_error = []
+        jobs_cancel = []
+
         for i in active.index:
             job_id = active.loc[i, "id"]
             backend_name = active.loc[i, "backend_name"]
@@ -342,6 +346,7 @@ class WeedJobManager(MultiBackendJobManager):
 
                 if new_status == "finished" and previous_status != "downloading":
                     stats["job finished"] += 1
+                    jobs_done.append((the_job, active.loc[i]))
                      #Implement of max threading to avoid possible overflow of Threads
                     while active_count() > 15:
                         logger.warning(f"To many thread busy. Max 15 threads are allowed and {active_count()} are active.")
@@ -358,6 +363,7 @@ class WeedJobManager(MultiBackendJobManager):
 
                 if previous_status != "error" and new_status == "error":
                     stats["job failed"] += 1
+                    jobs_error.append((the_job, active.loc[i]))
                     error_reason = self.on_job_error(the_job, active.loc[i])
                     if error_reason:
                         new_status = error_reason
@@ -368,6 +374,7 @@ class WeedJobManager(MultiBackendJobManager):
 
                 if new_status == "canceled":
                     stats["job canceled"] += 1
+                    jobs_canceled.append((the_job, active.loc[i]))
                     self.on_job_cancel(the_job, active.loc[i])
                     if active.loc[i, "attempt"] <= self.max_attempts:
                         new_status = "not_started"
@@ -401,6 +408,10 @@ class WeedJobManager(MultiBackendJobManager):
 
         if self.viz:
             self.create_viz_status(job_db)
+
+        return [], [], []
+
+
 
     def _launch_job(self, start_job, df, i, backend_name, stats: Optional[Dict] = None):
         """Helper method for launching jobs
@@ -436,7 +447,6 @@ class WeedJobManager(MultiBackendJobManager):
             stats["start_job call"] += 1
             job = start_job(
                 row=row,
-                connection_provider=self._get_connection,
                 connection=connection,
                 provider=backend_name,
             )

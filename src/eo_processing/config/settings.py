@@ -379,17 +379,14 @@ def generate_storage_options(workspace_export: bool = False,
     else:
         storage_options =  {'workspace_export':workspace_export,
                             'S3_prefix': S3_prefix,
-                            'local_S3_needed':local_S3_needed}
+                            'local_S3_needed':local_S3_needed,
+                            'WEED_storage': storage}
 
     #just some checks to avoid missing parameters
-    if workspace_export and not S3_prefix  :
+    if workspace_export and not S3_prefix:
         raise print("You want to export the openEO results to S3, please specify the S3_prefix parameter.")
 
-    if local_S3_needed and workspace_export:
-        if not storage:
-            raise print("A local copy S3 data is wanted but no storage object is defined")
-        storage_options.update({'WEED_storage': storage})
-    else:
-        storage_options.update({'WEED_storage': None})
-
+    if workspace_export and not storage:
+        raise print("A storage object has to be defined to specify the export_workspace name "
+                    "and/or allow local_file_copy.")
     return storage_options

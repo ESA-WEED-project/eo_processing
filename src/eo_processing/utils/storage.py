@@ -15,6 +15,8 @@ from tqdm import tqdm
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import s3_credentials_format
 
+WEED_BUCKETS = ['ecdc', 'model', 'extent', 'test']
+
 class storage:
     """
     Manages interaction with S3 storage, including initialization, content retrieval, and file
@@ -31,6 +33,7 @@ class storage:
             - AWS_SECRET_ACCESS_KEY: Secret key associated with the S3 access key.
             - s3_endpoint: Endpoint URL for accessing the S3 bucket.
             - bucket_name: Name of the S3 bucket.
+            - export_workspace: Directory path where exported files will be saved of S3.
 
     :ivar s3_client: Initialized S3 client object created using the provided credentials.
         Defaults to None when credentials are not set.
@@ -40,19 +43,16 @@ class storage:
     """
     def __init__(self, s3_credentials: Optional[s3_credentials_format] = None):
         """
-        Initializes the instance with S3 credentials and sets up the related attributes.
+        Initializes the configuration for S3 storage credentials. If no credentials are provided,
+        a default set of empty values is used, along with a warning message. Validates the input
+        credentials if provided and raises an error for invalid formats. The S3 client is initialized
+        as None to be configured later.
 
-        This constructor initializes the object with provided S3 credentials in a dictionary
-        format or defaults to an uninitialized state if no credentials are provided. If the
-        credentials are not in the expected format, an error will be raised. Warning messages
-        are printed if no credentials are supplied and the storage is not initialized.
+        :param s3_credentials: Dictionary containing S3 credentials with keys matching
+                               the `s3_credentials_format` type. If not provided, defaults
+                               to None and an uninitialized storage object will be created.
 
-        :param s3_credentials: Optional S3 credentials with specific keys defined by
-            the `s3_credentials_format`. When provided, it should be a dictionary containing
-            the keys `s3_access_key`, `s3_secret_key`, `s3_endpoint`, and `bucket_name`.
-
-        :raises ValueError: If the supplied S3 credentials do not match the expected format,
-            this exception is raised.
+        :raises ValueError: If the provided S3 credentials do not match the expected format.
         """
         from eo_processing.config.data_formats import s3_credentials_format
         if s3_credentials is None:
@@ -62,7 +62,8 @@ class storage:
                 "AWS_ACCESS_KEY_ID": None,
                 "AWS_SECRET_ACCESS_KEY": None,
                 "s3_endpoint": None,
-                "bucket_name": None
+                "bucket_name": None,
+                "export_workspace": None
             }
         elif ((isinstance(s3_credentials, dict))
               and (set(s3_credentials.keys()) == set(s3_credentials_format.__annotations__.keys()))):
@@ -70,13 +71,15 @@ class storage:
                 "AWS_ACCESS_KEY_ID": s3_credentials['s3_access_key'],
                 "AWS_SECRET_ACCESS_KEY": s3_credentials['s3_secret_key'],
                 "s3_endpoint": s3_credentials['s3_endpoint'],
-                "bucket_name": s3_credentials['bucket_name']
+                "bucket_name": s3_credentials['bucket_name'],
+                "export_workspace": s3_credentials['export_workspace']
             }
         else:
             raise ValueError('The provided S3 credentials are not valid. Please check the documentation '
                              'for the correct format.')
         self.s3_client: Optional[boto3.client] = None
         self.s3_bucket = self.s3_credentials['bucket_name']
+        self.export_workspace = self.s3_credentials['export_workspace']
 
     def _init_boto3(self) -> None:
         """
@@ -121,24 +124,57 @@ class storage:
 
         return self.s3_client
 
+    def get_export_workspace(self) -> str:
+        """
+        Gets the export workspace directory as a string.
+
+        This method retrieves the current export workspace directory, which is stored
+        as part of the instance data. The export workspace is typically used to define
+        the directory path where exported files are saved.
+
+        :return: The export workspace directory as a string.
+        """
+        return self.export_workspace
+
+    def get_s3_bucket_name(self) -> str:
+        """
+        Retrieve the name of the S3 bucket associated with the object.
+
+        :return: The name of the S3 bucket as a string.
+        """
+        return (self.s3_bucket).split('-')[0]
+
     def get_s3_content(self, s3_directory: str) -> Dict:
         """
-        Retrieves the list of objects from an S3 bucket for the specified directory prefix.
+        Retrieve a list of objects from an S3 bucket directory.
 
-        This function connects to the configured S3 bucket and fetches the metadata
-        for all objects matching the specified directory prefix. It initializes the
-        S3 client if it has not already been initialized.
+        This function connects to an Amazon S3 bucket and retrieves a list of objects
+        from a specified directory within the bucket. If the S3 client has not
+        been initialized, it is initialized before performing the operation. The
+        retrieval handles paginated responses from Amazon S3 and combines the results
+        into a single list before returning it.
 
-        :param s3_directory: The directory prefix within the S3 bucket. This should
-            represent the folder path within the bucket whose contents need to be
-            fetched.
-        :return: A dictionary containing the metadata of objects in the specified
-            S3 directory, as returned by the S3 client's list_objects_v2 method.
+        :param s3_directory: The directory path within the S3 bucket to retrieve the
+            objects from.
+        :return: A list of objects representing the contents of the specified S3
+            directory.
         """
         if self.s3_client is None:
             self._init_boto3()
 
-        return self.s3_client.list_objects_v2(Bucket=self.s3_bucket, Prefix=s3_directory)
+        result = []
+        continuation_token = None
+        while True:
+            list_kwargs = dict(MaxKeys=1000, Bucket=self.s3_bucket, Prefix=s3_directory)
+            if continuation_token:
+                list_kwargs['ContinuationToken'] = continuation_token
+            response = self.s3_client.list_objects_v2(**list_kwargs)
+            result = result + response.get('Contents', [])
+            if not response.get('IsTruncated'):  # At the end of the list?
+                break
+            continuation_token = response.get('NextContinuationToken')
+
+        return result
 
     def download_s3_content(self, s3_objects: str, out_dir: str, retry: int = 0, download_json: bool = False) -> None :
         """
@@ -216,39 +252,37 @@ class storage:
 
     def get_file_keys(self, s3_directory: str = 'results', extension: str = '.tif') -> List[str]:
         """
-        Retrieves a list of file keys from an S3 directory that match the specified file extension.
+        Retrieve a list of file keys from a specified S3 directory.
 
-        This method fetches the content of a specified subfolder within an S3 bucket. It filters
-        the objects in the folder to include only those whose keys end with the given file extension.
-        If no content is found in the folder, a message is printed, and an empty list is returned.
+        This method retrieves all objects within a given directory of an S3 bucket and filters
+        the results based on the specified file extension. If no files match the criteria,
+        an empty list is returned.
 
-        :param s3_directory: The S3 directory from which the files should be listed.
-        :param extension: The file extension used to filter the objects in the directory.
-        :return: A list of file keys from the specified S3 directory that match the given file extension.
+        :param s3_directory: The directory within the S3 bucket to search for files. Defaults to 'results'.
+        :param extension: The file extension used to filter the results. Defaults to '.tif'.
+        :return: A list of file keys within the directory that match the specified extension.
         """
         # get all content of the model subfolder in the bucket
         response = self.get_s3_content(s3_directory)
 
-        if 'Contents' not in response:
+        if not response:
             print('No files found in the selected folder with the given extension.')
             return []
 
-        return [obj['Key'] for obj in response['Contents'] if obj['Key'].endswith(extension)]
+        return [obj['Key'] for obj in response if obj['Key'].endswith(extension)]
 
-    def download_file_key(self, s3_object_key: str, temp_folder: str, progress_bar: bool = False) -> str:
+    def download_file_key(self, s3_object_key: str, temp_folder: str,
+                          progress_bar: bool = False, etag_check: bool = False) -> str:
         """
-        Downloads a file from an S3 bucket using the specified object key and saves it
-        in a temporary folder. Optionally displays a progress bar for tracking download
-        progress. Ensures the `temp_folder` exists and handles various S3 client download
-        methods based on the `progress_bar` value.
+        Download a file from an S3 bucket using the specified S3 object key and save it to a local
+        temporary folder. Optionally supports a progress bar during download and ETag verification
+        for ensuring file integrity.
 
-        :param s3_object_key: The key of the S3 object to be downloaded. It must be a
-            single valid object key within the specified S3 bucket.
-        :param temp_folder: The local folder path where the downloaded file will be
-            saved. If the folder does not exist, it will be created automatically.
-        :param progress_bar: A boolean indicating whether to display a progress bar
-            during the file download. Defaults to `False`.
-
+        :param s3_object_key: The key (path) of the object in the S3 bucket to download. Must be a string.
+        :param temp_folder: The local folder where the file should be saved. Must be a string.
+        :param progress_bar: Indicates whether to display a progress bar during download. Defaults to False.
+        :param etag_check: If True, performs an ETag check after downloading to verify file integrity.
+            Defaults to False.
         :return: The local file path where the downloaded file is saved.
         """
         if self.s3_client is None:
@@ -273,6 +307,10 @@ class storage:
                 self.s3_client.download_file(self.s3_bucket, s3_object_key, local_file_path)
         except Exception as e:
             raise FileExistsError(f"Error downloading file {s3_object_key}: {e}")
+
+        if etag_check:
+            if not self.evaluate_etag(local_file_path, s3_object_key):
+                raise Exception('The downloaded file does not match the ETag of the S3 object.')
 
         return local_file_path
 
@@ -322,7 +360,11 @@ class storage:
 
         # calculate etag of local downloaded file
         filesize = os.path.getsize(os.path.normpath(local_file_path))
-        num_parts = int(s3_etag.split('-')[1])
+        try:
+            num_parts = int(s3_etag.split('-')[1])
+        except IndexError:
+            print("The S3 ETag cannot be split into valid multipart format. Check can not be carried out.")
+            return False
 
         partsizes = [  ## Default Partsizes Map
             8388608,  # aws_cli/boto3
@@ -338,49 +380,99 @@ class storage:
 
 class WEED_storage(storage):
     """
-    Handles storage operations for the WEED application, including managing access
-    to Google Drive and Amazon S3 using credentials retrieved from the Terrascope
-    VAULT. This class provides methods to initialize necessary file systems, retrieve
-    files, and download data as GeoDataFrames.
+    Handles storage operations using both Google Drive and AWS S3/storage services.
 
-    The class leverages user authentication for secure access, offering the ability
-    to interact with both Google Drive and S3 storage.
+    This class provides a unified interface to manage files and data stored in the WEED
+    infrastructure. It integrates Google Drive and S3 functionalities using appropriate
+    APIs, allowing users to initialize settings, authenticate, browse, and interact with
+    these storages.
 
-    :ivar username: Username utilized for LDAP authentication during credential
-        retrieval.
-    :ivar credentials: Dictionary containing storage credentials fetched from the
-        Terrascope VAULT.
-    :ivar s3_credentials: AWS S3-specific credentials retrieved from the stored
-        data.
-    :ivar gdrive_credentials: Google Drive-specific credentials required for
-        accessing files and folders.
-    :ivar gdrive_entry_point: Entry point directory in Google Drive where
-        operations begin.
-    :ivar gdrive_fs: Google Drive file system object for handling file interactions.
-    :ivar s3_client: AWS S3 client for storage operations.
-    :ivar s3_bucket: AWS S3 bucket name derived from the fetched credentials.
+    It fetches credentials securely from the Terrascope VAULT and enables seamless access
+    to storage operations like fetching files, reading data into geospatial dataframes, and
+    filtering data with bounding boxes.
+
+    Attributes:
+        username: Username for Terrascope VAULT authentication.
+        gdrive_entry_point: Entry point ID of the Google Drive folder.
+        s3_bucket: Name of the S3 bucket to be used.
+        gdrive_fs: Instance for handling Google Drive filesystem operations.
+        s3_client: AWS S3 client instance for interacting with S3 storage.
+        credentials: Dictionary containing fetched credentials for storages.
+        s3_credentials: Dictionary containing S3-specific credentials.
+        gdrive_credentials: Google Drive credentials fetched from the VAULT.
+        export_workspace: Path for data export associated with the S3 bucket.
     """
-    def __init__(self, username: str = 'buchhornm', gdrive_entry_point: str = "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu"):
+    def __init__(self, username: str = 'buchhornm',
+                 gdrive_entry_point: str = "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu",
+                 s3_bucket: str = "ecdc"):
         """
-        Initializes an object that manages credentials and handles access to GDrive and S3
-        services for processing data. The instance stores the provided username and Google
-        Drive entry point to establish connections with respective services and authenticate
-        through credentials.
+        A class constructor that initializes settings for access to Google Drive and S3 services.
 
-        :param username: The username to associate with this instance, which is also used
-            to fetch credentials. Defaults to 'buchhornm'.
-        :param gdrive_entry_point: The entry point ID for accessing Google Drive.
-            Defaults to "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu".
+        The constructor sets up default values for the user credentials, Google Drive entry point,
+        and S3 bucket. It also initializes necessary credentials and configurations for using
+        Google Drive and S3 storage services.
+
+        :param username: A username string used for accessing credentials.
+        :param gdrive_entry_point: The entry point ID of the Google Drive folder.
+        :param s3_bucket: The name of the S3 bucket to be used.
         """
-        super().__init__()
-        self.username = username
-        self.credentials = self._get_credentials()
-        self.s3_credentials = string_to_dict(self.credentials['S3-auth'])
-        self.gdrive_credentials = self.credentials['gdrive-access']
-        self.gdrive_entry_point = gdrive_entry_point
+        #super().__init__()
         self.gdrive_fs: Optional[GDriveFileSystem] = None
         self.s3_client: Optional[boto3.client] = None
+
+        self.username = username
+        self.credentials = self._get_credentials()
+        self.s3_credentials = None
+        self.s3_bucket = None
+        self.export_workspace = None
+        self._set_s3_credentials(bucket=s3_bucket)
+        self.gdrive_credentials = self.credentials['gdrive-access']
+        self.gdrive_entry_point = gdrive_entry_point
+
+    def switch_s3_bucket(self, bucket: str) -> None:
+        """
+        Switches the current S3 bucket to the specified bucket name.
+
+        This method updates the credentials or settings related to the
+        new specified S3 bucket.
+
+        :param bucket: The name of the S3 bucket to switch to.
+        """
+        self._set_s3_credentials(bucket=bucket)
+
+    def _set_s3_credentials(self, bucket: str) -> None:
+        """
+        Sets the S3 credentials based on the specified bucket name. This method checks the validity
+        of the bucket against the predefined WEED buckets and retrieves necessary credentials to
+        interact with the corresponding S3 service. It also reinitializes the S3 client if it is already
+        initialized to ensure it uses the new credentials.
+
+        :param bucket: The name of the S3 bucket to set credentials for. Must be part of the WEED project.
+        :raises Exception: If the specified bucket does not exist in the WEED project.
+        """
+        # check
+        if not bucket.lower() in WEED_BUCKETS:
+            raise Exception('the specified bucket does not currently exist in the WEED project.')
+
+        s3_vito_vault = string_to_dict(self.credentials['S3-auth'])
+
+        # based on bucket we set variables.
+        bucket = s3_vito_vault['buckets'][bucket.lower()]
+
+        self.s3_credentials = {
+            "AWS_ACCESS_KEY_ID": s3_vito_vault['AWS_ACCESS_KEY_ID'],
+            "AWS_SECRET_ACCESS_KEY": s3_vito_vault['AWS_SECRET_ACCESS_KEY'],
+            "s3_endpoint": s3_vito_vault['s3_endpoint'],
+            "bucket_name": bucket['bucket_name'],
+            "export_workspace": bucket['export_workspace']
+        }
         self.s3_bucket = self.s3_credentials['bucket_name']
+        self.export_workspace = self.s3_credentials['export_workspace']
+
+        # re-init the s3_client if needed
+        if self.s3_client is not None:
+            self.s3_client.close()
+            self._init_boto3()
 
     def _get_credentials(self) -> Dict[str, str]:
         """
@@ -553,4 +645,3 @@ def _possible_partsizes(filesize: int, num_parts: int) -> callable:
         whether the given part size satisfies the conditions for dividing the file.
     """
     return lambda partsize: partsize < filesize and (float(filesize) / float(partsize)) <= num_parts
-

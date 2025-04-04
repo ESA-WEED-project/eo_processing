@@ -18,4 +18,5 @@ storage_option_format = TypedDict('storage_option_format', {'workspace_export': 
 s3_credentials_format = TypedDict('s3_credentials_format', {'s3_access_key': str,
                                                             's3_secret_key': str,
                                                             's3_endpoint': str,
-                                                            'bucket_name': str})
+                                                            'bucket_name': str,
+                                                            'export_workspace': str})

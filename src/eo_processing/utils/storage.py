@@ -142,7 +142,7 @@ class storage:
 
         :return: The name of the S3 bucket as a string.
         """
-        return self.s3_bucket
+        return (self.s3_bucket).split('-')[0]
 
     def get_s3_content(self, s3_directory: str) -> Dict:
         """

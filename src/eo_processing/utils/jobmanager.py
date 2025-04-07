@@ -765,8 +765,8 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
     :return: A GeoDataFrame containing the input data along with additional columns tailored to the specified processing type.
     """
 
-    columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix',
-               'organization_id', 's2_tileid_list','export_workspace','geometry']
+    columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date','export_workspace',
+               's3_prefix', 'organization_id', 's2_tileid_list']
     dtypes = {'name': 'string', 'tileID': 'string', 'target_epsg': 'UInt16',
               'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string', 's3_prefix': 'string',
               'geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16','s2_tileid_list':'string',
@@ -836,13 +836,13 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
         job_df['model_urls'] = [model_urls] * len(job_df)
         job_df['output_band_names'] = [output_band_names] * len(job_df)
         #update dtypes dict
-        columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix',
-                   'organization_id', 'model_urls', 'output_band_names', 's2_tileid_list', 'geometry']
+        columns.extend(['model_urls','output_band_names'])
         dtypes.update({'model_urls':'string','output_band_names':'string'})
     else:
         logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. If needed, extended the function"+
                      f" for specific options for processing_type {processing_type}")
 
+    columns.append('geometry')
 
 
     return job_df[columns].astype(dtypes)

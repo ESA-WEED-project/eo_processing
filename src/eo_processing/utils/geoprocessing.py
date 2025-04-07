@@ -129,6 +129,7 @@ def AOI_tiler(AOI: Union[gpd.GeoDataFrame, openEO_bbox_format, geojson.GeoJSON, 
             grid_path = importlib_resources.files(eo_processing.resources).joinpath('LAEA-20km_add-info.gpkg')
             tiling_grid_gdf = gpd.read_file(os.path.normpath(grid_path), bbox=total_bbox)
         elif tiling_grid == 'global':
+            from eo_processing.utils.storage import WEED_storage
             if isinstance(storage, WEED_storage):
                 # load
                 tiling_grid_gdf = storage.get_gdrive_gdf('global_terrestrial_UTM20k_grid_v2.gpkg',

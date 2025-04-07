@@ -188,7 +188,8 @@ def extract_S2_datacube(
         if len(s2_tileid_list) == 1:
             properties= {"tileId": lambda tile_id: tile_id==s2_tileid_list[0]}
         else:
-            properties = {"tileId": lambda tile_id: array_contains(s2_tileid_list, tile_id)}
+            pass
+            #properties = {"tileId": lambda tile_id: array_contains(s2_tileid_list, tile_id)}
 
     # request the needed datacube
     bands = connection.load_collection(

@@ -766,10 +766,10 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
     """
 
     columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix',
-               'organization_id', 'geometry']
+               'organization_id', 's2_tileid_list','geometry']
     dtypes = {'name': 'string', 'tileID': 'string', 'target_epsg': 'UInt16',
               'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string',
-              's3_prefix': 'string','geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16'}
+              's3_prefix': 'string','geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16','s2_tileid_list':'string'}
 
     job_df = gdf.copy()
 
@@ -778,6 +778,12 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
         tile_col = 'grid20id'
     else:
         tile_col = 'name'
+
+    if 's2_tileid_list' in job_df.columns:
+        #we know we need to split this string into list
+        job_df['s2_tileid_list'] = job_df.apply(lambda row : row['s2_tileid_list'].split(','), axis =1)
+    else :
+        job_df['s2_tileid_list'] = None
 
     # the time context is given by start and end date
     job_df['start_date'] = f'{year}-01-01'
@@ -828,7 +834,7 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
         job_df['output_band_names'] = [output_band_names] * len(job_df)
         #update dtypes dict
         columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix',
-                   'organization_id', 'model_urls', 'output_band_names', 'geometry']
+                   'organization_id', 'model_urls', 'output_band_names', 's2_tileid_list', 'geometry']
         dtypes.update({'model_urls':'string','output_band_names':'string'})
     else:
         logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. If needed, extended the function"+

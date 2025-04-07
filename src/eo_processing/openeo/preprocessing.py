@@ -1,5 +1,5 @@
 from __future__ import annotations
-from openeo.processes import array_create, if_, is_nodata, power
+from openeo.processes import array_create, if_, is_nodata, power, array_contains
 from openeo.rest.datacube import DataCube
 
 from eo_processing.openeo.masking import scl_mask_erode_dilate
@@ -172,6 +172,7 @@ def extract_S2_datacube(
     ts_interval = processing_options.get("ts_interval", None)
     ts_interpolation = processing_options.get("time_interpolation", False)
     masking = processing_options.get("SLC_masking_algo", None)
+    s2_tileid_list = processing_options.get("s2_tileid_list", None)
 
     # check if the masking parameter is valid
     if masking not in ['satio', 'mask_scl_dilation', None]:
@@ -182,13 +183,21 @@ def extract_S2_datacube(
         # S2URL creo only accepts request in EPSG:4326
         catalogue_check_S2(start, end, bbox)
 
+    #create filter for S2 tiles to limit amount of overlapping S2 input data
+    if s2_tileid_list:
+        if len(s2_tileid_list) == 1:
+            properties= {"tileId": lambda tile_id: tile_id==s2_tileid_list[0]}
+        else:
+            properties = {"tileId": lambda tile_id: array_contains(s2_tileid_list, tile_id)}
+
     # request the needed datacube
     bands = connection.load_collection(
         S2_collection,
         bands=S2_bands,
         spatial_extent=bbox,
         temporal_extent=[start, end],
-        max_cloud_cover=95
+        max_cloud_cover=95,
+        properties=properties
     )
 
     # warp and/or resample if needed

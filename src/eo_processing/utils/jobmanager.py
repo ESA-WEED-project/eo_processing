@@ -268,7 +268,7 @@ class WeedJobManager(MultiBackendJobManager):
 
             else :
                 s3_client = self.storage_options["WEED_storage"].get_s3_client()
-                bucket_name= self.storage_options["WEED_storage"].s3_bucket()
+                bucket_name= self.storage_options["WEED_storage"].get_s3_bucket_name()
                 s3_client.download_file(bucket_name, os.path.join(S3_prefix,f"timeseries.{file_ext}"),
                                         job_dir / f"{title}.{file_ext}")
 
@@ -766,10 +766,11 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
     """
 
     columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix',
-               'organization_id', 's2_tileid_list','geometry']
+               'organization_id', 's2_tileid_list','export_workspace','geometry']
     dtypes = {'name': 'string', 'tileID': 'string', 'target_epsg': 'UInt16',
-              'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string',
-              's3_prefix': 'string','geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16','s2_tileid_list':'string'}
+              'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string', 's3_prefix': 'string',
+              'geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16','s2_tileid_list':'string',
+              'export_workspace':'string'}
 
     job_df = gdf.copy()
 
@@ -803,8 +804,10 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
     # set the s3_prefix which is needed for the path to S3 storage relative to bucket if we export
     if storage_options:
         job_df['s3_prefix'] = storage_options.get('S3_prefix', None)
+        job_df['export_workspace'] = storage_options['WEED_storage'].get_export_workspace()
     else:
         job_df['s3_prefix'] = None
+        job_df['export_workspace'] = None
 
     # a fix since the "name" column has to be unique
     job_df['tileID'] = job_df[tile_col].copy()

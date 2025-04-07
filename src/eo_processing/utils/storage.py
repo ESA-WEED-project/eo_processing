@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from pydrive2.fs import GDriveFileSystem
 import hvac
 from getpass import getpass
@@ -7,6 +8,7 @@ from typing import Union, Dict, Tuple, List, Optional, TYPE_CHECKING
 import geopandas as gpd
 import os
 import boto3
+from botocore.exceptions import ClientError
 import time
 from eo_processing.utils.helper import string_to_dict
 from hashlib import md5
@@ -98,10 +100,17 @@ class storage:
         if any(value is None for value in self.s3_credentials.values()):
             raise KeyError('Missing required S3 credentials. Please ini storage object correctly.')
 
+        # TODO: bugfix to overcome the boto3 checksum errors for upload and download
+        from botocore.config import Config
+        config = Config(
+            request_checksum_calculation='WHEN_REQUIRED',
+            response_checksum_validation='WHEN_REQUIRED')
+
         session = boto3.session.Session()
         try:
             self.s3_client = session.client(
                 service_name='s3',
+                config=config,
                 endpoint_url=self.s3_credentials['s3_endpoint'],
                 aws_access_key_id=self.s3_credentials['AWS_ACCESS_KEY_ID'],
                 aws_secret_access_key=self.s3_credentials['AWS_SECRET_ACCESS_KEY']
@@ -142,34 +151,51 @@ class storage:
 
         :return: The name of the S3 bucket as a string.
         """
-        return (self.s3_bucket).split('-')[0]
+        return self.s3_bucket
 
-    def get_s3_content(self, s3_directory: str) -> Dict:
+    def get_s3_content(self, s3_directory: str, recursive: bool = True) -> List:
         """
-        Retrieve a list of objects from an S3 bucket directory.
+        Retrieves the contents of a specified S3 directory from an S3 bucket.
 
-        This function connects to an Amazon S3 bucket and retrieves a list of objects
-        from a specified directory within the bucket. If the S3 client has not
-        been initialized, it is initialized before performing the operation. The
-        retrieval handles paginated responses from Amazon S3 and combines the results
-        into a single list before returning it.
+        This method interacts with the AWS S3 service using the Boto3 library to list
+        objects within a given S3 directory. It allows for optional recursive listing,
+        and leverages pagination to fetch all available objects when the number exceeds
+        the maximum allowed by S3 in a single request.
 
-        :param s3_directory: The directory path within the S3 bucket to retrieve the
-            objects from.
-        :return: A list of objects representing the contents of the specified S3
-            directory.
+        :param s3_directory: The prefix (directory) in the S3 bucket to list objects from.
+        :param recursive: A boolean flag that determines if the listing is recursive.
+            Defaults to True.
+        :raises TypeError: If the s3_client or s3_bucket attribute has not been
+            properly initialized.
+        :returns: A dictionary containing details for the objects found in the
+            specified directory.
         """
         if self.s3_client is None:
             self._init_boto3()
 
+        # do some checks to get the s3_prefix right
+        if not s3_directory:
+            s3_prefix = ''
+        else:
+            s3_prefix = s3_directory if s3_directory.endswith('/') else f"{s3_directory}/"
+
         result = []
         continuation_token = None
+
         while True:
-            list_kwargs = dict(MaxKeys=1000, Bucket=self.s3_bucket, Prefix=s3_directory)
+            list_kwargs = dict(
+                MaxKeys=1000,
+                Bucket=self.s3_bucket,
+                Prefix=s3_prefix
+            )
+            if not recursive:
+                list_kwargs['Delimiter'] = '/'
+
             if continuation_token:
                 list_kwargs['ContinuationToken'] = continuation_token
             response = self.s3_client.list_objects_v2(**list_kwargs)
-            result = result + response.get('Contents', [])
+            result.extend(response.get('Contents', []))
+
             if not response.get('IsTruncated'):  # At the end of the list?
                 break
             continuation_token = response.get('NextContinuationToken')
@@ -231,39 +257,48 @@ class storage:
             else:
                 raise Exception('Copying data from S3 failed: ' + str(self.s3_bucket + '/' + s3_objects))
 
-    def get_file_urls(self, s3_directory: str = 'models', extension: str = '.onnx') -> List[str]:
+    def get_file_urls(self, s3_directory: str = 'models', extension: str = '.onnx',
+                      recursive: bool = True) -> List[str]:
         """
-        Retrieves the full URLs of files in the specified S3 directory that match the given
-        file extension. The URLs are constructed using the base URL derived from S3 credentials
-        and bucket information along with file keys.
+        Generate a list of complete S3 file URLs based on specified filters.
 
-        :param s3_directory: The directory in the S3 storage to search for files.
-        :param extension: The file extension to filter the files.
-        :return: A list of URLs for the files matching the specified directory and
-                 extension.
+        Constructs and returns URLs for files stored in an S3 bucket that match the
+        specified directory, file extension, and recursion option.
+
+        :param s3_directory: Directory within the S3 bucket to filter files from.
+            Defaults to 'models'.
+        :param extension: File extension to filter by. Defaults to '.onnx'.
+        :param recursive: Flag indicating whether to include files from subdirectories. If True, the method
+            will recursively search inside subdirectories. Default is True
+        :return: A list of file URLs matching the specified filters.
         """
         # get all filtered file_keys
-        file_keys = self.get_file_keys(s3_directory, extension)
+        file_keys = self.get_file_keys(s3_directory, extension, recursive=recursive)
 
         # define the base URL to the specified S3 Model storage
         base_url = f"{self.s3_credentials['s3_endpoint']}/swift/v1/{self.s3_bucket}/"
 
         return [f"{base_url}{element}" for element in file_keys]
 
-    def get_file_keys(self, s3_directory: str = 'results', extension: str = '.tif') -> List[str]:
+    def get_file_keys(self, s3_directory: str = 'results', extension: str = '.tif',
+                      recursive: bool = True) -> List[str]:
         """
-        Retrieve a list of file keys from a specified S3 directory.
+        Retrieve a list of file keys from a specified S3 directory filtered by file extension.
 
-        This method retrieves all objects within a given directory of an S3 bucket and filters
-        the results based on the specified file extension. If no files match the criteria,
-        an empty list is returned.
+        This method interacts with an S3 bucket to retrieve the keys (file paths) for all objects in a specific directory.
+        You can filter the results by file extension and also choose to include subdirectories in the search.
 
-        :param s3_directory: The directory within the S3 bucket to search for files. Defaults to 'results'.
-        :param extension: The file extension used to filter the results. Defaults to '.tif'.
-        :return: A list of file keys within the directory that match the specified extension.
+        :param s3_directory: The target directory in the S3 bucket from which to retrieve file keys.
+            By default, this is set to 'results'.
+        :param extension: The file extension to filter the keys. Only objects with keys that end with this
+            extension will be included in the result. Default is '.tif'.
+        :param recursive: Flag indicating whether to include files from subdirectories. If True, the method
+            will recursively search inside subdirectories. Default is True.
+        :return: A list of strings representing the keys of files in the specified S3 folder that match
+            the given extension.
         """
         # get all content of the model subfolder in the bucket
-        response = self.get_s3_content(s3_directory)
+        response = self.get_s3_content(s3_directory, recursive=recursive)
 
         if not response:
             print('No files found in the selected folder with the given extension.')
@@ -272,18 +307,24 @@ class storage:
         return [obj['Key'] for obj in response if obj['Key'].endswith(extension)]
 
     def download_file_key(self, s3_object_key: str, temp_folder: str,
-                          progress_bar: bool = False, etag_check: bool = False) -> str:
+                          progress_bar: bool = False, etag_check: bool = False, exist_check: bool = False) -> str:
         """
-        Download a file from an S3 bucket using the specified S3 object key and save it to a local
-        temporary folder. Optionally supports a progress bar during download and ETag verification
-        for ensuring file integrity.
+        Downloads a file from an S3 bucket using the given `s3_object_key` and saves it to the specified
+        temporary folder. Optionally, it can show a progress bar, perform an ETag check to ensure data
+        integrity, and check if the file already exists to skip download.
 
-        :param s3_object_key: The key (path) of the object in the S3 bucket to download. Must be a string.
-        :param temp_folder: The local folder where the file should be saved. Must be a string.
-        :param progress_bar: Indicates whether to display a progress bar during download. Defaults to False.
-        :param etag_check: If True, performs an ETag check after downloading to verify file integrity.
-            Defaults to False.
-        :return: The local file path where the downloaded file is saved.
+        The purpose of this method is to provide an efficient and secure way to download an S3 object,
+        along with options for verifying file integrity and handling existing files.
+
+        :param s3_object_key: The key of the S3 object to be downloaded. Must be a string.
+        :param temp_folder: The temporary folder where the file will be saved.
+        :param progress_bar: Whether to display a progress bar during the download. Defaults to False.
+        :param etag_check: Whether to perform an ETag validation check after downloading. Defaults to False.
+        :param exist_check: Whether to skip the download if the file already exists locally. Defaults to False.
+        :raises TypeError: If `s3_object_key` is not a string.
+        :raises Exception: If the S3 object does not exist or if the ETag check fails.
+        :raises FileExistsError: If an error occurs during the file download process.
+        :returns: The local file path where the S3 object was saved.
         """
         if self.s3_client is None:
             self._init_boto3()
@@ -291,18 +332,31 @@ class storage:
         if not isinstance(s3_object_key, str):
             raise TypeError("s3_object_key must be a string. One single s3_file_key.")
 
+        if not self.s3_object_exists(s3_object_key):
+            raise Exception(f"File with key {s3_object_key} does not exist in S3 bucket {self.s3_bucket}.")
+
         os.makedirs(os.path.normpath(temp_folder), exist_ok=True)
 
         # Local path to save the file
         local_file_path = os.path.join(os.path.normpath(temp_folder), os.path.basename(s3_object_key))
 
+        # check if download is already existing
+        if exist_check:
+            if os.path.exists(local_file_path):
+                print('File already exists. Skipping download.')
+                if etag_check:
+                    if not self.evaluate_etag(local_file_path, s3_object_key):
+                        raise Exception('The downloaded file does not match the ETag of the S3 object.')
+
+                return local_file_path
+        # download file
         try:
             if progress_bar:
                 total_size = self.s3_client.head_object(Bucket=self.s3_bucket, Key=s3_object_key)['ContentLength']
-
-                with open(local_file_path, 'wb') as f:
-                    self.s3_client.download_fileobj(self.s3_bucket, s3_object_key, f,
-                                               Callback=ProgressPercentage(s3_object_key, total_size))
+                self.s3_client.download_file(
+                    self.s3_bucket, s3_object_key, local_file_path,
+                    Callback=ProgressPercentage(s3_object_key, total_size)
+                )
             else:
                 self.s3_client.download_file(self.s3_bucket, s3_object_key, local_file_path)
         except Exception as e:
@@ -313,6 +367,115 @@ class storage:
                 raise Exception('The downloaded file does not match the ETag of the S3 object.')
 
         return local_file_path
+
+    def upload_file_to_s3(self, local_file_path: str, s3_prefix: str = '',
+                          progress_bar: bool = False, etag_check: bool = False, exist_check: bool = False) -> str:
+        """
+        Uploads a local file to an S3 bucket. The method checks for the file's existence locally
+        before attempting to upload to the specified S3 prefix. Supports options to display a
+        progress bar during upload, check for existence of the file on S3, and validate the
+        uploaded file using an ETag verification mechanism.
+
+        :param local_file_path: A string representing the local path of the file to be uploaded.
+            Must be a valid path to an existing file.
+        :param s3_prefix: A string representing the prefix/directory on the S3 bucket where
+            the file should be uploaded. Defaults to an empty string.
+        :param progress_bar: A boolean indicating whether to display the progress bar during
+            the upload process. Defaults to False.
+        :param etag_check: A boolean indicating whether to perform an ETag checksum comparison
+            between the uploaded file and the local file to validate data integrity. Defaults to False.
+        :param exist_check: A boolean indicating whether to skip the upload if the file already exists
+            on the S3 bucket with the same key. Defaults to False.
+
+        :return: A string representing the S3 object key of the uploaded file.
+        """
+        if self.s3_client is None:
+            self._init_boto3()
+
+        if not os.path.exists(os.path.normpath(local_file_path)):
+            raise FileNotFoundError(f"File {local_file_path} does not exist.")
+
+        s3_object_key = f"{s3_prefix}/{os.path.basename(local_file_path)}".strip('/')
+
+        # check if we can avoid upload
+        if exist_check:
+            if self.s3_object_exists(s3_object_key):
+                print(f"File with key {s3_object_key} already exists. Skipping upload.")
+                if etag_check:
+                    if not self.evaluate_etag(local_file_path, s3_object_key):
+                        raise Exception('The uploaded file does not match the MDF5 of the local file.')
+                return s3_object_key
+        # upload file
+        try:
+            if progress_bar:
+                total_size = os.path.getsize(os.path.normpath(local_file_path))
+                self.s3_client.upload_file(
+                    local_file_path, self.s3_bucket, s3_object_key,
+                    Callback=ProgressPercentage(s3_object_key, total_size, 'uploading')
+                )
+            else:
+                self.s3_client.upload_file(local_file_path, self.s3_bucket, s3_object_key)
+        except Exception as e:
+            print(f"Error uploading file to S3: {e}")
+
+        if etag_check:
+            if not self.evaluate_etag(local_file_path, s3_object_key):
+                raise Exception('The uploaded file does not match the MDF5 of the local file.')
+
+        return s3_object_key
+
+    def s3_object_exists(self, s3_object_key: str) -> bool:
+        """
+        Checks if an S3 object exists in the specified bucket. This function determines
+        whether a specific object key is present by performing a metadata lookup through
+        the head_object method. It handles scenarios where the object does not exist or
+        when other errors occur, such as access denial.
+
+        :param s3_object_key: The key of the object to check in the S3 bucket.
+        :return: True if the object exists, False if it does not.
+        :raises Exception: If an error occurs other than the object not existing, such as access
+        denial or bucket misconfiguration.
+        """
+        if self.s3_client is None:
+            self._init_boto3()
+
+        try:
+            # Check object metadata using head_object
+            self.s3_client.head_object(Bucket=self.s3_bucket, Key=s3_object_key)
+            return True  # Key exists
+        except ClientError as e:
+            # Object does not exist (or another error has occurred)
+            if e.response['Error']['Code'] == '404':
+                return False  # Key does not exist
+            else:
+                # Raise exception for other errors (e.g., access denied or bucket not found)
+                raise Exception(f"Failed to check if object exists: {e}")
+
+    def delete_file_key(self, s3_object_key: str) -> bool:
+        """
+        Deletes a file from an S3 bucket with the specified object key.
+
+        This method initializes the S3 client if it is not already initialized, validates
+        the type of the `s3_object_key` parameter, and attempts to delete the object
+        associated with the provided key from the S3 bucket. Errors during the
+        deletion process are logged to the console.
+
+        :param s3_object_key: The key (identifier) of the file in the S3 bucket that is
+                              targeted for deletion.
+        """
+        if not isinstance(s3_object_key, str):
+            raise TypeError("s3_object_key must be a string. One single s3_file_key.")
+
+        if self.s3_object_exists(s3_object_key):
+            try:
+                self.s3_client.delete_object(Bucket=self.s3_bucket, Key=s3_object_key)
+                return True
+            except Exception as e:
+                print(f"Error deleting file from S3: {e}")
+                return False
+        else:
+            print(f"File with key {s3_object_key} does not exist in S3 bucket {self.s3_bucket}.")
+            return False
 
     def get_etag(self, s3_object_key: str) -> str:
         """
@@ -565,27 +728,47 @@ class WEED_storage(storage):
 
 class ProgressPercentage:
     """
-    Tracks the progress of a download and displays a progress bar via the tqdm library.
+    Class to track and display the progress of file operations.
 
-    This class is designed to monitor the amount of data downloaded for a given file and
-    update a tqdm-based progress bar accordingly. It is callable, meaning that an
-    instance of the class can be called with the amount of bytes downloaded to update progress.
+    This class is designed to handle progress tracking and display for
+    file operations such as downloading or uploading. The progress is
+    updated based on the amount of bytes processed, and a progress bar
+    is displayed to provide a visual representation of the operation.
 
-    :ivar filename: The name of the file being downloaded.
-    :ivar _total_size: The total size of the file being downloaded in bytes.
-    :ivar _downloaded: The amount of bytes downloaded so far.
-    :ivar _progress_bar: The tqdm progress bar instance for displaying download progress.
+    Attributes:
+    filename: str
+        The name of the file being processed.
+    _total_size: int
+        The total size of the file in bytes.
+    _progress: int
+        The current number of bytes processed.
+    _progress_bar:
+        The progress bar instance used for visual display.
     """
-    def __init__(self, filename, total_size):
+    def __init__(self, filename: str, total_size: int, way: str = 'downloading'):
+        """
+        Initializes an instance of a class designed to handle and visually track the progress of a task,
+        such as downloading a file, using a progress bar.
+
+        :param filename: The name of the file that is being processed.
+        :param total_size: The total size of the file or task to track progress for.
+        :param way: A description of the action being performed (e.g., 'downloading').
+        """
         self.filename = filename
         self._total_size = total_size
-        self._downloaded = 0
-        self._progress_bar = tqdm(total=total_size, unit='B', unit_scale=True, desc=f"Downloading {self.filename}")
+        self._progress = 0
+        self._progress_bar = tqdm(total=total_size, unit='B', unit_scale=True, desc=f"{way} {self.filename}")
 
     def __call__(self, bytes_amount):
-        self._downloaded += bytes_amount
+        """
+        Update the progress bar with the given number of bytes and close it if the total size
+        has been reached or exceeded.
+
+        :param bytes_amount: The number of bytes to add to the current progress.
+        """
+        self._progress += bytes_amount
         self._progress_bar.update(bytes_amount)
-        if self._downloaded >= self._total_size:
+        if self._progress >= self._total_size:
             self._progress_bar.close()
 
 

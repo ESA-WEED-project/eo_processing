@@ -184,11 +184,13 @@ def extract_S2_datacube(
         catalogue_check_S2(start, end, bbox)
 
     #create filter for S2 tiles to limit amount of overlapping S2 input data
+    properties = None
+
     if s2_tileid_list:
         if len(s2_tileid_list) == 1:
             properties= {"tileId": lambda tile_id: tile_id==s2_tileid_list[0]}
         else:
-            properties = None
+            pass
             #properties = {"tileId": lambda tile_id: array_contains(s2_tileid_list, tile_id)}
 
     # request the needed datacube

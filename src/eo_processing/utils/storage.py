@@ -521,23 +521,29 @@ class storage:
         # get etag of s3_file
         s3_etag = self.get_etag(s3_object_key)
 
-        # calculate etag of local downloaded file
+        # get file size of local file
         filesize = os.path.getsize(os.path.normpath(local_file_path))
+
+        # check if we have a chunked S3 file
         try:
             num_parts = int(s3_etag.split('-')[1])
         except IndexError:
-            print("The S3 ETag cannot be split into valid multipart format. Check can not be carried out.")
-            return False
+            num_parts = 1
 
-        partsizes = [  ## Default Partsizes Map
-            8388608,  # aws_cli/boto3
-            15728640,  # s3cmd
-            _factor_of_1MB(filesize, num_parts)  # Used by many clients to upload large files
-        ]
-
-        for partsize in filter(_possible_partsizes(filesize, num_parts), partsizes):
-            if s3_etag == _calc_etag(os.path.normpath(local_file_path), partsize):
+        # run etag generation for loacal file and comparison
+        if num_parts == 1:
+            if s3_etag == calculate_md5(os.path.normpath(local_file_path)):
                 return True
+        else:
+            partsizes = [  ## Default Partsizes Map
+                8388608,  # aws_cli/boto3
+                15728640,  # s3cmd
+                _factor_of_1MB(filesize, num_parts)  # Used by many clients to upload large files
+            ]
+
+            for partsize in filter(_possible_partsizes(filesize, num_parts), partsizes):
+                if s3_etag == _calc_etag(os.path.normpath(local_file_path), partsize):
+                    return True
 
         return False
 
@@ -810,6 +816,33 @@ def _calc_etag(inputfile: str, partsize: int) -> str:
         for chunk in iter(lambda: f.read(partsize), b''):
             md5_digests.append(md5(chunk).digest())
     return md5(b''.join(md5_digests)).hexdigest() + '-' + str(len(md5_digests))
+
+def calculate_md5(file_path, chunk_size=8192):
+    """
+    Calculate the MD5 checksum of a file.
+
+    This function reads the content of a file in chunks to efficiently compute
+    the MD5 hash without loading the entire file into memory. It is particularly
+    useful for working with large files.
+
+    :param file_path: The path to the file for which the MD5 checksum will be
+        calculated.
+    :param chunk_size: The size of the chunks to read from the file, in bytes.
+        The default value is 8192.
+    :return: The hexadecimal MD5 checksum of the file.
+    :raises FileNotFoundError: If the specified file does not exist.
+    :raises RuntimeError: If any other error occurs while calculating the MD5 checksum.
+    """
+    md = md5()
+    try:
+        with open(file_path, 'rb') as f:
+            while chunk := f.read(chunk_size):  # Read file in chunks
+                md.update(chunk)
+        return md.hexdigest()
+    except FileNotFoundError:
+        raise FileNotFoundError(f"The file {file_path} does not exist.")
+    except Exception as e:
+        raise RuntimeError(f"An error occurred while calculating MD5: {str(e)}")
 
 def _possible_partsizes(filesize: int, num_parts: int) -> callable:
     """

@@ -102,11 +102,17 @@ def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> Tuple[ort.
         # Extract metadata
         model_meta = ort_session.get_modelmeta()
 
-        input_features = model_meta.custom_metadata_map.get("input_features", "").split(",")
-        input_features = [band.strip() for band in input_features]
+        input_features = model_meta.custom_metadata_map.get("input_features", "")
+        if input_features:
+            if input_features.startswith('"') and input_features.endswith('"'):
+                input_features = input_features[1:-1]
+        input_features = [band.strip() for band in input_features.split(",")]
 
-        output_features = model_meta.custom_metadata_map.get("output_features", "").split(",")
-        output_features = [band.strip() for band in output_features]
+        output_features = model_meta.custom_metadata_map.get("output_features", "")
+        if output_features:
+            if output_features.startswith('"') and output_features.endswith('"'):
+                output_features = output_features[1:-1]
+        output_features = [band.strip() for band in output_features.split(",")]
 
         metadata = {
             "input_features": input_features,

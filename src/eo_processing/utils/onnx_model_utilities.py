@@ -202,8 +202,16 @@ def extract_features_from_onnx(onnx_model_path: str) -> Dict[str, List[str]]:
     input_features = metadata.get('input_features', '')
     output_features = metadata.get('output_features', '')
 
-    input_features_list = input_features.split(', ') if input_features else []
-    output_features_list = output_features.split(', ') if output_features else []
+    if input_features:
+        if input_features.startswith('"') and input_features.endswith('"'):
+            input_features = input_features[1:-1]
+
+    if output_features:
+        if output_features.startswith('"') and output_features.endswith('"'):
+            output_features = output_features[1:-1]
+
+    input_features_list = [feat.strip() for feat in input_features.split(',')] if input_features else []
+    output_features_list = [feat.strip() for feat in output_features.split(',')] if output_features else []
 
     # Log if no features found in metadata
     if not input_features_list:

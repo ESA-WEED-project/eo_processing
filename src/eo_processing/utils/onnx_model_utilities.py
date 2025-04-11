@@ -1,9 +1,9 @@
 #%%
+import json
 import os
 import onnx
 from onnx import StringStringEntryProto
 from catboost import CatBoostClassifier
-from openeo.udf import inspect
 from eo_processing.utils.external_dependency_utilities import download_file
 from typing import List, Optional, Dict
 
@@ -25,7 +25,7 @@ def load_catboost_model(catboost_model_path: str) -> CatBoostClassifier:
     model = CatBoostClassifier()
     try:
         model.load_model(catboost_model_path, format="cbm")
-        inspect(message=f"Model loaded from {catboost_model_path}")
+        print(f"Model loaded from {catboost_model_path}")
         return model
     except Exception as e:
         raise ValueError(f"Failed to load CatBoost model from {catboost_model_path}: {e}")
@@ -47,83 +47,120 @@ def save_model_to_onnx(model: CatBoostClassifier, output_onnx_path: str) -> None
     :raises ValueError: If the model fails to save to ONNX format.
     """
     try:
-        model.save_model(output_onnx_path, format="onnx")
-        inspect(message=f"Model saved to ONNX format at {output_onnx_path}")
+        model.save_model(output_onnx_path,
+                         format="onnx",
+                         export_parameters={
+                             "onnx_domain": "ai.catboost",
+                             "onnx_model_version": 1,
+                             "onnx_doc_string": "CatBoost model in VITO's hierarchical habitat mapping framework.",
+                             "onnx_graph_name": os.path.splitext(os.path.basename(output_onnx_path))[0]
+                         })
+        print(f"Model saved to ONNX format: {os.path.basename(output_onnx_path)}")
     except Exception as e:
         raise ValueError(f"Failed to save model to ONNX format at {output_onnx_path}: {e}")
 
 def add_metadata_to_onnx(onnx_path: str, input_features: Optional[List] = None,
-                         output_features: Optional[List] = None) -> None:
+                         output_features: Optional[List] = None, add_metadata: Optional[Dict] = None) -> None:
     """
-    Adds metadata entries to an ONNX model and saves the updated model back to the same file.
+    Add metadata to an ONNX model file.
 
-    This function allows adding input and output features as metadata entries to an ONNX model.
-    The metadata is appended to the model's existing properties. If either input or output features
-    are provided, they are validated and added as metadata entries. The updated model is then saved
-    back to the provided ONNX file path.
+    This function injects metadata such as input features, output features, class
+    mappings, and any additional key-value pairs into the metadata properties of
+    an ONNX model. The metadata is saved back to the ONNX model file specified by
+    the user.
 
     :param onnx_path: The file path to the ONNX model to which metadata will be added.
-    :param input_features: A list of input feature names to be added as metadata.
-        Must be a non-empty list if provided.
-    :param output_features: A list of output feature names to be added as metadata.
-        Must be a non-empty list if provided.
-    :return: None
-    :raises ValueError: If the ONNX model cannot be loaded or saved, or if inputs/outputs
-        are not valid non-empty lists.
+    :param input_features: A list of input feature names to add as metadata. Each
+        item in the list must be a string.
+    :param output_features: A list of output feature names to add as metadata.
+        Each item in the list must be a string. The function also uses this for
+        creating a class mapping dictionary.
+    :param add_metadata: An optional dictionary containing additional key-value
+        metadata entries to add to the ONNX model.
+
+    :raises ValueError: If the ONNX model fails to load or save, if `input_features`
+        or `output_features` are invalid or not non-empty lists, or if `add_metadata`
+        is not a dictionary.
     """
     try:
         onnx_model = onnx.load(onnx_path)
-        inspect(message=f"Loaded ONNX model from {onnx_path}")
+        print(f"Reload ONNX model from {os.path.basename(onnx_path)} for metadata infusion")
     except Exception as e:
         raise ValueError(f"Failed to load ONNX model from {onnx_path}: {e}")
     
-    metadata_entries = []
+    metadata_entries: Dict = {}
 
-    # Validate and add input features
+    # Validate and add input feature names
     if input_features:
         if isinstance(input_features, list) and input_features:
             input_features_string = ', '.join(input_features)
-            metadata_entries.append(StringStringEntryProto(key='input_features', value=input_features_string))
+            metadata_entries.update(input_features = input_features_string)
         else:
             raise ValueError("Input features must be a non-empty list.")
 
-    # Validate and add output features (optional)
+    # Validate and add output band names bases on class_names (optional)
     if output_features:
         if isinstance(output_features, list) and output_features:
             output_features_string = ', '.join(output_features)
-            metadata_entries.append(StringStringEntryProto(key='output_features', value=output_features_string))
+            metadata_entries.update(output_features = output_features_string)
         else:
             raise ValueError("Output features must be a non-empty list.")
 
-    # Add new metadata
     if metadata_entries:
-        onnx_model.metadata_props.extend(metadata_entries)
-        inspect(message=f"Metadata added: input_features = {input_features}, output_features = {output_features}")
-    
+        print(f"Metadata added: input_features = {input_features}, \noutput_features = {output_features}")
+
+    # create also from the outbandnames the dict for the class_names encoder
+    class_dict = {}
+    for bname in output_features:
+        class_dict[int(bname.split('-')[-1])] = bname.split('-')[-2]
+
+    metadata_entries.update({
+        'class_names': class_dict,
+        'model_author': 'VITO',
+        'model_license': 'CC BY-NC-SA 4.0',
+    })
+
+    # add additional if exist
+    if add_metadata:
+        if isinstance(add_metadata, dict):
+            metadata_entries.update(add_metadata)
+        else:
+            raise ValueError("add_metadata must be a dict.")
+
+    # write metadata to ONNX model
+    for k,v in metadata_entries.items():
+        m = onnx_model.metadata_props.add()
+        m.key = k
+        m.value = json.dumps(v)
+
     try:
         onnx.save(onnx_model, onnx_path)
-        inspect(message=f"ONNX model with metadata saved to {onnx_path}")
+        print(f"ONNX model with metadata saved: {os.path.basename(onnx_path)}")
     except Exception as e:
         raise ValueError(f"Failed to save ONNX model with metadata at {onnx_path}: {e}")
 
 def convert_catboost_model_to_onnx_with_metadata(catboost_model_path: str,
                                                  input_features: Optional[List] = None,
                                                  output_features: Optional[List] = None,
-                                                 output_onnx_path: Optional[str] = None) -> None:
+                                                 output_onnx_path: Optional[str] = None,
+                                                 add_metadata: Optional[Dict] = None) -> None:
     """
-    Converts a CatBoost model to ONNX format and adds metadata for input/output features.
+    Convert a CatBoost model to ONNX format and optionally add metadata.
 
-    This function takes a trained CatBoost model stored on disk, converts it to the ONNX format,
-    and embeds metadata for the input and output features provided by the user. The resulting
-    ONNX model is saved at the specified or default output path. This makes it easier to
-    integrate the model into production pipelines with consistent feature specifications.
+    This function loads a pre-trained CatBoost model from the given path, converts it
+    to ONNX format, and saves it. Optionally, it allows adding metadata for input
+    and output features to the ONNX model.
 
-    :param catboost_model_path: Path to the trained CatBoost model to be converted to ONNX.
-    :param input_features: List of input feature names to include as metadata in the ONNX model.
-    :param output_features: Optional list of output feature names to include as metadata.
-    :param output_onnx_path: Optional path where the ONNX model with metadata will be saved.
-                             If not provided, a default path based on `catboost_model_path` is generated.
-    :return: None, as the function saves the converted ONNX model directly to the specified path.
+    :param catboost_model_path: Path to the CatBoost model file to be converted.
+    :param input_features: Optional list of input feature names to be added as ONNX
+        metadata.
+    :param output_features: Optional list of output feature names to be added as ONNX
+        metadata.
+    :param output_onnx_path: Optional path to save the converted ONNX model. If not
+        specified, a default ONNX filename will be created based on the CatBoost model
+        path.
+    :param add_metadata: Optional dictionary containing any additional metadata to be
+        added to the ONNX model.
     """
     
     # Step 1: Load the CatBoost model
@@ -136,9 +173,10 @@ def convert_catboost_model_to_onnx_with_metadata(catboost_model_path: str,
     save_model_to_onnx(model, output_onnx_path)
     
     # Step 3: Add input/output features metadata to the ONNX model
-    add_metadata_to_onnx(output_onnx_path, input_features=input_features, output_features=output_features)
+    add_metadata_to_onnx(output_onnx_path, input_features=input_features, output_features=output_features,
+                         add_metadata=add_metadata)
 
-    inspect(message="Model successfully converted and saved to ONNX format with input/output features in metadata.")
+    print("Model successfully converted and saved to ONNX format with input/output features in metadata.")
 
 def extract_features_from_onnx(onnx_model_path: str) -> Dict[str, List[str]]:
     """
@@ -205,7 +243,7 @@ def onnx_output_path(catboost_model_path: str) -> str:
     directory, file_name = os.path.split(catboost_model_path)
     new_file_name = file_name.replace('.cbm', '.onnx')
     output_onnx_path = os.path.join(directory, new_file_name)
-    inspect(message=f"ONNX output path generated: {output_onnx_path}")
+    print(f"ONNX output path generated: {output_onnx_path}")
     return output_onnx_path
 
 def get_training_features_from_model(url: str) -> Dict[str, List[str]]:
@@ -237,34 +275,25 @@ def get_training_features_from_model(url: str) -> Dict[str, List[str]]:
 
 def get_name_output_cube_features(model_urls: List[str]) -> List[str]:
     """
-    Processes cube features from a list of model URLs by extracting and renaming output features.
+    Extract output cube features from the given ONNX model URLs.
 
-    For each model URL, this function:
-    1. Extracts metadata using the `get_training_features_from_model` function.
-    2. Renames output features by prefixing them with the model name.
-    3. Flattens the resulting list of features into a single list.
+    This function processes a list of ONNX model URLs to extract output features
+    (band names) from their metadata. The metadata is fetched by utilizing the
+    `get_training_features_from_model` function, and the output features are
+    collected and accumulated into a single list.
 
-    :param model_urls: A list of URLs pointing to the ONNX models.
-    :return: A flattened list of renamed output features.
+    :param model_urls: A list of strings, where each string is the URL of an ONNX model.
+
+    :return: A list of strings representing the cube features (output features)
+        extracted from the ONNX models.
     """
     cube_features = []
 
     for model_url in model_urls:
+        # get needed input_features / output band_names from ONNX model
         metadata = get_training_features_from_model(model_url)
 
-        # Extract input and output features
-        input_features = metadata.get('input_features', [])
-        output_features = metadata.get('output_features', [])
+        # Extract output features and extend
+        cube_features.extend(metadata.get('output_features', []))
 
-        # Derive the model name from the URL
-        model_name = os.path.basename(model_url).split('.')[0]
-
-        # Rename the output features with the model name prefix
-        renamed_features = [f"{model_name}_{feature}" for feature in output_features]
-        
-        # Append renamed features to the cube list
-        cube_features.append(renamed_features)
-
-    # Flatten the list of lists
-    flattened_features = [item for sublist in cube_features for item in sublist]
-    return flattened_features
+    return cube_features

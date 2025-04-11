@@ -46,7 +46,7 @@ def download_file(url: str, max_file_size_mb: int = 100, cache_dir: str = '/tmp/
     file_path = os.path.join(cache_dir, file_name)
 
     if os.path.exists(file_path):
-        print(f"File {file_path} already exists in cache.")
+        inspect(message=f"File {file_path} already exists in cache.")
         return file_path
 
     try:
@@ -92,6 +92,7 @@ def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> Tuple[ort.
     """
     try:
         # Process the model file to ensure it's a valid ONNX model
+        inspect(message=f"downloading model file from {model_url}...")
         model_path = download_file(model_url, cache_dir=cache_dir)
 
         # Initialize the ONNX Runtime session
@@ -112,7 +113,7 @@ def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> Tuple[ort.
             "output_features": output_features,
         }
 
-        inspect(message=f"Successfully extracted features from model at {model_path}...")
+        inspect(message=f"Successfully extracted metadata from model at {model_path}...")
         return ort_session, metadata
 
     except Exception as e:
@@ -246,13 +247,16 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
         input_band = metadata['input_features']
 
         # Subset the data array using the selected indices
+        inspect(message=f"Subsetting the feature datacube by needed input features.")
         subsampled_data_array = cube.sel(bands=input_band)
 
         # preprocess input array to numpy array in correct shape
         input_np, input_shape = preprocess_input(subsampled_data_array, ort_session)
         # run inference
+        inspect(message=f"Running inference ...")
         probabilities_dicts = run_inference(input_np, ort_session)
         # post-process probabilities to correct shape and Byte dtype
+        inspect(message=f"Post-processing probabilities and converting to xarray DataArray...")
         probabilities = postprocess_output(probabilities_dicts, input_shape)
         # convert back to Xarray DataArray
         model_output_cube = create_output_xarray(probabilities, subsampled_data_array)

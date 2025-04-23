@@ -268,7 +268,7 @@ class WeedJobManager(MultiBackendJobManager):
 
             else :
                 s3_client = self.storage_options["WEED_storage"].get_s3_client()
-                bucket_name= self.storage_options["WEED_storage"].s3_bucket()
+                bucket_name= self.storage_options["WEED_storage"].get_s3_bucket_name()
                 s3_client.download_file(bucket_name, os.path.join(S3_prefix,f"timeseries.{file_ext}"),
                                         job_dir / f"{title}.{file_ext}")
 
@@ -765,11 +765,12 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
     :return: A GeoDataFrame containing the input data along with additional columns tailored to the specified processing type.
     """
 
-    columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix',
-               'organization_id', 'geometry']
+    columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date','export_workspace',
+               's3_prefix', 'organization_id', 's2_tileid_list']
     dtypes = {'name': 'string', 'tileID': 'string', 'target_epsg': 'UInt16',
-              'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string',
-              's3_prefix': 'string','geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16'}
+              'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string', 's3_prefix': 'string',
+              'geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16','s2_tileid_list':'string',
+              'export_workspace':'string'}
 
     job_df = gdf.copy()
 
@@ -778,6 +779,12 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
         tile_col = 'grid20id'
     else:
         tile_col = 'name'
+
+    if 's2_tileid_list' in job_df.columns:
+        #we know we need to split this string into list
+        job_df['s2_tileid_list'] = job_df.apply(lambda row : row['s2_tileid_list'].split(','), axis =1)
+    else :
+        job_df['s2_tileid_list'] = None
 
     # the time context is given by start and end date
     job_df['start_date'] = f'{year}-01-01'
@@ -797,8 +804,10 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
     # set the s3_prefix which is needed for the path to S3 storage relative to bucket if we export
     if storage_options:
         job_df['s3_prefix'] = storage_options.get('S3_prefix', None)
+        job_df['export_workspace'] = storage_options['WEED_storage'].get_export_workspace()
     else:
         job_df['s3_prefix'] = None
+        job_df['export_workspace'] = None
 
     # a fix since the "name" column has to be unique
     job_df['tileID'] = job_df[tile_col].copy()
@@ -827,13 +836,13 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
         job_df['model_urls'] = [model_urls] * len(job_df)
         job_df['output_band_names'] = [output_band_names] * len(job_df)
         #update dtypes dict
-        columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date', 's3_prefix',
-                   'organization_id', 'model_urls', 'output_band_names', 'geometry']
+        columns.extend(['model_urls','output_band_names'])
         dtypes.update({'model_urls':'string','output_band_names':'string'})
     else:
         logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. If needed, extended the function"+
                      f" for specific options for processing_type {processing_type}")
 
+    columns.append('geometry')
 
 
     return job_df[columns].astype(dtypes)

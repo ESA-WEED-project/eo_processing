@@ -42,6 +42,10 @@ S2_BANDS: list = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11",
         which reflectance bands to process of Sentinel-2. Note: requested VI's with reflectance bands not listed 
         will be not calculated & can lead to error message. 
 
+s2_tileid_list: list = None
+        if provided, this list contains tileIDs (eg ['31UFS']) which are used to limit the data to data from 
+        these tileIDs. This list can be None, multiple tiles or one tile with or without a wildcard (*).
+
 SLC_masking_algo: str = 'mask_scl_dilation'
         Masking method for Sentinel-2 optical data ('satio', 'mask_scl_dilation')
 

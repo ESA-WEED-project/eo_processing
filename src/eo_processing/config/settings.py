@@ -33,6 +33,7 @@ RADAR_LIST = ['VHVVD',
               'RVI']
 
 S2_SCALING = [0, 10000, 0, 1.0]
+S2_TILEID_LIST = None
 
 # ---------------------------------------------------
 # Job options for OpenEO
@@ -64,6 +65,7 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memoryOverhead": "5G",
     "driver-cores": "1",
     "executor-memory": "2000m",
+    "executor-memoryOverhead": "256m",
     "python-memory": "2500m",
     "executor-cores": "1",
     "max-executors": "25",
@@ -75,6 +77,7 @@ OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memoryOverhead": "1000m",
     "driver-cores": "1",
     "executor-memory": "1500m",
+    "executor-memoryOverhead": "256m",
     "executor-cores": "1",
     "max-executors": "20",
     "python-memory": "4000m",
@@ -89,6 +92,7 @@ OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memoryOverhead": "1G",
     "driver-cores": "1",
     "executor-memory": "2000m",
+    "executor-memoryOverhead": "256m",
     "python-memory": "2500m",
     "executor-cores": "1",
     "max-executors": "25",
@@ -100,6 +104,7 @@ OPENEO_CUBEEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memoryOverhead": "4G",
     "driver-cores": "1",
     "executor-memory": "2000m",
+    "executor-memoryOverhead": "256m",
     "python-memory": "2500m",
     "executor-cores": "1",
     "max-executors": "20",
@@ -244,7 +249,8 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
             "time_interpolation": TIME_INTERPOLATION,
             "ts_interval": TS_INTERVAL,
             "SLC_masking_algo": MASKING_ALGO,
-            "S2_bands": S2_BANDS   # we have to create a copy of the constant list
+            "S2_bands": S2_BANDS,   # we have to create a copy of the constant list
+            "s2_tileid_list": S2_TILEID_LIST
         }
     elif (task == 'feature_generation') or (task == 'vi_generation'):
         proc_opt = {
@@ -256,6 +262,7 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
             "ts_interval": TS_INTERVAL,
             "SLC_masking_algo": MASKING_ALGO,
             "S2_bands": S2_BANDS,
+            "s2_tileid_list": S2_TILEID_LIST,
             "optical_vi_list" : VI_LIST,
             "radar_vi_list" : RADAR_LIST,
             "S2_scaling" : S2_SCALING,
@@ -268,7 +275,8 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
 
 def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTION, target_crs: int = TARGET_CRS,
                          resolution: int | float = TARGET_RESOLUTION, ts_interpolation: bool = TIME_INTERPOLATION,
-                         ts_interval: str = TS_INTERVAL, slc_masking: str = MASKING_ALGO, S2_bands: List[str] = S2_BANDS,
+                         ts_interval: str = TS_INTERVAL, slc_masking: str = MASKING_ALGO,
+                         S2_bands: List[str] = S2_BANDS, s2_tileid_list: Optional[List[str]] = S2_TILEID_LIST,
                          optical_vi_list: List[str] = VI_LIST, radar_vi_list: List[str] = RADAR_LIST,
                          S2_scaling: List[int | float] = S2_SCALING, S1_db_rescale: bool = True,
                          append: bool = True) -> Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]:
@@ -290,6 +298,8 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
     :param slc_masking: Specifies the Sentinel-2 masking algorithm, with valid options such as
         'mask_scl_dilation', 'satio', or None.
     :param S2_bands: List of Sentinel-2 spectral bands to include in processing.
+    :param s2_tileid_list: Optional, List of Sentinel-2 tile identifiers to limit the processing to these tileIDs.
+         Can be None (no filter used at all) or a list with one tileID, one tileID with wild cards or multiple tileIDs).
     :param optical_vi_list: List of optical vegetation indices for retrieval.
     :param radar_vi_list: List of radar vegetation indices for retrieval.
     :param S2_scaling: List of scaling factors for Sentinel-2 bands, containing integer or float values.
@@ -321,6 +331,9 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
     if type(S2_bands) != list:
         raise ValueError(f'parameter for S2 reflectance bands must be an list.')
 
+    if s2_tileid_list and type(s2_tileid_list) != list:
+        raise ValueError(f'parameter for s2_tileid_list must be an list or None.')
+
     if type(optical_vi_list) != list:
         raise ValueError(f'parameter for optical_vi_list must be an list.')
 
@@ -345,6 +358,7 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
         "ts_interval": ts_interval,
         "SLC_masking_algo": slc_masking,
         "S2_bands": S2_bands,
+        "s2_tileid_list": s2_tileid_list,
         "optical_vi_list": optical_vi_list,
         "radar_vi_list": radar_vi_list,
         "S2_scaling": S2_scaling,

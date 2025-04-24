@@ -759,7 +759,7 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
     :param output_band_names: Optional list of band names required for specific processing types like
                               'eunis_habitat_probabilities'.
     :param storage_options: Optional dictionary containing storage configuration parameters. Expected to contain a key
-                            'S3_prefix', which specifies the storage path prefix.
+                            'S3_prefix', which specifies the storage path prefix PLUS the export_workspace name for S3 export.
     :param organization_id: Optional integer representing the organization ID; added to every row in the resulting GeoDataFrame.
 
     :return: A GeoDataFrame containing the input data along with additional columns tailored to the specified processing type.
@@ -829,20 +829,18 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
         job_df['file_prefix'] = job_df.apply(
             lambda row: f'{file_name_base}_{processing_type}-cube_year{year}_{row[tile_col]}{version}', axis=1)
 
-
-
-    if 'proba' in processing_type.lower():
+    if 'proba' in processing_type.lower(): # probability genration in inference
         # adding the model_urls and output_band_names (all the same for all tiles) for inference
         job_df['model_urls'] = [model_urls] * len(job_df)
         job_df['output_band_names'] = [output_band_names] * len(job_df)
         #update dtypes dict
         columns.extend(['model_urls','output_band_names'])
         dtypes.update({'model_urls':'string','output_band_names':'string'})
+    elif 'feature' in processing_type.lower(): # feature cube for point extraction or datacube generation
+        pass
     else:
-        logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. If needed, extended the function"+
-                     f" for specific options for processing_type {processing_type}")
+        logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. "
+                       f"If needed, extended the function for specific options for processing_type: {processing_type}")
 
     columns.append('geometry')
-
-
     return job_df[columns].astype(dtypes)

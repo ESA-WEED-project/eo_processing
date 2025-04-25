@@ -226,7 +226,8 @@ def extract_S2_datacube(
             bands=["SCL"],
             spatial_extent=bbox,
             temporal_extent=[start, end],
-            max_cloud_cover=95
+            max_cloud_cover=95,
+            properties=properties
         )
         # to avoid sub-pixel shift error we have to resample SCL mask if requested and not just trust mask process
         if target_crs is not None:

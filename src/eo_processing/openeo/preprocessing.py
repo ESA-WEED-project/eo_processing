@@ -61,6 +61,12 @@ def extract_S1_datacube(
     :return: DataCube
     """
     # evaluate additional processing options
+    if ("creo" in processing_options.get("provider", "").lower()) or \
+            (processing_options.get("provider", "").lower() == "cdse"):
+        catalogue_check = True
+    else:
+        catalogue_check = False
+
     isCreo = "creo" in processing_options.get("provider", "").lower()
     orbit_direction = processing_options.get('s1_orbitdirection', None)
     target_crs = processing_options.get("target_crs", None)
@@ -76,7 +82,7 @@ def extract_S1_datacube(
         flag_DEM = False
 
     # we have to check if enough data is available on creo platform
-    if isCreo:
+    if catalogue_check:
         orbit_direction = catalogue_check_S1(orbit_direction, start, end, bbox)
 
     # convert the orbit direction parameter into openEO property
@@ -165,7 +171,12 @@ def extract_S2_datacube(
     :return: DataCube
     """
     # evaluate additional processing_options
-    isCreo = "creo" in processing_options.get("provider", "").lower()
+    if ("creo" in processing_options.get("provider", "").lower()) or \
+            (processing_options.get("provider", "").lower() == "cdse"):
+        catalogue_check = True
+    else:
+        catalogue_check = False
+
     target_crs = processing_options.get("target_crs", None)
     target_res = processing_options.get("resolution", 10.)
     S2_bands = processing_options.get("S2_bands", S2_BANDS)
@@ -179,7 +190,7 @@ def extract_S2_datacube(
         raise ValueError(f'Unknown masking option `{masking}`')
 
     # we have to check if enough data is available on creo platform
-    if isCreo:
+    if catalogue_check:
         # S2URL creo only accepts request in EPSG:4326
         catalogue_check_S2(start, end, bbox)
 

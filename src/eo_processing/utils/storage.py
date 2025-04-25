@@ -306,6 +306,29 @@ class storage:
 
         return [obj['Key'] for obj in response if obj['Key'].endswith(extension)]
 
+    def convert_file_key_2_url(self, s3_object_key: str) -> str:
+        """
+        Converts an S3 object key into a complete URL using the provided S3 endpoint,
+        bucket, and object key. This method validates that the input is a string and
+        checks the existence of the object in the S3 bucket before constructing the URL.
+
+        :param s3_object_key: The unique identifier for the object stored in the S3 bucket.
+        :return: A string representing the complete URL of the S3 object.
+        :raises TypeError: If the provided `s3_object_key` is not a string.
+        :raises Exception: If the file with the given `s3_object_key` does not exist
+                           in the specified S3 bucket.
+        """
+        if not isinstance(s3_object_key, str):
+            raise TypeError("s3_object_key must be a string. One single s3_file_key.")
+
+        if not self.s3_object_exists(s3_object_key):
+            raise Exception(f"File with key {s3_object_key} does not exist in S3 bucket {self.s3_bucket}.")
+
+        # define the base URL to the specified S3 Model storage
+        base_url = f"{self.s3_credentials['s3_endpoint']}/swift/v1/{self.s3_bucket}/"
+
+        return f"{base_url}{s3_object_key}"
+
     def download_file_key(self, s3_object_key: str, temp_folder: str,
                           progress_bar: bool = False, etag_check: bool = False, exist_check: bool = False) -> str:
         """

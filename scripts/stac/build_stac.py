@@ -10,10 +10,10 @@ Build stac:
 2. Set environment variables to read s3 bucket
 3. Build stac
 4. Check if the collection is built or exists. This function also defined some parameters.
-5. Validate data using pystac validate_all functionality. And also check the input number of assets from stac builder and validate_all. 
+5. Validate data using pystac validate_all functionality. And also check the input number of assets from stac builder and validate_all.
 """
 
-from upath import UPath   # for s3 storage
+from upath import UPath  # for s3 storage
 from pystac import Collection
 from eo_processing.utils.stac import (
     get_datafrom_toml,

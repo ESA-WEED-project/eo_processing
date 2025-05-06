@@ -56,9 +56,7 @@ def set_s3bucket_env(data):
     s3bucket = data["s3bucket"]
     for key, value in s3bucket.items():
         if not value:
-            raise ValueError(
-                "No proper enviornmental variables defined to access s3bucket"
-            )
+            raise ValueError("No proper enviornmental variables defined to access s3bucket")
         else:
             print(key, value)
             environ[key] = value
@@ -124,9 +122,7 @@ def buildcollection_locally(data_input_path, configfile, filepattern, overwrite)
         output_path = Path(output_path).expanduser().absolute()
 
     # Define collector
-    collector = GeoTiffMetadataCollector.from_config(
-        collection_config=coll_cfg, file_coll_cfg=file_coll_cfg
-    )
+    collector = GeoTiffMetadataCollector.from_config(collection_config=coll_cfg, file_coll_cfg=file_coll_cfg)
 
     # create pipeline
     pipeline: AssetMetadataPipeline = AssetMetadataPipeline.from_config(
@@ -155,9 +151,7 @@ def check_collection(config):
     Returns:
             dict: Updated configuration data with collection path and JSON file.
     """
-    output_path = (
-        Path(config["weedstac"]["data"]["COLLECTIONNAME"]).expanduser().absolute()
-    )
+    output_path = Path(config["weedstac"]["data"]["COLLECTIONNAME"]).expanduser().absolute()
     if output_path.exists():
         collection_json = output_path / "collection.json"
         if not collection_json.exists():
@@ -243,13 +237,11 @@ def ingest_all_items(auth: BearerAuth, CATALOGUE_URL, coll_id: str, items_base: 
         if resp.ok:
             print(f"  ✓ {item_file.relative_to(items_base)}")
         else:
-            print(
-                f"  ✗ {item_file.relative_to(items_base)} → {resp.status_code} {resp.text}"
-            )
+            print(f"  ✗ {item_file.relative_to(items_base)} → {resp.status_code} {resp.text}")
 
 
 def delete_collection(auth: BearerAuth, url_collection: str):
-    """ Delete a collection from the catalogue.
+    """Delete a collection from the catalogue.
     Args:
         auth (BearerAuth): Bearer authentication object.
         url_collection (str): URL of the collection to be deleted.

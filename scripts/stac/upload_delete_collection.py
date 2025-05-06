@@ -11,7 +11,7 @@ follow first three steps before either creating or deleting a collection from th
 5. Delete the collection from the STAC server
 """
 
-from eo_processing.utils.ecdc_stac import (
+from eo_processing.utils.stac import (
     get_datafrom_toml,
     check_collection,
     get_bearer_auth,
@@ -21,17 +21,17 @@ from eo_processing.utils.ecdc_stac import (
 )
 
 # read input toml file
-data = get_datafrom_toml("config.toml")
-# Check if collection exists locally
-data = check_collection(data)
+config = get_datafrom_toml("config.toml")
+# Check if collection exists locally and some information to config dict.
+config = check_collection(config)
 
 # UPLOADING and DELETING
 # authentication
-auth = get_bearer_auth(data["weedstac"]["auth"])
+auth = get_bearer_auth(config["weedstac"]["auth"])
 print(f"Bearer token: {auth.token}")
 
 # UPLOADING COLLECTION
-stacdata = data["weedstac"]["data"]
+stacdata = config["weedstac"]["data"]
 coll_id = create_collection_url(auth, stacdata)
 # upload data
 ingest_all_items(
@@ -42,6 +42,6 @@ ingest_all_items(
 )
 
 # DELETE
-stacdata = data["weedstac"]["data"]
+stacdata = config["weedstac"]["data"]
 url = stacdata["CATALOGUE_URL"] / "collections" / stacdata["collection"]
 delete_collection(auth, url)

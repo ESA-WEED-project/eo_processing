@@ -1,3 +1,11 @@
+# Installation
+1. Install uv from "https://docs.astral.sh/uv/getting-started/installation/"
+2. Clone the branch or switch to the branch.
+3. Install packages using : uv sync --all-extras
+   1. Using uv sync only installs packages required for eo-processing.
+   2. --all-extras option says install all optional dependencies.
+
+
 # Create collections for ECDC.
 - TODO Creating COG files
 - TODO Validating COG files
@@ -24,3 +32,4 @@
 4. upload_delete_collection.py
    - Uploads the data to weed stac server.
    - Deletes the collection in weed stac server.
+

@@ -11,8 +11,8 @@
 - TODO Validating COG files
 - Building a stac-collections locally from s3 storage data [build_stac.py]
 - Validating the data  [build_stac.py]
-- Uploading the data to weed stac server  [ecdccollection.py]
-- Deleting the collection in weed stac server  [ecdccollection.py]
+- Uploading the data to weed stac server [upload_delete_collection.py]
+- Deleting the collection in weed stac server  [upload_delete_collection.py]
 
 ## Structure 
 1. config.toml has the settings for

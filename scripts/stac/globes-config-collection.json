@@ -1,0 +1,151 @@
+{
+    "collection_id": "GlobES-V1",
+    "title": "GlobES classification data",
+    "description": "Auxiliary data describing different features.",
+    "instruments": [],
+    "keywords": [
+        "ERA5", "climate", "atmosphere"
+    ],
+    "mission": [],
+    "platform": [],
+    "providers": [
+        {
+            "name": "XYZ",
+            "roles": [
+                "licensor",
+                "processor",
+                "producer"
+            ],
+            "url": "https://xyz.eu/"
+        },
+        {
+            "name": "VITO",
+            "roles": [
+                "processor"
+            ],
+            "url": "https://www.vito.be/"
+        }
+    ],
+    "layout_strategy_item_template": "${collection}",
+    "input_path_parser": {
+	"classname": "DefaultInputPathParser",
+	"parameters": {
+	    "regex_pattern": ".*/(?P<collection_id>.*)_(?P<item_id>(.*)_(?P<year>\\d{4})_(.*))_(?P<asset_type>.*).tiff$",
+	    "period": "yearly",
+	    "fixed_values": {
+	    }
+	}
+    },
+    "item_assets": {
+	"alpineRegions": {
+	    "title": "Alpine region classification",
+	    "description": "Binary map to distinguish Alpine Regions",
+	    "eo_bands": [
+		{
+		    "name": "alpineRegions",
+		    "description": "Binary map to distinguish Alpine Regions",
+		    "spatial_resolution": 300
+		}
+	    ]
+	},
+	"coastalFlats": {
+	    "title": "coastalFlats",
+	    "description": "coastal Flats",
+	    "eo_bands": [
+		{
+		    "name": "coastalFlats",
+		    "description": "Coastal Flats",
+		    "spatial_resolution": 300
+		}
+	    ]
+	},
+	"desertClass": {
+	    "title": "desertClass",
+	    "description": "desert class",
+	    "eo_bands": [
+		{
+		    "name": "desertClass",
+		    "description": "desert Class",
+		    "spatial_resolution": 300
+		}
+	    ]
+	},
+	"islands": {
+	    "title": "islands",
+	    "description": "islands",
+	    "eo_bands": [
+		{
+		    "name": "islands",
+		    "description": "islands",
+		    "spatial_resolution": 300
+		}
+	    ]
+	},
+	"latitude": {
+	    "title": "latitude",
+	    "description": "latitude",
+	    "eo_bands": [
+		{
+		    "name": "latitude",
+		    "description": "latitude",
+		    "spatial_resolution": 300
+		}
+	    ]
+	},
+	"mangroveExtent": {
+	    "title": "mangroveExtent",
+	    "description": "mangroveExtent",
+	    "eo_bands": [
+		{
+		    "name": "mangroveExtent",
+		    "description": "mangroveExtent",
+		    "spatial_resolution": 300
+		}
+	    ]
+	},
+	"seaforms": {
+	    "title": "seaforms",
+	    "description": "seaforms",
+	    "eo_bands": [
+		{
+		    "name": "seaforms",
+		    "description": "seaforms",
+		    "spatial_resolution": 300
+		}
+	    ]
+	},
+	"slopeMean": {
+	    "title": "slopeMean",
+	    "description": "slopeMean",
+	    "eo_bands": [
+		{
+		    "name": "slopeMean",
+		    "description": "slopeMean",
+		    "spatial_resolution": 300
+		}
+	    ]
+	},
+	"subantarcticIslands": {
+	    "title": "subantarcticIslands",
+	    "description": "subantarcticIslands",
+	    "eo_bands": [
+		{
+		    "name": "subantarcticIslands",
+		    "description": "subantarcticIslands",
+		    "spatial_resolution": 300
+		}
+	    ]
+	},
+	"waterClass": {
+	    "title": "waterClass",
+	    "description": "waterClass",
+	    "eo_bands": [
+		{
+		    "name": "waterClass",
+		    "description": "waterClass",
+		    "spatial_resolution": 300
+		}
+	    ]
+	}
+    }
+}

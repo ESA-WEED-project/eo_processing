@@ -1,0 +1,81 @@
+{
+    "collection_id": "ERA5LAND-V01",
+    "title": "ERA5-Land",
+    "description": "ERA5 land collection with spatial resolution of 10km",
+    "instruments": [],
+    "keywords": [
+        "ERA5", "climate", "atmosphere"
+    ],
+    "mission": [],
+    "platform": [],
+    "providers": [
+        {
+            "name": "XYZ",
+            "roles": [
+                "licensor",
+                "processor",
+                "producer"
+            ],
+            "url": "https://xyz.eu/"
+        },
+        {
+            "name": "VITO",
+            "roles": [
+                "processor"
+            ],
+            "url": "https://www.vito.be/"
+        }
+    ],
+    "layout_strategy_item_template": "${collection}",
+    "input_path_parser": {
+	"classname": "DefaultInputPathParser",
+	"parameters": {
+	    "regex_pattern":  ".*/(?P<collection_id>.*)_(?P<item_id>(.*)_(?P<year>\\d{4})_(.*))_(?P<asset_type>.*).tiff$",
+	    "period": "yearly",
+	    "fixed_values": {
+	    }
+	}
+    },
+    "item_assets": {
+	"t2m-average-max": {
+	    "title": "t2m_average_max",
+	    "description": "T2M average max",
+	    "eo_bands": [
+		{
+		    "name": "t2m_average_max",
+		    "description": "T2M Average Max"
+		}
+	    ]
+	},
+	"t2m-average-min": {
+	    "title": "t2m_average_min",
+	    "description": "T2M average min",
+	    "eo_bands": [
+		{
+		    "name": "t2m_average_min",
+		    "description": "T2M Average Min"
+		}
+	    ]
+	},
+	"tp-average-max": {
+	    "title": "tp_average_max",	    
+	    "description": "TP average max",
+	    "eo_bands": [
+		{
+		    "name": "tp_average_max",
+		    "description": "TP Average Max"
+		}
+	    ]
+	},
+	"tp-average-min": {
+	    "title": "tp_average_min",
+	    "description": "TP Average Min",
+	    "eo_bands": [
+		{
+		    "name": "tp_average_min",
+		    "description": "TP Average Min"
+		}
+	    ]
+	}
+    }
+}

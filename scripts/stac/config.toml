@@ -1,0 +1,23 @@
+[s3bucket]
+AWS_ACCESS_KEY_ID = ""
+AWS_SECRET_ACCESS_KEY = ""
+AWS_ENDPOINT_URL_S3 = "https://s3.waw3-1.cloudferro.com"
+AWS_S3_ENDPOINT = "s3.waw3-1.cloudferro.com"
+AWS_VIRTUAL_HOSTING = "FALSE"
+AWS_DEFAULT_REGION = "default"
+CPL_VSIL_CURL_CHUNK_SIZE = "10485760"
+
+[weedstac]
+[weedstac.auth]
+APEX_CLIENT_ID = ""
+APEX_CLIENT_SECRET = ""
+APEX_TOKEN_URL = "https://auth.apex.esa.int/realms/apex/protocol/openid-connect/token"
+
+[weedstac.data]
+CATALOGUE_URL = "https://catalogue.weed.apex.esa.int"
+
+[stacbuild]
+INPUT_DATADIR = "s3://test-waw3-1-hr5zivdsybnyfofl9lx96mrxxgphsy3505zxua8rjzf3hjyxdzu/Manu/Europe/ERA5-Land/"
+INPUT_CONFIG_JSON = "era5land-config-collection.json"
+FILEPATTERN = "*/*.tiff"
+OVERWRITECOLLECTION = true

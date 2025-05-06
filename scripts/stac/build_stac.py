@@ -1,9 +1,3 @@
-# /// script
-# dependencies = [
-#   "upath",
-# ]
-# ///
-
 """
 Build stac:
 1. Load config file from toml

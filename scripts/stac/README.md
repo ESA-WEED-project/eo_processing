@@ -1,9 +1,9 @@
 # Installation
 1. Install uv from "https://docs.astral.sh/uv/getting-started/installation/"
 2. Clone the branch or switch to the branch.
-3. Install packages using : uv sync --all-extras
-   1. Using uv sync only installs packages required for eo-processing.
-   2. --all-extras option says install all optional dependencies.
+3. Install packages using : "uv sync --all-extras" in terminal.
+   1. Using "uv sync" only installs packages required for eo-processing.
+   2. "--all-extras" option says install all optional dependencies like stac (see pyproject.toml file).
 
 
 # Create collections for ECDC.

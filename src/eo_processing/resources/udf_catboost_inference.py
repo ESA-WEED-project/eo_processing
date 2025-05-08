@@ -17,7 +17,7 @@ import onnxruntime as ort
 
 
 def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
-    """ Rename the bands by using apply metadata
+    """Rename the bands by using apply metadata
     :param metadata: Metadata of the input data
     :param context: Context of the UDF
     :return: Renamed labels
@@ -293,7 +293,7 @@ def create_output_xarray(probabilities: np.ndarray, input_xr: xr.DataArray) -> x
     return xr.DataArray(
         probabilities,
         dims=["bands", "y", "x"],
-        coords={"bands": output_bands, "y": input_xr.coords["y"], "x": input_xr.coords["x"]},
+        coords={"y": input_xr.coords["y"], "x": input_xr.coords["x"]},
     )
 
 

@@ -39,7 +39,7 @@ setup(
     zip_safe=True,
     install_requires=[
         "rasterio>=1.3.11",
-        "openeo==0.39.1",
+        "openeo==0.40.0",
         "geopandas>=1.0.1",
         "notebook>=7.2.2",
         "matplotlib>=3.9.2",

@@ -5,13 +5,87 @@ import requests
 import tempfile
 import xarray as xr
 import numpy as np
+import json
 import shutil
 from urllib.parse import urlparse
 from openeo.udf import inspect
+from openeo.metadata import CubeMetadata
 from typing import Dict, List, Tuple, Union
 
-sys.path.append("onnx_deps") 
+sys.path.append("onnx_deps")
 import onnxruntime as ort
+
+
+def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
+    """Rename the bands by using apply metadata
+    :param metadata: Metadata of the input data
+    :param context: Context of the UDF
+    :return: Renamed labels
+    """
+    # Get the model metadata
+    model_id = context.get("model_id")
+    _, output_band_names = get_model_metadata(model_id)
+    # rename band labels
+    return metadata.rename_labels(dimension="bands", target=output_band_names)
+
+
+@functools.lru_cache(maxsize=1)
+def get_model_metadata(modelID) -> Tuple[List[str], List[str]]:
+    """
+    Fetches metadata for a given model ID from the WEED STAC API. The metadata includes
+    the list of model URLs and the model's output band names. The search is crafted to
+    ensure that only one model with the specified model ID is retrieved, as model IDs
+    must be unique according to system rules. Raises an error in case of network issues,
+    timeout, or if results are not unique.
+
+    :param modelID: The unique identifier of the model for which metadata is being
+        requested.
+    :return: A tuple containing a list of URLs for the model (`model_urls`) and a
+        list of the model's output band names (`output_band_names`).
+
+    :raises RuntimeError: If a timeout occurs during communication with the API, if
+        other network or request-related errors occur, or if the model ID is either
+        not unique or not found in the system.
+    """
+    # search endpoint of the WEED STAC API
+    search_endpoint = "https://catalogue.weed.apex.esa.int/search"
+    # create the search string
+    search_payload = {
+        "limit": 20,
+        "collections": ["model-STAC"],
+        "filter": {"op": "=", "args": [{"property": "properties.modelID"}, modelID]},
+        "filter-lang": "cql2-json",
+    }
+    # execute the search
+    try:
+        r = requests.post(search_endpoint, json=search_payload, timeout=(3, 5))
+    except requests.exceptions.Timeout:
+        raise RuntimeError("Timeout while searching for model metadata.")
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"Error while searching for model metadata: {e}")
+
+    # handle response - here we have the rule that modelIDs have to be UNIQUE
+    if r.status_code == 200:
+        search_results = r.json()
+        if len(search_results["features"]) > 1:
+            raise RuntimeError(f"Multiple models with modelID {modelID} found.")
+        elif len(search_results["features"]) == 0:
+            raise RuntimeError(f"No model with modelID {modelID} found.")
+
+        # extract needed metadata and check
+        model_urls = search_results.get("features", [])[0]["properties"]["model_urls"]
+        output_band_names = search_results.get("features", [])[0]["properties"]["output_band_names"]
+        assert type(model_urls) is list, "model_urls is not a list"
+        assert type(output_band_names) is list, "output_band_names is not a list"
+        inspect(message=f"Needed metadata for model {modelID} extracted.")
+    elif r.status_code == 400:
+        inspect(message="Bad Request – validation errors:")
+        raise RuntimeError(json.dumps(r.json(), indent=2))
+    else:
+        inspect(message=f"Unexpected status {r.status_code}:")
+        raise RuntimeError(r.text)
+    return model_urls, output_band_names
+
 
 def is_onnx_file(file_path: str) -> bool:
     """
@@ -23,9 +97,10 @@ def is_onnx_file(file_path: str) -> bool:
     :param file_path: The path to the file whose extension is to be verified.
     :return: True if the file has a `.onnx` extension, otherwise False.
     """
-    return file_path.endswith('.onnx')
+    return file_path.endswith(".onnx")
 
-def download_file(url: str, max_file_size_mb: int = 100, cache_dir: str = '/tmp/cache') -> str:
+
+def download_file(url: str, max_file_size_mb: int = 100, cache_dir: str = "/tmp/cache") -> str:
     """
     Downloads a file from the specified URL. The file is
     cached in a given directory, and downloads of the same file are prevented using a locking
@@ -70,8 +145,9 @@ def download_file(url: str, max_file_size_mb: int = 100, cache_dir: str = '/tmp/
             os.remove(temp_file_path)  # Cleanup if an error occurs
         raise ValueError(f"Error downloading file: {e}")
 
+
 @functools.lru_cache(maxsize=1)
-def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> Tuple[ort.InferenceSession, Dict[str, List[str]]]:
+def load_onnx_model(model_url: str, cache_dir: str = "/tmp/cache") -> Tuple[ort.InferenceSession, Dict[str, List[str]]]:
     """
     Loads an ONNX model from a given URL, caches the model locally, and initializes an ONNX Runtime
     inference session. Additionally, extracts metadata such as input and output features from the model.
@@ -125,8 +201,10 @@ def load_onnx_model(model_url: str, cache_dir: str = '/tmp/cache') -> Tuple[ort.
     except Exception as e:
         raise ValueError(f"Failed to load ONNX model from {model_url}: {e}")
 
-def preprocess_input(input_xr: xr.DataArray,
-                     ort_session: ort.InferenceSession) -> Tuple[np.ndarray, Tuple[int, int, int]]:
+
+def preprocess_input(
+    input_xr: xr.DataArray, ort_session: ort.InferenceSession
+) -> Tuple[np.ndarray, Tuple[int, int, int]]:
     """
     Preprocesses input data for model inference using an ONNX runtime session. This
     function takes an xarray DataArray, rearranges its dimensions, and reshapes its
@@ -148,6 +226,7 @@ def preprocess_input(input_xr: xr.DataArray,
     input_np = input_xr.values.reshape(-1, ort_session.get_inputs()[0].shape[1])
     return input_np, input_shape
 
+
 def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> List[Dict[Union[str, int], float]]:
     """
     Executes inference using an ONNX Runtime session and input numpy array. This function
@@ -164,8 +243,10 @@ def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> Li
     probabilities_dicts = ort_outputs[1]  # just take probability results
     return probabilities_dicts
 
-def postprocess_output(probabilities_dicts: List[Dict[Union[str, int], float]],
-                       input_shape: Tuple[int, int, int]) -> np.ndarray:
+
+def postprocess_output(
+    probabilities_dicts: List[Dict[Union[str, int], float]], input_shape: Tuple[int, int, int]
+) -> np.ndarray:
     """
     Processes the output probabilities of a model into a reshaped and scaled NumPy array.
 
@@ -190,12 +271,12 @@ def postprocess_output(probabilities_dicts: List[Dict[Union[str, int], float]],
 
     # Reshape probabilities into (bands, y, x), scale and convert to Byte
     probabilities = probabilities.T.reshape(len(class_labels), input_shape[0], input_shape[1]) * 100  # Scale by 100
-    probabilities = probabilities.astype('uint8')
+    probabilities = probabilities.astype("uint8")
 
     return probabilities
 
-def create_output_xarray(probabilities: np.ndarray,
-                         input_xr: xr.DataArray) -> xr.DataArray:
+
+def create_output_xarray(probabilities: np.ndarray, input_xr: xr.DataArray) -> xr.DataArray:
     """
     Generate an xarray.DataArray output based on the input probabilistic numpy array and the
     coordinate information from the input xarray.DataArray. This function takes the probability
@@ -212,11 +293,9 @@ def create_output_xarray(probabilities: np.ndarray,
     return xr.DataArray(
         probabilities,
         dims=["bands", "y", "x"],
-        coords={
-            'y': input_xr.coords['y'],
-            'x': input_xr.coords['x']
-        }
+        coords={"y": input_xr.coords["y"], "x": input_xr.coords["x"]},
     )
+
 
 def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     """
@@ -237,20 +316,20 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     """
     # fill nan in cube and make sure cube is in right dtype for inference
     cube = cube.fillna(0)
-    cube = cube.astype('float32')
+    cube = cube.astype("float32")
 
     # get the list of models to apply on the cube from context
-    model_urls = context.get("model_list")
+    model_id = context.get("model_id")
+    model_urls, _ = get_model_metadata(model_id)
 
     # loop over the models and apply on input array
     output_cube_initialized = False
     for i, url in enumerate(model_urls):
-
         inspect(message=f"running inference for: {url}")
 
         # load the ONNX model and extract metadata
         ort_session, metadata = load_onnx_model(url, cache_dir="/tmp/cache")
-        input_band = metadata['input_features']
+        input_band = metadata["input_features"]
 
         # Subset the data array using the selected indices
         inspect(message=f"Subsetting the feature datacube by needed input features.")
@@ -275,8 +354,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
         else:
             # Append to output_cube starting from the second iteration
             output_cube = xr.concat([output_cube, model_output_cube], dim="bands")
-
     # make sure output Xarray has the correct dtype
-    output_cube = output_cube.astype('uint8')
+    output_cube = output_cube.astype("uint8")
 
     return output_cube

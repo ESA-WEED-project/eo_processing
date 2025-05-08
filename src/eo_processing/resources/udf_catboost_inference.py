@@ -77,12 +77,12 @@ def get_model_metadata(modelID) -> Tuple[List[str], List[str]]:
         output_band_names = search_results.get("features", [])[0]["properties"]["output_band_names"]
         assert type(model_urls) is list, "model_urls is not a list"
         assert type(output_band_names) is list, "output_band_names is not a list"
-        print(f"Needed metadata for model {modelID} extracted.")
+        inspect(message=f"Needed metadata for model {modelID} extracted.")
     elif r.status_code == 400:
-        print("Bad Request – validation errors:")
+        inspect(message="Bad Request – validation errors:")
         raise RuntimeError(json.dumps(r.json(), indent=2))
     else:
-        print(f"Unexpected status {r.status_code}:")
+        inspect(message=f"Unexpected status {r.status_code}:")
         raise RuntimeError(r.text)
     return model_urls, output_band_names
 

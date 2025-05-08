@@ -42,6 +42,6 @@ ingest_all_items(
 )
 
 # DELETE
-stacdata = config["weedstac"]["data"]
-url = stacdata["CATALOGUE_URL"] + "/collections/"+ stacdata["COLLECTIONNAME"]
-delete_collection(auth, url)
+# stacdata = config["weedstac"]["data"]
+# url = stacdata["CATALOGUE_URL"] + "/collections/" + stacdata["COLLECTIONNAME"]
+# delete_collection(auth, url)

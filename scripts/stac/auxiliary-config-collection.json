@@ -1,6 +1,6 @@
 {
-    "collection_id": "GlobES-V1",
-    "title": "GlobES classification data",
+    "collection_id": "Auxiliary-V1",
+    "title": "Auxiliary classification data",
     "description": "Auxiliary data describing different features.",
     "instruments": [],
     "keywords": [

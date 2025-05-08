@@ -93,7 +93,7 @@ def buildcollection_locally(data_input_path, configfile, filepattern, overwrite)
                 # hardcode the minor version
                 if metadata.item_id is not None:
                     parts = metadata.item_id.split("_", 1)
-                    metadata.item_id = parts[1] + "_V" + parts[0][3:]
+                    metadata.item_id = parts[1] + "_V" + parts[0][2:]
                 else:
                     print("Item id is None")
                 return metadata

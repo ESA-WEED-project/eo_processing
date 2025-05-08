@@ -1,5 +1,5 @@
 {
-    "collection_id": "ERA5LAND-V01",
+    "collection_id": "ERA5LAND-V1",
     "title": "ERA5-Land",
     "description": "ERA5 land collection with spatial resolution of 10km",
     "instruments": [],

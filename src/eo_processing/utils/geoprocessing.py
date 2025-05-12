@@ -168,9 +168,9 @@ def AOI_tiler(AOI: Union[gpd.GeoDataFrame, openEO_bbox_format, geojson.GeoJSON, 
     # intersect to get AOI tiles dataframe
     # ToDO: the filtering via the CLIP is way faster then to do an intersection in GeoPandas. optimize this behavior.
     if 'grid20id' in tiling_grid_gdf.columns:
-        result_gdf = tiling_grid_gdf[tiling_grid_gdf.grid20id.isin(tiling_grid_gdf.clip(gdf_aoi).grid20id.tolist())]
+        result_gdf = tiling_grid_gdf[tiling_grid_gdf.grid20id.isin(tiling_grid_gdf.clip(gdf_aoi).grid20id.unique().tolist())]
     elif 'name' in tiling_grid_gdf.columns:
-        result_gdf = tiling_grid_gdf[tiling_grid_gdf.name.isin(tiling_grid_gdf.clip(gdf_aoi).name.tolist())]
+        result_gdf = tiling_grid_gdf[tiling_grid_gdf.name.isin(tiling_grid_gdf.clip(gdf_aoi).name.unique().tolist())]
     else:
         try:
             print('WARNING: the column "grid20id" or "name" was not found in the tiling grid. '

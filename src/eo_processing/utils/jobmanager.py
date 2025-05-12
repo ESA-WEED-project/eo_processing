@@ -318,7 +318,7 @@ class WeedJobManager(MultiBackendJobManager):
 
         jobs_done = []
         jobs_error = []
-        jobs_cancel = []
+        jobs_canceled = []
 
         for i in active.index:
             job_id = active.loc[i, "id"]
@@ -823,11 +823,11 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
 
     if discriminator:
         job_df['file_prefix'] = job_df.apply(lambda
-                                                 row: f'{file_name_base}_{processing_type}-cube_year{year}_{row[tile_col]}_{row[discriminator]}{version}',
+                                                 row: f'{file_name_base}_{processing_type}-cube_year{year}_{row['tileID']}_{row[discriminator]}{version}',
                                              axis=1)
     else:
         job_df['file_prefix'] = job_df.apply(
-            lambda row: f'{file_name_base}_{processing_type}-cube_year{year}_{row[tile_col]}{version}', axis=1)
+            lambda row: f'{file_name_base}_{processing_type}-cube_year{year}_{row['tileID']}{version}', axis=1)
 
     if 'proba' in processing_type.lower(): # probability genration in inference
         # adding the model_urls and output_band_names (all the same for all tiles) for inference

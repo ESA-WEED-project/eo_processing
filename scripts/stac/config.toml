@@ -1,6 +1,6 @@
 [s3bucket]
-AWS_ENDPOINT_URL_S3 = "https://s3.waw3-1.cloudferro.com"
-AWS_S3_ENDPOINT = "s3.waw3-1.cloudferro.com"
+AWS_ACCESS_KEY_ID =""
+AWS_SECRET_ACCESS_KEY = ""
 AWS_ENDPOINT_URL_S3 = "https://s3.waw4-1.cloudferro.com"
 AWS_S3_ENDPOINT = "s3.waw4-1.cloudferro.com"
 AWS_VIRTUAL_HOSTING = "FALSE"

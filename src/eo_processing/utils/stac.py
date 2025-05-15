@@ -56,7 +56,7 @@ def set_s3bucket_env(data):
     s3bucket = data["s3bucket"]
     for key, value in s3bucket.items():
         if not value:
-            raise ValueError("No proper enviornmental variables defined to access s3bucket")
+            raise ValueError("No proper environmental variables defined to access s3bucket")
         else:
             print(key, value)
             environ[key] = value

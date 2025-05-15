@@ -30,7 +30,15 @@ config = check_collection(config)
 auth = get_bearer_auth(config["weedstac"]["auth"])
 print(f"Bearer token: {auth.token}")
 
+
+
+# DELETE
+stacdata = config["weedstac"]["data"]
+url = stacdata["CATALOGUE_URL"] + "/collections/" + stacdata["COLLECTIONNAME"]
+delete_collection(auth, url)
+
 # UPLOADING COLLECTION
+
 stacdata = config["weedstac"]["data"]
 coll_id = create_collection_url(auth, stacdata)
 # upload data
@@ -40,8 +48,3 @@ ingest_all_items(
     stacdata["COLLECTIONNAME"],
     stacdata["COLLECTIONPATH"],
 )
-
-# DELETE
-# stacdata = config["weedstac"]["data"]
-# url = stacdata["CATALOGUE_URL"] + "/collections/" + stacdata["COLLECTIONNAME"]
-# delete_collection(auth, url)

@@ -447,6 +447,60 @@ class storage:
 
         return s3_object_key
 
+
+    def upload_file_to_s3key(self, local_file_path: str, s3_object_key: str = '',
+                          progress_bar: bool = False, etag_check: bool = False, exist_check: bool = False) -> str:
+        """
+        Uploads a local file to an S3 bucket. The method checks for the file's existence locally
+        before attempting to upload to the specified S3 prefix. Supports options to display a
+        progress bar during upload, check for existence of the file on S3, and validate the
+        uploaded file using an ETag verification mechanism.
+
+        :param local_file_path: A string representing the local path of the file to be uploaded.
+            Must be a valid path to an existing file.
+        :param s3_prefix: A string representing the prefix/directory on the S3 bucket where
+            the file should be uploaded. Defaults to an empty string.
+        :param progress_bar: A boolean indicating whether to display the progress bar during
+            the upload process. Defaults to False.
+        :param etag_check: A boolean indicating whether to perform an ETag checksum comparison
+            between the uploaded file and the local file to validate data integrity. Defaults to False.
+        :param exist_check: A boolean indicating whether to skip the upload if the file already exists
+            on the S3 bucket with the same key. Defaults to False.
+
+        :return: A string representing the S3 object key of the uploaded file.
+        """
+        if self.s3_client is None:
+            self._init_boto3()
+
+        if not os.path.exists(os.path.normpath(local_file_path)):
+            raise FileNotFoundError(f"File {local_file_path} does not exist.")
+
+
+        # check if we can avoid upload
+        if exist_check:
+            if self.s3_object_exists(s3_object_key):
+                print(f"File with key {s3_object_key} already exists. Skipping upload.")
+                if etag_check:
+                    if not self.evaluate_etag(local_file_path, s3_object_key):
+                        raise Exception('The uploaded file does not match the MDF5 of the local file.')
+                return s3_object_key
+        # upload file
+        try:
+            if progress_bar:
+                total_size = os.path.getsize(os.path.normpath(local_file_path))
+                self.s3_client.upload_file(
+                    local_file_path, self.s3_bucket, s3_object_key,
+                    Callback=ProgressPercentage(s3_object_key, total_size, 'uploading')
+                )
+            else:
+                self.s3_client.upload_file(local_file_path, self.s3_bucket, s3_object_key)
+        except Exception as e:
+            print(f"Error uploading file to S3: {e}")
+
+        if etag_check:
+            if not self.evaluate_etag(local_file_path, s3_object_key):
+                raise Exception('The uploaded file does not match the MDF5 of the local file.')
+
     def s3_object_exists(self, s3_object_key: str) -> bool:
         """
         Checks if an S3 object exists in the specified bucket. This function determines

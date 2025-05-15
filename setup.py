@@ -44,6 +44,7 @@ setup(
         "notebook>=7.2.2",
         "matplotlib>=3.9.2",
         "rioxarray>=0.17.0",
+        "rio-cogeo>=5.4.1"
         "netCDF4>=1.7.1",
         "scikit-image>=0.24.0",
         "onnx>=1.16.2",

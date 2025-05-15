@@ -1,0 +1,63 @@
+{
+  "collection_id": "Globes-V01",
+  "title": "Globes",
+  "description": "Globes collection",
+  "instruments": [],
+  "providers": [
+    {
+      "name": "Swiss Federal Research Institute WSL",
+      "roles": [
+        "producer"
+      ],
+      "url": "https://www.wsl.ch/en/"
+    },
+    {
+      "name": "iDiv",
+      "roles": [
+        "processor"
+      ],
+      "url": "https://www.globesdata.org/"
+    }
+  ],
+  "layout_strategy_item_template": "${collection}",
+  "input_path_parser": {
+    "classname": "DefaultInputPathParser",
+    "parameters": {
+      "regex_pattern": ".*/(?P<collection_id>.*)_(?P<item_id>(.*)_(?P<year>\\d{4})_(.*))_(?P<asset_type>.*).tiff$",
+      "period": "yearly",
+      "fixed_values": {}
+    },
+    "item_assets": {
+      "tmaxP0": {
+        "title": "Maximum average temperature from CHELSA collection",
+        "description": "Maximum average monthly temperature processed from CHELSA collection through the range of years.",
+        "eo_bands": [
+          {
+            "name": "tmaxP0",
+            "description": "Maximum average monthly temperature processed from CHELSA collection through the range of years."
+          }
+        ]
+      },
+      "tminP0": {
+        "title": "Minimum average temperature from CHELSA collection",
+        "description": "Minimum average monthly temperature processed from CHELSA collection through the range of years.",
+        "eo_bands": [
+          {
+            "name": "tminP0",
+            "description": "Minimum average monthly temperature processed from CHELSA collection through the range of years."
+          }
+        ]
+      },
+      "aridity": {
+        "title": "Aridity index from CHELSA collection",
+        "description": "The degree of dryness of the climate. The Aridity Index (ai) is determined by comparing the mean annual precipitation to the mean annual potential evapotranspiration. In this context, precipitation refers to the total amount of rainfall and other forms of moisture over a year, while potential evapotranspiration represents the amount of moisture that could be evaporated and transpired by vegetation if sufficient water were available. Variable belongs to CHELSA data collection, an ERA-5 reanalysis data downscaled to 1 km resolution.",
+        "eo_bands": [
+          {
+            "name": "aridity",
+            "description": "The degree of dryness of the climate. The Aridity Index (ai) is determined by comparing the mean annual precipitation to the mean annual potential evapotranspiration. In this context, precipitation refers to the total amount of rainfall and other forms of moisture over a year, while potential evapotranspiration represents the amount of moisture that could be evaporated and transpired by vegetation if sufficient water were available. Variable belongs to CHELSA data collection, an ERA-5 reanalysis data downscaled to 1 km resolution."
+          }
+        ]
+      }
+    }
+  }
+}

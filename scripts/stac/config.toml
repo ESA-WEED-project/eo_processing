@@ -3,6 +3,8 @@ AWS_ACCESS_KEY_ID = ""
 AWS_SECRET_ACCESS_KEY = ""
 AWS_ENDPOINT_URL_S3 = "https://s3.waw3-1.cloudferro.com"
 AWS_S3_ENDPOINT = "s3.waw3-1.cloudferro.com"
+AWS_ENDPOINT_URL_S3 = "https://s3.waw4-1.cloudferro.com"
+AWS_S3_ENDPOINT = "s3.waw4-1.cloudferro.com"
 AWS_VIRTUAL_HOSTING = "FALSE"
 AWS_DEFAULT_REGION = "default"
 CPL_VSIL_CURL_CHUNK_SIZE = "10485760"
@@ -17,7 +19,8 @@ APEX_TOKEN_URL = "https://auth.apex.esa.int/realms/apex/protocol/openid-connect/
 CATALOGUE_URL = "https://catalogue.weed.apex.esa.int"
 
 [stacbuild]
-INPUT_DATADIR = "s3://ecdc-waw3-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/preprocessed/Global/ERA5-Land"
-INPUT_CONFIG_JSON = "era5land-config-collection.json"
+INPUT_DATADIR = "s3://ecdc-waw4-1-ekqouvq3otv8hmw0njzuvo0g4dy0ys8r985n7dggjis3erkpn5o/preprocessed/global/Globes"
+INPUT_CONFIG_JSON = "Globes-V1-config-collection.json"
 FILEPATTERN = "*/*.tiff"
+COLLECTION = "Globes-V1"
 OVERWRITECOLLECTION = true

@@ -440,6 +440,19 @@ class WeedJobManager(MultiBackendJobManager):
 
         df.loc[i, "backend_name"] = backend_name
         row = df.loc[i]
+
+        #before launching jobs will first check if, in case of export workspace that the workspace (s3-bucket)
+        #is reachable
+        if self.storage_options.get('workspace_export',False):
+
+            logger.info(f"Checking if the workspace/s3 bucket {self.storage_options["WEED_storage"].get_s3_bucket_name()} is reachable")
+            bucket_exist = self.storage_options["WEED_storage"].s3_bucket_exists()
+            if not bucket_exist:
+                df.loc[i, "status"] = "skipped_workspace_unavailable"
+                if df.loc[i, "attempt"] <= self.max_attempts:
+                    df.loc[i, "status"] = "not_started"
+
+
         try:
             logger.info(f"Starting job on backend {backend_name} for {row.to_dict()}")
             connection = self._get_connection(backend_name, resilient=True)

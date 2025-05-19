@@ -474,6 +474,34 @@ class storage:
                 # Raise exception for other errors (e.g., access denied or bucket not found)
                 raise Exception(f"Failed to check if object exists: {e}")
 
+    def s3_bucket_exists(self) -> bool:
+        """
+        Checks if an S3 bucket exists. This function determines
+        whether the S3 bucket is present by performing a metadata lookup through
+        the head_bucket method. It handles scenarios where the bucket does not exist or
+        when other errors occur, such as access denial.
+
+        :return: True if the head_bucket exists, False if it does not (or temporal unavailability).
+        :raises Exception: If an error occurs other than the object not existing, such as access
+        denial or bucket misconfiguration.
+        """
+
+        if self.s3_client is None:
+            self._init_boto3()
+
+        try:
+            # Check object metadata using head_object
+            self.s3_client.head_bucket(Bucket=self.s3_bucket)
+            return True  # Key exists
+        except ClientError as e:
+            # Object does not exist (or another error has occurred)
+            if e.response['Error']['Code'] == '404':
+                return False  # Key does not exist
+            else:
+                # Raise exception for other errors (e.g., access denied or bucket not found)
+                raise Exception(f"Failed to check if bucket exists: {e}")
+
+
     def delete_file_key(self, s3_object_key: str) -> bool:
         """
         Deletes a file from an S3 bucket with the specified object key.

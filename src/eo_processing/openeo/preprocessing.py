@@ -62,7 +62,7 @@ def extract_S1_datacube(
     """
     # evaluate additional processing options
     if ("creo" in processing_options.get("provider", "").lower()) or \
-            (processing_options.get("provider", "").lower() == "cdse"):
+            (processing_options.get("provider", "").lower() == "cdse" and bbox is not None):
         catalogue_check = True
     else:
         catalogue_check = False
@@ -172,7 +172,7 @@ def extract_S2_datacube(
     """
     # evaluate additional processing_options
     if ("creo" in processing_options.get("provider", "").lower()) or \
-            (processing_options.get("provider", "").lower() == "cdse"):
+            (processing_options.get("provider", "").lower() == "cdse" and bbox is not None):
         catalogue_check = True
     else:
         catalogue_check = False

@@ -20,7 +20,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # get configuration details from config.toml
-filename = "config.toml"
+filename = "config_1.toml"
 config = get_datafrom_toml(filename)
 
 # Set environment variables for S3 bucket access
@@ -41,6 +41,7 @@ inputdir = config["inputdata"]["INPUT_DATADIR"]
 collection = config["stacbuild"]["COLLECTION"]
 #all info should be according the as is metadata
 bands_json = glob.glob(os.path.join(inputdir,"*.json"))
+#bands_json.sort()
 
 #now we just take the first json to extract needed data to upload to s3. (just the SpatialScope at the moment)
 with open(bands_json[0]) as f:
@@ -129,7 +130,8 @@ for product in bands_json:
         store.upload_file_to_s3key(tif_name, s3key, exist_check=True)
 
     #I know this is double but for now
-    for area in  ['ZAF','CZE','NOR','VNM','GRC']:
+
+    for area in  ['ZAF','CZE','NOR','VNM','GRC','COL']:
         for year in ['2018','2021','2024']:
             #check which ones are missing
             s3key = os.path.join(prefix, f"{collection.replace('-', '_')}{'00'}_{year}_{area}_{name}.tiff")
@@ -142,12 +144,7 @@ for product in bands_json:
                     profile = src.profile
                 with rasterio.open(tifname, 'w', **profile) as src:
                     pass
-                    '''
-                    profile = src.profile
-                    :
-                    input_data = np.full_like(src.read(),src.profile['nodata'])
-                    src.write(input_data)
-                    '''
+                    
                 validator = rio_cogeo.cog_validate(tifname, strict=True)
                 if validator[0] != True:
                     cog_name = f"{os.path.splitext(tifname)[0]}_COG.tif"

@@ -21,7 +21,7 @@ from eo_processing.utils.stac import (
 )
 
 # read input toml file
-config = get_datafrom_toml("config.toml")
+config = get_datafrom_toml("config_1.toml")
 # Check if collection exists locally and some information to config dict.
 config = check_collection(config)
 

@@ -17,7 +17,7 @@ from eo_processing.utils.stac import (
 )
 
 # get configuration details from config.toml
-filename = "config.toml"
+filename = "config_1.toml"
 config = get_datafrom_toml(filename)
 
 # Set environment variables for S3 bucket access

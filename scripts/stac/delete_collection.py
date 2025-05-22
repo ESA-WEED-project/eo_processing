@@ -14,6 +14,7 @@ follow first three steps before either creating or deleting a collection from th
 from eo_processing.utils.stac import (
     get_datafrom_toml,
     delete_collection,
+    get_bearer_auth
 )
 
 # read input toml file

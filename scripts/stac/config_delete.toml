@@ -1,0 +1,12 @@
+[stacbuild]
+INPUT_CONFIG_JSON = ""
+
+[weedstac]
+[weedstac.auth]
+APEX_CLIENT_ID = ""
+APEX_CLIENT_SECRET = ""
+APEX_TOKEN_URL = ""
+
+[weedstac.data]
+CATALOGUE_URL = "https://catalogue.weed.apex.esa.int"
+COLLECTION = "Globes-V1"

@@ -29,8 +29,9 @@ def get_datafrom_toml(tomlfile) -> Dict:
     """
     with open(tomlfile, "rb") as f:
         data = load(f)
+
     config_json = Path(data["stacbuild"]["INPUT_CONFIG_JSON"]).expanduser().absolute()
-    if config_json.exists():
+    if config_json.exists() and config_json.is_file():
         df = loads(config_json.read_text())
         if "collection_id" in df.keys():
             data["weedstac"]["data"]["COLLECTIONNAME"] = df["collection_id"]

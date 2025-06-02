@@ -62,36 +62,38 @@ for product in bands_json:
         json_data = json.load(f)
     files_id = json_data.get("OrganizationalAspects").get("FileInformation")[0].get("Filename")
 
-    '''
-    if json_data.get("DataCoverageAndContents").get("SpecificationsOfVariables").get(
-            "ClassifiedDataSpecifications").get("AssociatedVariableName"):
-        name = json_data.get("DataCoverageAndContents").get("SpecificationsOfVariables").get(
-            "ClassifiedDataSpecifications").get("AssociatedVariableName")
-    else:
-        name = json_data.get("DataCoverageAndContents").get("SpecificationsOfVariables").get(
-            "ContinuousDataSpecifications").get("AssociatedVariableName")
-    
-    name = name.replace(' ', '')
-    '''
-    try:
-        name = files_id.split('-')[1].split('_')[0]
-    except:
-        #eraland 5 problem filenaming does not follow any convention
-        name = ''.join(files_id.split('_')[:3])
-
-    #system breaks on name type as a band name (which somehow is the name for GlobalGrassland). This can be removed when new metadata is available from Polina
-    if name == 'type':
-        name = 'GlobalGrassland'
+    name = json_data.get("GeneralInformation").get("AbbreviationOfTheDataset").replace('-','')
+    #name = f"{collection}-{name}"
 
     #add metadata/band/asset info to the list of  assets
+    #add categorical info
+    names =json_data.get("DataCoverageAndContents").get("SpecificationsOfVariables").get("ClassifiedDataSpecifications").get("NamesOfClasses")
+    codes =json_data.get("DataCoverageAndContents").get("SpecificationsOfVariables").get("ClassifiedDataSpecifications").get("CodesOfClasses")
+    descripts = json_data.get("DataCoverageAndContents").get("SpecificationsOfVariables").get("ClassifiedDataSpecifications").get("DescriptionsOfClasses")
+
+    if not descripts:
+        descripts = names
+    if len(descripts) != len(names):
+        logger.error("For some data classes it seems that the description is missing")
+
+    # to be removed when metadata is ok
+    names = [name.replace(' ', '') for name in names]
+
     all_assets[name] = {"title": json_data.get("GeneralInformation").get("TitleOfTheDataSource"),
-	    "description": json_data.get("GeneralInformation").get("DescriptionOfTheDataSource"),
-	    "eo_bands": [
-		{
-		    "name": name,
-		    "description": json_data.get("GeneralInformation").get("DescriptionOfTheDataSource")
-		}
-	    ]}
+                        "description": json_data.get("GeneralInformation").get("DescriptionOfTheDataSource"),
+                        "eo_bands": [
+                            {
+                                "name": name,
+                                "description": json_data.get("GeneralInformation").get("DescriptionOfTheDataSource")
+                            }]
+                        }
+
+
+    if len(names) != 0:
+        all_assets[name]["classification:classes"] = [
+               {"value":int(code), "name":names[idx], "description":descripts[idx]} for idx,code in enumerate(codes)]
+
+
 
     #This check is done on globes since sometimes the Role is not filled which is a mandatory field.
     for provider in json_data.get("OrganizationalAspects").get("DatasetProvider"):
@@ -102,9 +104,11 @@ for product in bands_json:
     #now we move the data to the correct S3 location.
     data2move = glob.glob(os.path.join(inputdir,"**",f"{files_id}*.tif"),recursive=True)
     for tif_name in data2move:
+        continue
         #warnings, errors, details = validate(tif_name)
         with rasterio.open(tif_name) as src:
             driver = src.profile['driver']
+            profile = src.profile
 
             #checks on file
             if src.profile['count'] != 1:
@@ -129,10 +133,11 @@ for product in bands_json:
         #slightly extend functionality on storage object to be able to handle fixed output names
         store.upload_file_to_s3key(tif_name, s3key, exist_check=True)
 
-    #I know this is double but for now
+    #I know this is double but for now (first do without) should be removed in the end
 
     for area in  ['ZAF','CZE','NOR','VNM','GRC','COL']:
         for year in ['2018','2021','2024']:
+            continue
             #check which ones are missing
             s3key = os.path.join(prefix, f"{collection.replace('-', '_')}{'00'}_{year}_{area}_{name}.tiff")
             check = store.s3_object_exists(s3key)
@@ -151,6 +156,7 @@ for product in bands_json:
                     rio_cogeo.cog_translate(tifname, cog_name, rio_cogeo.cog_profiles.get('lzw'))
                     tifname = cog_name
                 store.upload_file_to_s3key(tifname, s3key, exist_check=True)
+
 
 
 
@@ -178,7 +184,7 @@ for (Organisation,Link) , Roles in grouped.items():
 basic_config = {
     "collection_id": collection,
     "title": "Globes",
-    "description": "Globes collection first version",
+    "description": "Globes collection third version",
     "instruments": [],
     "providers": providers_clean_agg ,
     "layout_strategy_item_template": "${collection}",

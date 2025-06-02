@@ -135,7 +135,12 @@ def buildcollection_locally(data_input_path, configfile, filepattern, overwrite)
 
     # postprocessor to add new properties into items
     # example asset version and others
-    def add_properties(item):
+    def add_properties(item, collection_config_path = collection_config_path):
+        config_json = loads(collection_config_path.read_text())
+        for key in config_json["item_assets"].keys():
+            class_class = config_json["item_assets"][key].get("classification:classes",None)
+            if class_class:
+                item.assets[key].extra_fields["classification:classes"]= class_class
         return item
 
     pipeline.item_postprocessor = add_properties

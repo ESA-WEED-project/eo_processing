@@ -44,7 +44,7 @@ setup(
         "notebook>=7.2.2",
         "matplotlib>=3.9.2",
         "rioxarray>=0.17.0",
-        "rio-cogeo>=5.4.1"
+        "rio-cogeo>=5.4.1",
         "netCDF4>=1.7.1",
         "scikit-image>=0.24.0",
         "onnx>=1.16.2",
@@ -55,6 +55,7 @@ setup(
         "fastparquet>=2024.5.0",
         "pydrive2>=1.21.1",
         "hvac>=2.3.0",
-        "boto3>=1.36.16"
+        "boto3==1.36.16",
+        "stac-catalog-builder @ git+https://github.com/VitoTAP/stac-catalog-builder.git@weedstac"
     ],
 )

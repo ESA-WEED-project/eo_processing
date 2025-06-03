@@ -9,8 +9,6 @@ import glob
 import os
 import json
 from collections import defaultdict
-import rasterio
-import rio_cogeo
 from eo_processing.utils.stac import (
     get_datafrom_toml
 )

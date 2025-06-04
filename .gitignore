@@ -55,6 +55,10 @@ cover/
 *.mo
 *.pot
 
+# Catboost stuff:
+catboost_info/
+catboost/
+
 # Django stuff:
 *.log
 local_settings.py

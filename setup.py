@@ -31,7 +31,6 @@ setup(
     python_requires=">=3.12",
     setup_requires=['pytest-runner'],
     tests_require=[
-        "nested-lookup>=0.2.25",
         "pytest>=8.3.4",
         "pytest-xdist>=3.6.1",
         "pytest-cov>=6.1.1",

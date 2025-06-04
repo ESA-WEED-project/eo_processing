@@ -54,6 +54,7 @@ def test_generate_S1_feature_cube(con100, groundtruth_filename):
     # Compare generated job info with the ground truth process graph
     compare_job_info(json.loads(generated_process_graph), groundtruth_filename)
 
+
 @pytest.mark.parametrize(
     "groundtruth_filename",[("generate_S2_feature_cube.json")],
 )

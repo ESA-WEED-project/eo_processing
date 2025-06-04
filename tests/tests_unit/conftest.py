@@ -1,10 +1,8 @@
 import json
 import os
-from pathlib import Path
 
 import openeo
 import pytest
-from nested_lookup import nested_update
 from openeo.rest._testing import build_capabilities
 
 API_URL = "https://oeo.test/"
@@ -78,8 +76,8 @@ def con100(requests_mock, api_capabilities):
     requests_mock.get(
         API_URL, json=build_capabilities(api_version="1.0.0", **api_capabilities)
     )
-    requests_mock.get(API_URL.rstrip("/")+ "/collections/SENTINEL1_GRD", json=DEFAULT_S1_METADATA)
-    requests_mock.get(API_URL.rstrip("/")+ "/collections/SENTINEL2_L2A", json=DEFAULT_S2_METADATA)
+    requests_mock.get(API_URL+ "collections/SENTINEL1_GRD", json=DEFAULT_S1_METADATA)
+    requests_mock.get(API_URL+ "collections/SENTINEL2_L2A", json=DEFAULT_S2_METADATA)
     return openeo.connect(API_URL)
 
 def load_json_from_path(filepath):

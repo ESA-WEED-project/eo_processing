@@ -5,8 +5,41 @@ import openeo
 import pytest
 from openeo.rest._testing import build_capabilities
 
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--integration",
+        action="store_true",
+        dest="integration",
+        default=False,
+        help="enable integration tests for running changed process graphs",
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "integration: mark test as integration test")
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--integration"):
+        # --integration given in cli: skip all tests without the marker
+        for item in items:
+            if "integration" not in item.keywords:
+                item.add_marker(
+                    pytest.mark.skip(
+                        reason="Test not marked as integration test and --integration given"
+                    )
+                )
+    else:
+        # --integration not given in cli: skip all tests with the marker
+        skip_integration = pytest.mark.skip(reason="need --integration option to run")
+        for item in items:
+            if "integration" in item.keywords:
+                item.add_marker(skip_integration)
+
+
 API_URL = "https://oeo.test/"
-GROUNDTRUTH_DIR = "tests//resources"
+GROUNDTRUTH_DIR = "tests//process_graphs"
 BBOX = {'east': 5.5, 'south': 49.5, 'west': 4.5, 'north': 50.5, 'crs': 'EPSG:4326'}
 DATE_START = "2021-01-01"
 DATE_END = "2022-01-01"

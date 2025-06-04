@@ -1,10 +1,14 @@
-name: Run Unit Tests
+name: Integration Tests
 
-# Trigger this workflow on every push to any branch
+# Trigger this workflow every month or when requested
+
 on:
-  push:
-    branches:
-      - '**'  # Run on all branches
+  # Manual trigger
+  workflow_dispatch:
+
+  # Monthly schedule (e.g., 1st day of the month at midnight UTC)
+  schedule:
+    - cron: '0 0 1 * *'
 
 # Define the job to run the unit tests using a matrix for multiple Python versions
 jobs:
@@ -20,7 +24,7 @@ jobs:
     steps:
       # Step 1: Checkout the repository's code
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Step 2: Set up Python environment based on the matrix version
       - name: Set up Python
@@ -34,9 +38,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install pytest
           pip install requests-mock
+          pip install pytest-xdist
+          pip install pytest-cov
           pip install -r requirements.txt
 
       # Step 4: Run unit tests using pytest, targeting the 'tests_unit' directory
       - name: Run tests
         run: |
-          pytest tests/ --disable-warnings
+          pytest tests/ --integration -n auto -vv

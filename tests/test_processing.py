@@ -2,7 +2,7 @@ import json
 import pytest
 from eo_processing.openeo.processing import generate_master_feature_cube, \
     generate_S1_feature_cube, generate_S2_feature_cube
-from tests.tests_unit.conftest import BBOX, DATE_START, DATE_END, \
+from tests.conftest import BBOX, DATE_START, DATE_END, \
     con100, compare_job_info
 
 

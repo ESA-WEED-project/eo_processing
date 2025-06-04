@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import patch
 
 from eo_processing.openeo.preprocessing import ts_datacube_extraction, extract_S1_datacube, extract_S2_datacube
-from tests.tests_unit.conftest import BBOX, DATE_START, DATE_END, \
+from tests.conftest import BBOX, DATE_START, DATE_END, \
     con100, compare_job_info
 
 # Define the different test scenarios and processing options

@@ -30,7 +30,12 @@ setup(
     url='https://github.com/ESA-WEED-project/eo_processing',
     python_requires=">=3.12",
     setup_requires=['pytest-runner'],
-    tests_require=['pytest'],
+    tests_require=[
+        "nested-lookup>=0.2.25",
+        "pytest>=8.3.4",
+        "pytest-xdist>=3.6.1",
+        "pytest-cov>=6.1.1",
+        "requests-mock>=1.12.1"],
     test_suite='tests',
     include_package_data=True,
     package_dir={'': 'src'},

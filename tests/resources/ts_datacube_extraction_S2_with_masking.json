@@ -41,7 +41,7 @@
         },
         "temporal_extent": [
           "2021-01-01",
-          "2021-12-31"
+          "2022-01-01"
         ]
       }
     },
@@ -77,7 +77,7 @@
         },
         "temporal_extent": [
           "2021-01-01",
-          "2021-12-31"
+          "2022-01-01"
         ]
       }
     },
@@ -163,6 +163,22 @@
           "VV"
         ],
         "id": "SENTINEL1_GRD",
+        "properties": {
+          "polarisation": {
+            "process_graph": {
+              "eq1": {
+                "process_id": "eq",
+                "arguments": {
+                  "x": {
+                    "from_parameter": "value"
+                  },
+                  "y": "VV&VH"
+                },
+                "result": true
+              }
+            }
+          }
+        },
         "spatial_extent": {
           "east": 5.5,
           "south": 49.5,
@@ -172,7 +188,7 @@
         },
         "temporal_extent": [
           "2021-01-01",
-          "2021-12-31"
+          "2022-01-01"
         ]
       }
     },
@@ -435,7 +451,7 @@
         },
         "extent": [
           "2021-01-01",
-          "2021-12-31"
+          "2022-01-01"
         ]
       }
     },

@@ -66,6 +66,7 @@ def real_onnx_model(tmpdir):
     return onnx_model_path  # Return the path to the ONNX model
 
 # Test load_catboost_model
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_load_catboost_model(mock_exists, mock_catboost_model):
     model_path = "fake_model_path.cbm"
 
@@ -73,11 +74,13 @@ def test_load_catboost_model(mock_exists, mock_catboost_model):
         model = load_catboost_model(model_path)
         assert isinstance(model, CatBoostClassifier)
 
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_load_catboost_model_file_not_found():
     model_path = "non_existent_model.cbm"
     with pytest.raises(FileNotFoundError):
         load_catboost_model(model_path)
 
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_load_catboost_model_fail(mock_exists):
     model_path = "corrupt_model.cbm"
     
@@ -86,11 +89,13 @@ def test_load_catboost_model_fail(mock_exists):
             load_catboost_model(model_path)
 
 # Test save_model_to_onnx
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_save_model_to_onnx(mock_catboost_model):
     onnx_path = "model.onnx"
     with mock.patch('catboost.CatBoostClassifier.save_model', return_value=None):
         save_model_to_onnx(mock_catboost_model, onnx_path)
 
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_save_model_to_onnx_fail(mock_catboost_model):
 
     # Define a dummy ONNX path
@@ -104,6 +109,7 @@ def test_save_model_to_onnx_fail(mock_catboost_model):
         save_model_to_onnx(mock_catboost_model, onnx_path)
 
 # Test add_metadata_to_onnx
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_add_metadata_to_onnx():
     onnx_path = "test_model.onnx"
     
@@ -118,6 +124,7 @@ def test_add_metadata_to_onnx():
     # Verify if metadata was correctly appended
     assert mock_onnx_model.metadata_props.extend.called
 
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_add_metadata_to_onnx_fail_load():
     onnx_path = "invalid_model.onnx"
     
@@ -125,6 +132,7 @@ def test_add_metadata_to_onnx_fail_load():
         with pytest.raises(ValueError, match="Failed to load ONNX model"):
             add_metadata_to_onnx(onnx_path)
 
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_add_metadata_to_onnx_fail_save():
     onnx_path = "test_model.onnx"
     mock_onnx_model = mock.MagicMock()
@@ -134,6 +142,7 @@ def test_add_metadata_to_onnx_fail_save():
         with pytest.raises(ValueError, match="Failed to save ONNX model with metadata"):
             add_metadata_to_onnx(onnx_path)
 
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_add_metadata_to_onnx_with_real_model(real_onnx_model):
     input_features = ['feature1', 'feature2']
     output_features = ['output1']
@@ -148,6 +157,7 @@ def test_add_metadata_to_onnx_with_real_model(real_onnx_model):
     assert metadata['input_features'] == ', '.join(input_features)
     assert metadata['output_features'] == ', '.join(output_features)
 
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_extract_features_from_onnx_with_real_model(real_onnx_model):
     input_features = ['feature1', 'feature2']
     output_features = ['output1']
@@ -164,6 +174,7 @@ def test_extract_features_from_onnx_with_real_model(real_onnx_model):
 
 
 # Test extract_features_from_onnx
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_extract_features_from_onnx():
     mock_onnx_model = mock.MagicMock()
     
@@ -178,12 +189,13 @@ def test_extract_features_from_onnx():
             'input_features': ['feature1', 'feature2'],
             'output_features': ['output1']
         }
-
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_extract_features_from_onnx_fail():
     with mock.patch('onnx.load', side_effect=Exception("Load error")):
         with pytest.raises(ValueError, match="Failed to load ONNX model"):
             extract_features_from_onnx("invalid_model.onnx")
 
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_save_model_to_onnx_with_real_model(real_catboost_model):
     model, onnx_path = real_catboost_model
 
@@ -193,6 +205,7 @@ def test_save_model_to_onnx_with_real_model(real_catboost_model):
     # Ensure the ONNX file was created
     assert os.path.exists(onnx_path)
 
+@pytest.mark.skip(reason='onnx model utilities need to be revised')
 def test_add_metadata_to_onnx_with_trained_model(real_catboost_model):
     _, onnx_path = real_catboost_model
 

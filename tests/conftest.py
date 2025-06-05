@@ -113,17 +113,41 @@ def con100(requests_mock, api_capabilities):
     requests_mock.get(API_URL+ "collections/SENTINEL2_L2A", json=DEFAULT_S2_METADATA)
     return openeo.connect(API_URL)
 
-def load_json_from_path(filepath):
+def load_json_from_path(filepath: str):
     with open(filepath, "r") as json_file:
         return json.load(json_file)
 
-def compare_job_info(job_info: dict, filename: str):
+def compare_job_info(job_info: dict, filename: str, as_benchmark_scenario: bool=False):
     """
     Compare the job info with the saved job info.
+
+
+    If benchmark_scenario is False, only the process graph is compared.
+    If benchmark_scenario is True, the whole job info (PG, job_options, backend, description,...) is compared.
+
+    Inspired by testing in https://github.com/VITO-RS-Vegetation/lcfm-production.
 
     """
     # Get process graph from job info
     pg = job_info.get("process_graph")
+
+
+    if as_benchmark_scenario:
+        result = {
+            "id": job_info.get("title"),
+            "type": "openeo",
+            "description": f"Integration test from the WEED-production repo: {job_info.get('title')}",
+            "backend": "openeo.dataspace.copernicus.eu",
+            "process_graph": pg,
+            "job_options": {
+                key: job_info[key]
+                for key in job_info
+                if key not in ["process", "title", "description"]
+            },
+            "reference_data": {},
+        }
+    else:
+        result = pg
 
     # Construct paths for generated and expected files
     groundtruth_filepath = os.path.join(GROUNDTRUTH_DIR, filename)

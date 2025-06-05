@@ -7,7 +7,7 @@ from tests.conftest import BBOX, DATE_START, DATE_END, \
 
 
 @pytest.mark.parametrize(
-    "groundtruth_filename",[("generate_master_feature_cube.json")],
+    "groundtruth_filename",[("cube_generation/generate_master_feature_cube.json")],
 )
 def test_generate_master_feature_cube(con100, groundtruth_filename):
     """
@@ -32,7 +32,7 @@ def test_generate_master_feature_cube(con100, groundtruth_filename):
 
 
 @pytest.mark.parametrize(
-    "groundtruth_filename",[("generate_S1_feature_cube.json")],
+    "groundtruth_filename",[("cube_generation/generate_S1_feature_cube.json")],
 )
 def test_generate_S1_feature_cube(con100, groundtruth_filename):
     """
@@ -56,7 +56,7 @@ def test_generate_S1_feature_cube(con100, groundtruth_filename):
 
 
 @pytest.mark.parametrize(
-    "groundtruth_filename",[("generate_S2_feature_cube.json")],
+    "groundtruth_filename",[("cube_generation/generate_S2_feature_cube.json")],
 )
 def test_generate_S2_feature_cube(con100, groundtruth_filename):
     """

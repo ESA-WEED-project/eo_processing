@@ -8,15 +8,15 @@ from tests.conftest import BBOX, DATE_START, DATE_END, \
 
 # Define the different test scenarios and processing options
 ts_test_scenarios = [
-    ("ts_datacube_extraction_S1.json", {"S1_collection": None}),
-    ("ts_datacube_extraction_combined.json", {}),
-    ("ts_datacube_extraction_S2_with_masking.json", {"SLC_masking_algo": "mask_scl_dilation"}),
-    ("ts_datacube_extraction_S1_interpolation.json", {
+    ("cube_extraction/ts_datacube_extraction_S1.json", {"S1_collection": None}),
+    ("cube_extraction/ts_datacube_extraction_combined.json", {}),
+    ("cube_extraction/ts_datacube_extraction_S2_with_masking.json", {"SLC_masking_algo": "mask_scl_dilation"}),
+    ("cube_extraction/ts_datacube_extraction_S1_interpolation.json", {
         "S1_collection": "SENTINEL1_GRD",
         "ts_interval": "P1M",
         "time_interpolation": True
     }),
-    ("ts_datacube_extraction_combined_custom_crs.json", {
+    ("cube_extraction/ts_datacube_extraction_combined_custom_crs.json", {
         "target_crs": "EPSG:3857",
         "resolution": 20.0
     })
@@ -25,12 +25,12 @@ ts_test_scenarios = [
 
 # Define test scenarios for `extract_S1_datacube`
 s1_test_scenarios = [
-    ("extract_S1_basic.json", {"S1_collection": "SENTINEL1_GRD"}),
-    ("extract_S1_temporal_aggregation.json", {
+    ("cube_extraction/extract_S1_basic.json", {"S1_collection": "SENTINEL1_GRD"}),
+    ("cube_extraction/extract_S1_temporal_aggregation.json", {
         "S1_collection": "SENTINEL1_GRD",
         "ts_interval": "P1M"
     }),
-    ("extract_S1_custom_crs.json", {
+    ("cube_extraction/extract_S1_custom_crs.json", {
         "S1_collection": "SENTINEL1_GRD",
         "target_crs": "EPSG:3857",
         "resolution": 30.0
@@ -40,12 +40,12 @@ s1_test_scenarios = [
 
 # Define test scenarios for `extract_S2_datacube`
 s2_test_scenarios = [
-    ("extract_S2_basic.json", {"S2_collection": "SENTINEL2_L2A"}),
-    ("extract_S2_with_masking.json", {
+    ("cube_extraction/extract_S2_basic.json", {"S2_collection": "SENTINEL2_L2A"}),
+    ("cube_extraction/extract_S2_with_masking.json", {
         "S2_collection": "SENTINEL2_L2A",
         "SLC_masking_algo": "mask_scl_dilation"
     }),
-    ("extract_S2_temporal_resampling.json", {
+    ("cube_extraction/extract_S2_temporal_resampling.json", {
         "S2_collection": "SENTINEL2_L2A",
         "ts_interval": "P1M",
         "target_crs": "EPSG:3857",

@@ -39,7 +39,7 @@ def pytest_collection_modifyitems(config, items):
 
 
 API_URL = "https://oeo.test/"
-GROUNDTRUTH_DIR = "tests//process_graphs"
+GROUNDTRUTH_DIR = "tests//resources"
 BBOX = {'east': 5.5, 'south': 49.5, 'west': 4.5, 'north': 50.5, 'crs': 'EPSG:4326'}
 DATE_START = "2021-01-01"
 DATE_END = "2022-01-01"

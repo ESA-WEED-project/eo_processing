@@ -8,54 +8,61 @@ from tests.conftest import BBOX, DATE_START, DATE_END, \
 
 # Define the different test scenarios and processing options
 ts_test_scenarios = [
-    ("cube_extraction/ts_datacube_extraction_S1.json", {"S1_collection": None}),
-    ("cube_extraction/ts_datacube_extraction_combined.json", {}),
-    ("cube_extraction/ts_datacube_extraction_S2_with_masking.json", {"SLC_masking_algo": "mask_scl_dilation"}),
+    ("cube_extraction/ts_datacube_extraction_S1.json", {"S1_collection": None}, False),
+    ("cube_extraction/ts_datacube_extraction_combined.json", {}, False),
+    ("cube_extraction/ts_datacube_extraction_S2_with_masking.json", {"SLC_masking_algo": "mask_scl_dilation"},
+     False),
     ("cube_extraction/ts_datacube_extraction_S1_interpolation.json", {
         "S1_collection": "SENTINEL1_GRD",
         "ts_interval": "P1M",
         "time_interpolation": True
-    }),
+    },
+    False),
     ("cube_extraction/ts_datacube_extraction_combined_custom_crs.json", {
         "target_crs": "EPSG:3857",
         "resolution": 20.0
-    })
+    },
+    False)
 ]
 
 
 # Define test scenarios for `extract_S1_datacube`
 s1_test_scenarios = [
-    ("cube_extraction/extract_S1_basic.json", {"S1_collection": "SENTINEL1_GRD"}),
+    ("cube_extraction/extract_S1_basic.json", {"S1_collection": "SENTINEL1_GRD"}, False),
     ("cube_extraction/extract_S1_temporal_aggregation.json", {
         "S1_collection": "SENTINEL1_GRD",
         "ts_interval": "P1M"
-    }),
+    },
+    False),
     ("cube_extraction/extract_S1_custom_crs.json", {
         "S1_collection": "SENTINEL1_GRD",
         "target_crs": "EPSG:3857",
         "resolution": 30.0
-    })
+    },
+    False)
 ]
 
 
 # Define test scenarios for `extract_S2_datacube`
 s2_test_scenarios = [
-    ("cube_extraction/extract_S2_basic.json", {"S2_collection": "SENTINEL2_L2A"}),
+    ("cube_extraction/extract_S2_basic.json", {"S2_collection": "SENTINEL2_L2A"}, False),
     ("cube_extraction/extract_S2_with_masking.json", {
         "S2_collection": "SENTINEL2_L2A",
         "SLC_masking_algo": "mask_scl_dilation"
-    }),
+    },
+    False),
     ("cube_extraction/extract_S2_temporal_resampling.json", {
         "S2_collection": "SENTINEL2_L2A",
         "ts_interval": "P1M",
         "target_crs": "EPSG:3857",
         "resolution": 20.0
-    })
+    },
+    False)
 ]
 
 
-@pytest.mark.parametrize("groundtruth_filename, params", ts_test_scenarios)
-def test_ts_datacube_extraction(con100, groundtruth_filename, params):
+@pytest.mark.parametrize("groundtruth_filename, params, integration", ts_test_scenarios)
+def test_ts_datacube_extraction(con100, groundtruth_filename, params, integration):
     """
     Test `ts_datacube_extraction` function for different scenarios.
     """
@@ -74,11 +81,11 @@ def test_ts_datacube_extraction(con100, groundtruth_filename, params):
     assert generated_process_graph is not None, "Post data is None"
     
     # Compare generated job info with the ground truth process graph
-    compare_job_info(json.loads(generated_process_graph), groundtruth_filename)
+    compare_job_info(json.loads(generated_process_graph), groundtruth_filename, as_benchmark_scenario=integration)
 
 
-@pytest.mark.parametrize("groundtruth_filename, params", s1_test_scenarios)
-def test_extract_S1_datacube(con100, groundtruth_filename, params):
+@pytest.mark.parametrize("groundtruth_filename, params, integration", s1_test_scenarios)
+def test_extract_S1_datacube(con100, groundtruth_filename, params, integration):
     """
     Test the `extract_S1_datacube` function for various Sentinel-1 scenarios.
     """
@@ -97,11 +104,11 @@ def test_extract_S1_datacube(con100, groundtruth_filename, params):
     assert generated_process_graph is not None, "Post data is None"
     
     # Compare generated job info with the ground truth process graph
-    compare_job_info(json.loads(generated_process_graph), groundtruth_filename)
+    compare_job_info(json.loads(generated_process_graph), groundtruth_filename, as_benchmark_scenario=integration)
 
 
-@pytest.mark.parametrize("groundtruth_filename, params", s2_test_scenarios)
-def test_extract_S2_datacube(con100, groundtruth_filename, params):
+@pytest.mark.parametrize("groundtruth_filename, params, integration", s2_test_scenarios)
+def test_extract_S2_datacube(con100, groundtruth_filename, params, integration):
     """
     Test the `extract_S2_datacube` function for various Sentinel-2 scenarios.
     """
@@ -120,4 +127,4 @@ def test_extract_S2_datacube(con100, groundtruth_filename, params):
     assert generated_process_graph is not None, "Post data is None"
     
     # Compare generated job info with the ground truth process graph
-    compare_job_info(json.loads(generated_process_graph), groundtruth_filename)
+    compare_job_info(json.loads(generated_process_graph), groundtruth_filename, as_benchmark_scenario=integration)

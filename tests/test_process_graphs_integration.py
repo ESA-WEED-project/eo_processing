@@ -6,11 +6,32 @@ import openeo
 import pytest
 from rio_cogeo.cogeo import cog_validate
 
+
 INTEGRATION_TESTS = (
     {  # Dict that maps the integration tests to the number of expected assets
-        "generate_master_feature_cube_integration.json": 10,
+        "extract_S1_integration.json": 176,
+        "extract_S2_integration.json": 100,
+        "ts_datacube_extraction_combined_integration.json": 228,
+        "ts_datacube_extraction_s1_integration.json": 100,       
+        "ts_datacube_extraction_s2_integration.json": 99,  
+        "generate_master_feature_cube_integration.json": 1,
+        "generate_s1_feature_cube_integration.json": 1,
+        "generate_s2_feature_cube_integration.json": 1,
     }
 )
+
+
+INTEGRATION_JOB_OPTIONS = {
+      "driver-memory": "1000m",
+      "driver-memoryOverhead": "1000m",
+      "executor-memory": "1500m",
+      "executor-memoryOverhead": "1500m",
+      "python-memory": "4000m",
+      "max-executors": 20}
+
+
+def _is_integration_pg(pg_path: Path) -> bool:
+    return pg_path.name in INTEGRATION_TESTS.keys()
 
 
 def changed_process_graphs():
@@ -57,9 +78,9 @@ def _is_integration_pg(pg_path: Path) -> bool:
 @pytest.mark.parametrize(
     "pg_path",
     changed_process_graphs(),
-    ids=[x.name.split("/")[-1] for x in changed_process_graphs()],
+    ids=[x.name for x in changed_process_graphs()],
 )
-def test_process_graph(pg_path: Path):
+def test_process_graph_integration(pg_path: Path):
     """
     Tests the changed process graphs marked with integration.
 
@@ -79,9 +100,9 @@ def test_process_graph(pg_path: Path):
     # Create job
     job = con_cdse.create_job(
         process_graph=job_info["process_graph"],
-        title=f"WEED eo-processing test_process_graph_integration {job_info['id']}",
+        title=f"WEED eo-processing test_process_graph_integration {pg_path.name}",
         description=job_info["description"],
-        job_options=job_info["job_options"],
+        job_options=INTEGRATION_JOB_OPTIONS,
     )
 
     # Run job & assert if it works

@@ -1,10 +1,11 @@
 import json
 import os
+from pathlib import Path
 
 import openeo
 import pytest
 from openeo.rest._testing import build_capabilities
-
+from tests.test_process_graphs_integration import INTEGRATION_JOB_OPTIONS
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -21,17 +22,16 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
+
     if config.getoption("--integration"):
-        # --integration given in cli: skip all tests without the marker
+        # integration given in cli: skip all tests without the marker
         for item in items:
             if "integration" not in item.keywords:
-                item.add_marker(
-                    pytest.mark.skip(
-                        reason="Test not marked as integration test and --integration given"
-                    )
-                )
+                item.add_marker(pytest.mark.skip(
+                    reason="Test not marked as integration test and --integration given"
+                ))
     else:
-        # --integration not given in cli: skip all tests with the marker
+        # integration not given in cli: skip all tests with the marker
         skip_integration = pytest.mark.skip(reason="need --integration option to run")
         for item in items:
             if "integration" in item.keywords:
@@ -40,7 +40,7 @@ def pytest_collection_modifyitems(config, items):
 
 API_URL = "https://oeo.test/"
 GROUNDTRUTH_DIR = "tests//resources"
-BBOX = {'east': 5.5, 'south': 49.5, 'west': 4.5, 'north': 50.5, 'crs': 'EPSG:4326'}
+BBOX = {"east": 4880000, "south": 2896000, "west": 4876000, "north": 2900000, 'crs': 'EPSG:3035'} # 4x4 km bbox in Germany
 DATE_START = "2021-01-01"
 DATE_END = "2022-01-01"
 
@@ -134,16 +134,12 @@ def compare_job_info(job_info: dict, filename: str, as_benchmark_scenario: bool=
 
     if as_benchmark_scenario:
         result = {
-            "id": job_info.get("title"),
+            "id": Path().stem,
             "type": "openeo",
-            "description": f"Integration test from the WEED-production repo: {job_info.get('title')}",
+            "description": f"Integration test from the WEED eo-processing {os.path.splitext(filename)[0]}",
             "backend": "openeo.dataspace.copernicus.eu",
             "process_graph": pg,
-            "job_options": {
-                key: job_info[key]
-                for key in job_info
-                if key not in ["process", "title", "description"]
-            },
+            "job_options": INTEGRATION_JOB_OPTIONS, 
             "reference_data": {},
         }
     else:
@@ -154,7 +150,7 @@ def compare_job_info(job_info: dict, filename: str, as_benchmark_scenario: bool=
 
     # Compare the saved process graph with the one created by the job manager
     assert (
-        pg == load_json_from_path(groundtruth_filepath).get("process_graph")
+        result == load_json_from_path(groundtruth_filepath).get("process_graph")
     ), "Process graph does not match the saved process graph. Run pytest with `-vv` to see the differences."
 
 

@@ -8,11 +8,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
-# Define the job to run the unit tests using a matrix for multiple Python versions
 jobs:
-    integration-tests:
-        name: "Run integration tests"
-        runs-on: ubuntu-latest
+  integration-tests:
+    name: "Run integration tests"
+    runs-on: ubuntu-latest
 
     # Define the steps for setting up the environment and running tests
     steps:
@@ -20,7 +19,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Set up Python environment 
+      # Step 2: Set up Python environment
       - name: Set up Python environment with uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -35,7 +34,7 @@ jobs:
           uv pip install pytest-cov
           uv pip install rio-cogeo
           uv pip install -r requirements.txt
-
+      
       # Step 4: Run unit tests using pytest, targeting the 'tests_unit' directory
       - name: Run tests
         run: |

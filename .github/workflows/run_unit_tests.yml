@@ -1,4 +1,4 @@
-name: Run Unit Tests
+name: Unit Tests
 
 # Trigger this workflow on every push to any branch
 on:

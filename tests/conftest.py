@@ -40,7 +40,7 @@ def pytest_collection_modifyitems(config, items):
 
 API_URL = "https://oeo.test/"
 GROUNDTRUTH_DIR = "tests//resources"
-BBOX = {"east": 4880000, "south": 2896000, "west": 4876000, "north": 2900000, 'crs': 'EPSG:3035'} # 4x4 km bbox in Germany
+BBOX = {"east": 4880000, "south": 2898000, "west": 4878000, "north": 2900000, 'crs': 'EPSG:3035'} # 2x2 km bbox in Germany
 DATE_START = "2021-01-01"
 DATE_END = "2022-01-01"
 
@@ -121,7 +121,6 @@ def con100(requests_mock, api_capabilities):
     requests_mock.get(API_URL+ "collections/SENTINEL1_GRD", json=DEFAULT_S1_METADATA)
     requests_mock.get(API_URL+ "collections/SENTINEL2_L2A", json=DEFAULT_S2_METADATA)
     return openeo.connect(API_URL)
-
 def load_json_from_path(filepath: str):
     with open(filepath, "r") as json_file:
         return json.load(json_file)

@@ -3,7 +3,7 @@
 # Testing
 
 
-This repository uses [pytest](https://docs.pytest.org/en/latest/) for testing. The tests are located in the `tests` directory.
+This repository uses [pytest](https://docs.pytest.org/en/latest/) for testing. The tests are located in the `tests` directory. The tests can be run using `uv`.
 
 There are two sets of tests that can be run: unit tests and integration tests. The unit tests are run on the local machine, while the integration tests are run on the OpenEO backend.
 
@@ -11,7 +11,7 @@ There are two sets of tests that can be run: unit tests and integration tests. T
 The unit tests are run on the local machine and are used to test the functionality of the code. The unit tests are run using pytest and can be run using the following command:
 
 ```
-pytest --disable-warnings -vv
+uv run pytest --disable-warnings -vv
 ```
 The `-vv` flag is optional and can be used to increase verbosity. This is useful for debugging process graphs differences.
 

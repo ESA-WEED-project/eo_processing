@@ -38,8 +38,8 @@
         },
         "spatial_extent": {
           "east": 4880000,
-          "south": 2896000,
-          "west": 4876000,
+          "south": 2898000,
+          "west": 4878000,
           "north": 2900000,
           "crs": "EPSG:3035"
         },
@@ -847,8 +847,8 @@
         },
         "spatial_extent": {
           "east": 4880000,
-          "south": 2896000,
-          "west": 4876000,
+          "south": 2898000,
+          "west": 4878000,
           "north": 2900000,
           "crs": "EPSG:3035"
         },

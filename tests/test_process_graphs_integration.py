@@ -9,15 +9,15 @@ from tests.conftest import compare_job_info, INTEGRATION_JOB_OPTIONS
 
 
 INTEGRATION_TESTS = (
-    {  # Dict that maps the integration tests to the number of expected assets
-        "extract_S1_integration.json": 176,
-        "extract_S2_integration.json": 100,
-        "ts_datacube_extraction_combined_integration.json": 228,
-        "ts_datacube_extraction_s1_integration.json": 100,       
-        "ts_datacube_extraction_s2_integration.json": 99,  
-        "generate_master_feature_cube_integration.json": 1,
-        "generate_s1_feature_cube_integration.json": 1,
-        "generate_s2_feature_cube_integration.json": 1,
+    {  # Dict that maps the integration tests to the number of expected assets # credits for 4x4 km area
+        "extract_S1_integration.json": 176, # 7 credits
+        "extract_S2_integration.json": 100, # 6 credits
+        "ts_datacube_extraction_combined_integration.json": 228, # 13 credits
+        "ts_datacube_extraction_s1_integration.json": 100, # 6 credits       
+        "ts_datacube_extraction_s2_integration.json": 99, # 9 credits
+        "generate_master_feature_cube_integration.json": 1, # 81 credits
+        "generate_s1_feature_cube_integration.json": 1, # 12 credits
+        "generate_s2_feature_cube_integration.json": 1, # 15 credits
     }
 )
 

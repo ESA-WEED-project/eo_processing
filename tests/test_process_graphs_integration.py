@@ -5,6 +5,7 @@ from pathlib import Path
 import openeo
 import pytest
 from rio_cogeo.cogeo import cog_validate
+from tests.conftest import compare_job_info, INTEGRATION_JOB_OPTIONS
 
 
 INTEGRATION_TESTS = (
@@ -19,15 +20,6 @@ INTEGRATION_TESTS = (
         "generate_s2_feature_cube_integration.json": 1,
     }
 )
-
-
-INTEGRATION_JOB_OPTIONS = {
-      "driver-memory": "1000m",
-      "driver-memoryOverhead": "1000m",
-      "executor-memory": "1500m",
-      "executor-memoryOverhead": "1500m",
-      "python-memory": "4000m",
-      "max-executors": 20}
 
 
 def _is_integration_pg(pg_path: Path) -> bool:
@@ -113,6 +105,9 @@ def test_process_graph_integration(pg_path: Path):
     ), f"Job {job.job_id} failed with status {job.status()}"
 
     job_results = job.get_results()
+
+    # Compare job information with ground truth process graphs
+    compare_job_info(job_info=job_info, filename=pg_path, as_benchmark_scenario=True)
 
     # Check the number of assets
     assert (

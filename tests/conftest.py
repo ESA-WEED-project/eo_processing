@@ -5,7 +5,7 @@ from pathlib import Path
 import openeo
 import pytest
 from openeo.rest._testing import build_capabilities
-from tests.test_process_graphs_integration import INTEGRATION_JOB_OPTIONS
+
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -87,6 +87,15 @@ DEFAULT_S2_METADATA = {
     }
 }
 
+INTEGRATION_JOB_OPTIONS = {
+      "driver-memory": "1000m",
+      "driver-memoryOverhead": "1000m",
+      "executor-memory": "1500m",
+      "executor-memoryOverhead": "1500m",
+      "python-memory": "4000m",
+      "max-executors": 20}
+
+
 @pytest.fixture
 def api_capabilities() -> dict:
     """
@@ -136,7 +145,7 @@ def compare_job_info(job_info: dict, filename: str, as_benchmark_scenario: bool=
         result = {
             "id": Path().stem,
             "type": "openeo",
-            "description": f"Integration test from the WEED eo-processing {os.path.splitext(filename)[0]}",
+            "description": f"Integration test from the WEED eo-processing {Path().stem}",
             "backend": "openeo.dataspace.copernicus.eu",
             "process_graph": pg,
             "job_options": INTEGRATION_JOB_OPTIONS, 

@@ -19,7 +19,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Set up Python environment
+      # Step 2: Set up Python environment 
       - name: Set up Python environment with uv
         uses: astral-sh/setup-uv@v5
         with:

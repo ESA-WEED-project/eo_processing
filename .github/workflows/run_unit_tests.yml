@@ -33,7 +33,7 @@ jobs:
         run: |
           uv pip install pytest
           uv pip install requests-mock
-          uv pipinstall pytest-xdist
+          uv pip install pytest-xdist
           uv pip install pytest-cov
           uv pip install rio-cogeo
           uv pip install -r requirements.txt

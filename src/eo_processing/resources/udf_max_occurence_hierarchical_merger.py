@@ -1,14 +1,23 @@
 import os, sys
 import pandas as pd
-import geopandas as gpd
 import numpy as np
 import xarray as xr
 from typing import Dict, List, Tuple, Union
 from openeo.udf import inspect
 from datetime import datetime
+from openeo.metadata import CubeMetadata
 
 #ToDo Clean and add more comments
-def get_metadata(l1_classes, l1_values, l2_classes, l2_values, l3_classes, l3_values, tileID) -> Dict:
+
+def apply_metadata(metadata: CubeMetadata, context:dict) -> CubeMetadata:
+    """ Rename the bands by using openeo apply_metadata function
+    :param metadata: Metadata of the input data cube
+    :param context: Context of the UDF
+    :return: renamed labels
+    """
+    return metadata.rename_labels(dimension="bands", target=['EUNIS habitat level3'])
+
+def _get_metadata(l1_classes, l1_values, l2_classes, l2_values, l3_classes, l3_values) -> Dict:
     attrs = {}
     attrs['eunis habitats L1'] = ""
     for idx, l1 in enumerate(l1_classes):
@@ -19,31 +28,22 @@ def get_metadata(l1_classes, l1_values, l2_classes, l2_values, l3_classes, l3_va
     attrs['eunis habitats L3'] = ""
     for idx, l3 in enumerate(l3_classes):
         attrs['eunis habitats L3'] += l3+':'+str(l3_values[idx])+','
-    #TODO use eo_processing instad of hardcoding
-    attrs['copyright']="WEED project 2024 / Contains modified Copernicus Sentinel data processed by WEED consortium"
-    attrs['creation_time']=datetime.now().strftime("%Y%m%d %H:%M:%S")
-    attrs['description']="EUNIS habitat level-3 map based on highest occurrence of probability per hierarchical level"
-    attrs['ImageDescription']='EUNIS habitat lavel-3 highest occurence of propability map'
-    attrs['institution']='Copernicus Data Space Ecosystem openEO API - 0.66.0a3.dev20250516+2700'
-    attrs['processing_platform']='openEO platform - client version: 0.40.0'
-    attrs['PROCESSING_SOFTWARE']='eo_processing, version 0.2.16'
-    attrs['producer']='VITO NV'
-    attrs['product_tile']=str(tileID)
-    attrs['references']='https://esa-worldecosystems.org/'
-    attrs['tiling_grid']='global_grid20'
-    attrs['time_end']='2024-12-31T23:59:59Z'
-    attrs['time_start']='2024-01-01T00:00:00Z'
 
     return attrs
 
-def create_output_xarray(output_ar: np.ndarray, input_xr: xr.DataArray) -> xr.DataArray:
+def _create_output_xarray(output_ar: np.ndarray, input_xr: xr.DataArray) -> xr.DataArray:
     return xr.DataArray(
         output_ar,
         dims=["bands","y","x"],
         coords={"bands":range(1),"y":input_xr.coords["y"], "x":input_xr.coords["x"]},
     )
 
-def select_highest_prob_class(cube: xr.DataArray, raster_codes) -> xr.DataArray:
+def _select_highest_prob_class(cube: xr.DataArray, raster_codes) -> xr.DataArray:
+    """ Select per model the highest probability of occurrence class
+    :param cube: data cube with probabilities for all classes of three levels
+    :param raster_codes: dataframe with raster code values
+    :return: data cube with highest probably of occurrence class per model (level)
+    """
     # Identify the band with the highest probability for each pixel
     cube= cube.fillna(0)  #make sure argmax is not returning all slice N/A
     try:
@@ -57,17 +57,17 @@ def select_highest_prob_class(cube: xr.DataArray, raster_codes) -> xr.DataArray:
     # Return selected highest eunis habitat (raster value) for given level
     return selected_raster_code
 
-def merge_hierarchical(cube: xr.DataArray, df, df_high_prob, tileID) -> xr.DataArray:
-    # currently band names are pushed in attributes. TODO use data variables
-    if len(df_high_prob) != len(cube.attrs["bands"].split(',')):
-        inspect(message=f"EXCEPTION mismatch in high estprobability cube per group")
+def _merge_hierarchical(cube: xr.DataArray, df, df_high_prob) -> xr.DataArray:
+    # currently band names are pushed in attributes.
+    #if len(df_high_prob) != len(cube.attrs["bands"].split(',')):
+    #    inspect(message=f"EXCEPTION mismatch in highest probability cube per group")
 
-    print('+ get level1 to start with')
+    #print('+ get level1 to start with')
     inspect(message=f"+ merge hierarchical Level 1")
     #select the first band from the cube, this is level-1
     aData = cube.isel(bands=[0])  #.to_numpy()[0] not supported in OpenEO
 
-    print('+ imprint Level2 data into Level1 classes')
+    #print('+ imprint Level2 data into Level1 classes')
     inspect(message=f"+ merge hierarchical Level 2")
     l1_classes = df[df.level == '1']['habitat'].unique().tolist()
     l1_values = df[df.level == '1']['raster_code'].unique().tolist()
@@ -83,7 +83,7 @@ def merge_hierarchical(cube: xr.DataArray, df, df_high_prob, tileID) -> xr.DataA
     if not df_l2.empty:
         # now we run over each of this Level 2 raster to imprint into Level1
         for row in df_l2.itertuples():
-            print(f'++ retrieve & imprint data for Level 1 {row.model}')
+            #print(f'++ retrieve & imprint data for Level 1 {row.model}')
             aImprint = cube.isel(bands=[row.Index])  #.to_numpy()[0] not supported in OpenEO
             nodata = [0 , -1]
 
@@ -101,11 +101,11 @@ def merge_hierarchical(cube: xr.DataArray, df, df_high_prob, tileID) -> xr.DataA
 
             # now imprint the data into level 1
             #aData[aData == lsub[0]] = aImprint[aData == lsub[0]]  #multi-boolean indexing not supported in xarray
-            aData = xr.where(aData == lsub[0], aData, aImprint)
+            aData = xr.where(aData == lsub[0], aImprint, aData)
             # free
             aImprint = None
 
-    print('+ imprint Level3 data into Level2 classes')
+    #print('+ imprint Level3 data into Level2 classes')
     inspect(message=f"+ merge hierarchical Level 3")
     l3_classes = df[df.level == '3']['habitat'].unique().tolist()
     l3_values = df[df.level == '3']['raster_code'].unique().tolist()
@@ -119,7 +119,7 @@ def merge_hierarchical(cube: xr.DataArray, df, df_high_prob, tileID) -> xr.DataA
     if not df_l3.empty:
         # now we run over each of this Level 3 raster to imprint into Level1
         for row in df_l3.itertuples():
-            print(f'++ retrieve & imprint data for Level 3 {row.model}')
+            #print(f'++ retrieve & imprint data for Level 3 {row.model}')
             aImprint = cube.isel(bands=[row.Index])
             nodata = [0 , -1]
 
@@ -137,19 +137,19 @@ def merge_hierarchical(cube: xr.DataArray, df, df_high_prob, tileID) -> xr.DataA
 
             # now imprint the data into level 2
             #aData[aData == lsub[0]] = aImprint[aData == lsub[0]]
-            aData = xr.where(aData == lsub[0], aData, aImprint)
+            aData = xr.where(aData == lsub[0], aImprint, aData)
             # free
             aImprint = None
-
 
     #to keep the spatial dimensions, we take a copy of cube (first band) and imprint the results
     #eunis_cube = cube.isel(bands=[0])
     #eunis_cube[0] = aData
     eunis_cube = aData
-    eunis_cube.attrs = get_metadata(l1_classes, l1_values, l2_classes, l2_values, l3_classes, l3_values, tileID)
+
+    eunis_cube.attrs = _get_metadata(l1_classes, l1_values, l2_classes, l2_values, l3_classes, l3_values)
     #eunis_cube = xr.set_options() set_nodata(eunis_cube, 0)
 
-    return eunis_cube.astype(np.uint32)
+    return eunis_cube
 
 def apply_datacube(cube: xr.DataArray, context:Dict) -> xr.DataArray:
     inspect(message=f"xarray dims {cube.dims}")
@@ -172,9 +172,9 @@ def apply_datacube(cube: xr.DataArray, context:Dict) -> xr.DataArray:
         band_indices = group["band_nr"].values - 1  # Convert to 0-based index
         raster_codes = group["raster_code"].values
 
-        inspect(message=f"processing level:group {level}:{class_name} with bands: {band_indices}")
+        #inspect(message=f"processing level:group {level}:{class_name} with bands: {band_indices}")
         subset_cube = cube.isel(bands=list(band_indices))
-        max_probability = select_highest_prob_class(subset_cube, raster_codes)
+        max_probability = _select_highest_prob_class(subset_cube, raster_codes)
         #max_level_cube = create_output_xarray(max_probability, subset_cube)
 
         if not max_cube_initialized:
@@ -188,12 +188,14 @@ def apply_datacube(cube: xr.DataArray, context:Dict) -> xr.DataArray:
             band_names.append(class_name)
 
     #TODO assign names to bands via data variables iso attributes
-    max_cube = max_cube.assign_attrs(bands=",".join(str(x) for x in band_names))
+    #max_cube = max_cube.assign_attrs(bands=",".join(str(x) for x in band_names))
     # create new dataframe with bands from highest_prob
     df_high_prob = pd.DataFrame({'count':df.groupby(["level","model"]).size()}).reset_index(level=["model","level"])
 
     ### Merge highest probability classes in hierarchical way
     inspect(message=f"## merge highest probabilities")
-    max_cube = merge_hierarchical(max_cube, df, df_high_prob, tileID)
+    max_cube = _merge_hierarchical(max_cube, df, df_high_prob)
+    # make sure the output Xarray has set correct dtype (not float64)
+    max_cube = max_cube.astype("uint32")
 
     return max_cube

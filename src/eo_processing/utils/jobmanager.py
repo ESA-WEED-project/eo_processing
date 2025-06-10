@@ -444,13 +444,14 @@ class WeedJobManager(MultiBackendJobManager):
         #before launching jobs will first check if, in case of export workspace that the workspace (s3-bucket)
         #is reachable
         if self.storage_options.get('workspace_export',False):
-
-            logger.info(f"Checking if the workspace/s3 bucket {self.storage_options["WEED_storage"].get_s3_bucket_name()} is reachable")
-            bucket_exist = self.storage_options["WEED_storage"].s3_bucket_exists()
-            if not bucket_exist:
-                df.loc[i, "status"] = "skipped_workspace_unavailable"
-                if df.loc[i, "attempt"] <= self.max_attempts:
-                    df.loc[i, "status"] = "not_started"
+            #however when credentials are not given this check should be omitted
+            if self.storage_options.get("WEED_storage",False):
+                logger.info(f"Checking if the workspace/s3 bucket {self.storage_options["WEED_storage"].get_s3_bucket_name()} is reachable")
+                bucket_exist = self.storage_options["WEED_storage"].s3_bucket_exists()
+                if not bucket_exist:
+                    df.loc[i, "status"] = "skipped_workspace_unavailable"
+                    if df.loc[i, "attempt"] <= self.max_attempts:
+                        df.loc[i, "status"] = "not_started"
 
 
         try:

@@ -2,6 +2,7 @@ import os, sys
 import pandas as pd
 import numpy as np
 import xarray as xr
+import re
 from typing import Dict, List, Tuple, Union
 from openeo.udf import inspect
 from datetime import datetime
@@ -151,16 +152,32 @@ def _merge_hierarchical(cube: xr.DataArray, df, df_high_prob) -> xr.DataArray:
 
     return eunis_cube
 
+def parse_prob_classes_fromStac(band_names):
+
+    band_info = []
+    pattern = re.compile(r"Level([\w\d]+)_class-([\w\d]+)_habitat-([\w\d]+)-(\d+)")
+    for band_nr, band_name in enumerate(band_names, start=1):
+        match = pattern.search(band_name.replace(" ", ""))  # make sure no white spaces pending
+        if match:
+            level, class_name, habitat, raster_code = match.groups()
+            band_info.append((band_nr, level, class_name, habitat, int(raster_code)))
+        else:
+            print('skipping {}'.format(band_name))
+    # Create DataFrame
+    df = pd.DataFrame(band_info, columns=["band_nr", "level", "model", "habitat", "raster_code"])
+
+    return df
+
 def apply_datacube(cube: xr.DataArray, context:Dict) -> xr.DataArray:
     inspect(message=f"xarray dims {cube.dims}")
     # fill nan in cube and make sure the cube is in the right dtype
     max_cube_initialized = False
 
     ### get the list of classes as output from inference run
+    # use returned metadata to build up the class dictionary
+    df = parse_prob_classes_fromStac(context["band_names"])
+
     inspect(message=f"## context parameters")
-    tileID = context.get("tile")
-    inspect(message=f"tile ID: {tileID}")
-    df = pd.DataFrame.from_dict(context.get("level_info"))
     inspect(message=f"{df}")
 
     ### Determine first the highest probability per model (leveled)

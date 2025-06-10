@@ -445,7 +445,7 @@ class WeedJobManager(MultiBackendJobManager):
         #is reachable
         if self.storage_options.get('workspace_export',False):
             #however when credentials are not given this check should be omitted
-            if self.storage_options.get(["WEED_storage"],False):
+            if self.storage_options.get("WEED_storage",False):
                 logger.info(f"Checking if the workspace/s3 bucket {self.storage_options["WEED_storage"].get_s3_bucket_name()} is reachable")
                 bucket_exist = self.storage_options["WEED_storage"].s3_bucket_exists()
                 if not bucket_exist:

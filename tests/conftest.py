@@ -164,7 +164,9 @@ def compare_job_info(job_info: dict, filename: str, as_benchmark_scenario: bool=
             "reference_data": reference_data,
         }
     else:
-        result = pg
+        result = {
+            "process_graph": pg,
+        }
 
     # Compare the saved process graph with the one created by the job manager
     assert (

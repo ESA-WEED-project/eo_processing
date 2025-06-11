@@ -175,7 +175,8 @@ def apply_datacube(cube: xr.DataArray, context:Dict) -> xr.DataArray:
 
     ### get the list of classes as output from inference run
     # use returned metadata to build up the class dictionary
-    df = parse_prob_classes_fromStac(context["band_names"])
+    inspect(message=cube.indexes["bands"].values)
+    df = parse_prob_classes_fromStac(cube.indexes["bands"].values)
 
     inspect(message=f"## context parameters")
     inspect(message=f"{df}")

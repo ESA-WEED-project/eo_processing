@@ -69,8 +69,8 @@ def _is_integration_pg(pg_path: Path) -> bool:
 @pytest.mark.integration
 @pytest.mark.parametrize(
     "pg_path",
-    [Path(r"C:\Users\wannijnj\Documents\Projects\WEED\eo_processing\tests\resources\cube_extraction\extract_S1_integration.json")], 
-    ids=["extract_S1_integration.json"], #["WEED_" + x.name for x in changed_process_graphs()],
+    changed_process_graphs(),
+    ids=[x.name for x in changed_process_graphs()],
 )
 def test_process_graph_integration(pg_path: Path):
     """

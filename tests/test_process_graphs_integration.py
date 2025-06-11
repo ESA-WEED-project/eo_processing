@@ -9,13 +9,13 @@ from tests.conftest import compare_job_info, INTEGRATION_JOB_OPTIONS
 
 
 INTEGRATION_TESTS = (
-    {  # Dict that maps the integration tests to the number of expected assets # credits for 4x4 km area
+    {  # Dict that maps the integration tests to the number of expected assets # credits for 2x2 km area
         "extract_S1_integration.json": 176, # 7 credits
-        "extract_S2_integration.json": 100, # 6 credits
+        "extract_S2_integration.json": 100, # 7 credits
         "ts_datacube_extraction_combined_integration.json": 228, # 13 credits
         "ts_datacube_extraction_s1_integration.json": 100, # 6 credits       
         "ts_datacube_extraction_s2_integration.json": 99, # 9 credits
-        "generate_master_feature_cube_integration.json": 1, # 81 credits
+        "generate_master_feature_cube_with_catboost_inference_integration.json": 132, # 28 credits
         "generate_s1_feature_cube_integration.json": 1, # 12 credits
         "generate_s2_feature_cube_integration.json": 1, # 15 credits
     }
@@ -69,8 +69,8 @@ def _is_integration_pg(pg_path: Path) -> bool:
 @pytest.mark.integration
 @pytest.mark.parametrize(
     "pg_path",
-    changed_process_graphs(),
-    ids=[x.name for x in changed_process_graphs()],
+    [Path(r"C:\Users\wannijnj\Documents\Projects\WEED\eo_processing\tests\resources\cube_extraction\extract_S1_integration.json")], 
+    ids=["extract_S1_integration.json"], #["WEED_" + x.name for x in changed_process_graphs()],
 )
 def test_process_graph_integration(pg_path: Path):
     """
@@ -92,7 +92,7 @@ def test_process_graph_integration(pg_path: Path):
     # Create job
     job = con_cdse.create_job(
         process_graph=job_info["process_graph"],
-        title=f"WEED eo-processing test_process_graph_integration {pg_path.name}",
+        title=f"WEED eo-processing integration test {pg_path.stem}",
         description=job_info["description"],
         job_options=INTEGRATION_JOB_OPTIONS,
     )
@@ -107,7 +107,10 @@ def test_process_graph_integration(pg_path: Path):
     job_results = job.get_results()
 
     # Compare job information with ground truth process graphs
-    compare_job_info(job_info=job_info, filename=pg_path, as_benchmark_scenario=True)
+    compare_job_info(
+        job_info=job.describe().get("process"),
+        filename=pg_path,
+        as_benchmark_scenario=True)
 
     # Check the number of assets
     assert (

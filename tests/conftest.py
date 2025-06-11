@@ -4,7 +4,9 @@ from pathlib import Path
 
 import openeo
 import pytest
-from openeo.rest._testing import build_capabilities
+from openeo.rest._testing import build_capabilities, DummyBackend
+from openeo.util import url_join
+import tests.config_collections as collections
 
 
 def pytest_addoption(parser):
@@ -38,54 +40,15 @@ def pytest_collection_modifyitems(config, items):
                 item.add_marker(skip_integration)
 
 
-API_URL = "https://oeo.test/"
+OPENEO_API_URL = "https://oeo.test/"
+STAC_CAT_URL = "https://catalogue.weed.test"
+
 GROUNDTRUTH_DIR = "tests//resources"
 BBOX = {"east": 4880000, "south": 2898000, "west": 4878000, "north": 2900000, 'crs': 'EPSG:3035'} # 2x2 km bbox in Germany
 DATE_START = "2021-01-01"
 DATE_END = "2022-01-01"
-
-DEFAULT_S1_METADATA = {
-    "id": "SENTINEL1_GRD",
-    "cube:dimensions":{
-        "x": {"type": "spatial"}, 
-        "y": {"type": "spatial"}, 
-        "t": {"type": "temporal"},
-        "bands": {"type": "bands", "values": ["VV", "VH"]}
-        },
-    "summaries": {
-        "platform": ["sentinel-1"],
-        "eo:bands": [
-        {"name": "VV", "common_name": "VV", "center_wavelength": 0.055},
-        {"name": "VH", "common_name": "VH", "center_wavelength": 0.06}]
-        }
-}
-
-DEFAULT_S2_METADATA = {
-    "id": "SENTINEL2_L2A",
-    "cube:dimensions": {
-        "x": {"type": "spatial"},
-        "y": {"type": "spatial"},
-        "t": {"type": "temporal"},
-        "bands": {"type": "bands", "values": ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "SCL"]}
-        },
-    "summaries": {
-        "platform": ["sentinel-2a", "sentinel-2b"],
-        "eo:bands": [
-        {"name": "B01", "common_name": None, "center_wavelength": 0.443},
-        {"name": "B02", "common_name": "blue", "center_wavelength": 0.4966},
-        {"name": "B03", "common_name": "green", "center_wavelength": 0.560},
-        {"name": "B04", "common_name": "red", "center_wavelength": 0.6645},
-        {"name": "B05", "common_name": None, "center_wavelength": 0.7039},
-        {"name": "B06", "common_name": None, "center_wavelength": 0.7402},
-        {"name": "B07", "common_name": None, "center_wavelength": 0.7825},
-        {"name": "B08", "common_name": "nir", "center_wavelength": 0.8351},
-        {"name": "B8A", "common_name": None, "center_wavelength": 0.8648},
-        {"name": "B09", "common_name": None, "center_wavelength": 0.945},
-        {"name": "B11", "common_name": "swir16", "center_wavelength": 1.610},
-        {"name": "B12", "common_name": "swir22", "center_wavelength": 2.190},
-        {"name": "SCL", "common_name": "SCL", "center_wavelength": None}]
-    }
-}
+TARGET_CRS: int = 3035
+TARGET_RESOLUTION: float = 10.
 
 INTEGRATION_JOB_OPTIONS = {
       "driver-memory": "1000m",
@@ -93,7 +56,10 @@ INTEGRATION_JOB_OPTIONS = {
       "executor-memory": "1500m",
       "executor-memoryOverhead": "1500m",
       "python-memory": "4000m",
-      "max-executors": 20}
+      "max-executors": 20,
+      "udf-dependency-archives": [
+         "https://s3.waw3-1.cloudferro.com/swift/v1/project_dependencies/onnx_dependencies_1.16.3.zip#onnx_deps"
+         ]}
 
 
 @pytest.fixture
@@ -107,20 +73,60 @@ def api_capabilities() -> dict:
     return {}
 
 @pytest.fixture
-def con100(requests_mock, api_capabilities):
+def oeo_con100(requests_mock, api_capabilities):
     """
     Fixture to create a connection to the dummy backend using openeo 1.0.0.
-
-    This is used for testing the job manager with a dummy backend.
 
     Inspired by the tests in https://github.com/Open-EO/openeo-python-client.
     """
     requests_mock.get(
-        API_URL, json=build_capabilities(api_version="1.0.0", **api_capabilities)
+        OPENEO_API_URL + "udf_runtimes",
+        json={
+            "Python": {
+                "type": "language",
+                "default": "3",
+                "versions": {"3": {"libraries": {}}},
+            },
+        },
     )
-    requests_mock.get(API_URL+ "collections/SENTINEL1_GRD", json=DEFAULT_S1_METADATA)
-    requests_mock.get(API_URL+ "collections/SENTINEL2_L2A", json=DEFAULT_S2_METADATA)
-    return openeo.connect(API_URL)
+    requests_mock.get(
+        OPENEO_API_URL, json=build_capabilities(api_version="1.0.0", **api_capabilities)
+    )
+    # TODO remove Mocking and use DummyBackend after production openeo.rest.testing 
+    requests_mock.get(OPENEO_API_URL+ "collections/SENTINEL1_GRD", json=collections.DEFAULT_S1_METADATA)
+    requests_mock.get(OPENEO_API_URL+ "collections/SENTINEL2_L2A", json=collections.DEFAULT_S2_METADATA)
+    requests_mock.get(OPENEO_API_URL+ "collections/COPERNICUS_30", json=collections.DEFAULT_DEM_METADATA)
+    requests_mock.get(url_join(STAC_CAT_URL, "collections/wern_features"), json=collections.DEFAULT_WERN_METADATA)
+
+    return openeo.connect(OPENEO_API_URL)
+
+@pytest.fixture
+def dummy_backend(requests_mock, oeo_con100) -> DummyBackend:
+    """
+    Fixture to create a dummy backend for testing.
+
+    This backend is used to test the job manager with a dummy backend
+    using the DummyBackend defined in openeo for testing purposes.
+
+    Inspired by the tests in https://github.com/Open-EO/openeo-python-client
+    """
+    dummy_backend = DummyBackend(requests_mock=requests_mock, connection=oeo_con100)
+
+    # Setup Mock Collection
+    dummy_backend.setup_collection("SENTINEL1_GRD", bands=collections.DEFAULT_S1_METADATA["cube:dimensions"]["bands"]["values"])
+    dummy_backend.setup_collection("SENTINEL2_L2A", bands=collections.DEFAULT_S2_METADATA["cube:dimensions"]["bands"]["values"])
+    dummy_backend.setup_collection("COPERNICUS_30", bands=collections.DEFAULT_DEM_METADATA["cube:dimensions"]["bands"]["values"])
+
+    # Mock STAC
+    # TODO use Dummy load_stac after created by the core Team
+    requests_mock.get(url_join(STAC_CAT_URL, "collections/wern_features"), json=collections.DEFAULT_WERN_METADATA)
+
+    dummy_backend.setup_file_format("GTiff")
+    # dummy_backend.setup_file_format("netCDF")
+    return dummy_backend
+
+
+
 def load_json_from_path(filepath: str):
     with open(filepath, "r") as json_file:
         return json.load(json_file)
@@ -136,29 +142,33 @@ def compare_job_info(job_info: dict, filename: str, as_benchmark_scenario: bool=
     Inspired by testing in https://github.com/VITO-RS-Vegetation/lcfm-production.
 
     """
-    # Get process graph from job info
-    pg = job_info.get("process_graph")
+    # Construct paths for expected files
+    if not filename.__str__().startswith(GROUNDTRUTH_DIR):
+        groundtruth_filepath = os.path.join(GROUNDTRUTH_DIR, filename)
+    else:
+        groundtruth_filepath = filename
 
+    # Get generayed and expected process graphs
+    pg = job_info.get("process_graph")
+    groundtruth = load_json_from_path(groundtruth_filepath)
+    reference_data = groundtruth.get("reference_data", {})
 
     if as_benchmark_scenario:
         result = {
-            "id": Path().stem,
+            "id": "WEED_" + Path(filename).stem,
             "type": "openeo",
-            "description": f"Integration test from the WEED eo-processing {Path().stem}",
+            "description": f"Integration test from the WEED eo-processing {Path(filename).stem}",
             "backend": "openeo.dataspace.copernicus.eu",
             "process_graph": pg,
             "job_options": INTEGRATION_JOB_OPTIONS, 
-            "reference_data": {},
+            "reference_data": reference_data,
         }
     else:
         result = pg
 
-    # Construct paths for generated and expected files
-    groundtruth_filepath = os.path.join(GROUNDTRUTH_DIR, filename)
-
     # Compare the saved process graph with the one created by the job manager
     assert (
-        result == load_json_from_path(groundtruth_filepath).get("process_graph")
+        result == groundtruth
     ), "Process graph does not match the saved process graph. Run pytest with `-vv` to see the differences."
 
 

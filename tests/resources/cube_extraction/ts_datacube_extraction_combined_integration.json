@@ -1,5 +1,5 @@
 {
-  "id": "ts_datacube_extraction_combined_integration",
+  "id": "WEED_ts_datacube_extraction_combined_integration",
   "type": "openeo",
   "description": "Integration test from the WEED eo-processing ts_datacube_extraction_combined_integration",
   "backend": "openeo.dataspace.copernicus.eu",
@@ -408,7 +408,10 @@
           "executor-memory": "1500m",
           "executor-memoryOverhead": "1500m",
           "python-memory": "4000m",
-          "max-executors": 20
+          "max-executors": 20,
+          "udf-dependency-archives": [
+            "https://s3.waw3-1.cloudferro.com/swift/v1/project_dependencies/onnx_dependencies_1.16.3.zip#onnx_deps"
+            ]
       }
     },
   "reference_data": {}

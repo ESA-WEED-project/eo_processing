@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from eo_processing.openeo.preprocessing import ts_datacube_extraction, extract_S1_datacube, extract_S2_datacube
 from tests.conftest import BBOX, DATE_START, DATE_END, \
-    dummy_backend, compare_job_info
+    oeo_con100, compare_job_info
 
 # Define the different test scenarios and processing options
 ts_test_scenarios = [
@@ -62,18 +62,18 @@ s2_test_scenarios = [
 
 
 @pytest.mark.parametrize("groundtruth_filename, params, integration", ts_test_scenarios)
-def test_ts_datacube_extraction(dummy_backend, groundtruth_filename, params, integration):
+def test_ts_datacube_extraction(oeo_con100, groundtruth_filename, params, integration):
     """
     Test `ts_datacube_extraction` function for different scenarios.
     """
     # Pass the mock connection explicitly
-    data_cube = dummy_backend.connection.load_collection(
+    data_cube = oeo_con100.load_collection(
         collection_id="SENTINEL2_L2A" if "S2" in groundtruth_filename else "SENTINEL1_GRD",
     )
 
     # Use the mock for ts_datacube_extraction
     with patch('eo_processing.openeo.preprocessing.ts_datacube_extraction', return_value=data_cube):
-        extracted_cube = ts_datacube_extraction(dummy_backend.connection, bbox=BBOX, start=DATE_START, end=DATE_END, **params)
+        extracted_cube = ts_datacube_extraction(oeo_con100, bbox=BBOX, start=DATE_START, end=DATE_END, **params)
 
     generated_process_graph = extracted_cube.to_json()
 
@@ -85,18 +85,18 @@ def test_ts_datacube_extraction(dummy_backend, groundtruth_filename, params, int
 
 
 @pytest.mark.parametrize("groundtruth_filename, params, integration", s1_test_scenarios)
-def test_extract_S1_datacube(dummy_backend, groundtruth_filename, params, integration):
+def test_extract_S1_datacube(oeo_con100, groundtruth_filename, params, integration):
     """
     Test the `extract_S1_datacube` function for various Sentinel-1 scenarios.
     """
     # Load the mock data cube
-    data_cube = dummy_backend.connection.load_collection(
+    data_cube = oeo_con100.load_collection(
         collection_id="SENTINEL1_GRD",
     )
 
     # Use the mock for ts_datacube_extraction
     with patch('eo_processing.openeo.preprocessing.extract_S1_datacube', return_value=data_cube):
-        extracted_cube = extract_S1_datacube(dummy_backend.connection, bbox=BBOX, start=DATE_START, end=DATE_END, **params)
+        extracted_cube = extract_S1_datacube(oeo_con100, bbox=BBOX, start=DATE_START, end=DATE_END, **params)
     
     generated_process_graph = extracted_cube.to_json()
 
@@ -108,18 +108,18 @@ def test_extract_S1_datacube(dummy_backend, groundtruth_filename, params, integr
 
 
 @pytest.mark.parametrize("groundtruth_filename, params, integration", s2_test_scenarios)
-def test_extract_S2_datacube(dummy_backend, groundtruth_filename, params, integration):
+def test_extract_S2_datacube(oeo_con100, groundtruth_filename, params, integration):
     """
     Test the `extract_S2_datacube` function for various Sentinel-2 scenarios.
     """
     # Load the mock data cube
-    data_cube = dummy_backend.connection.load_collection(
+    data_cube = oeo_con100.load_collection(
         collection_id="SENTINEL2_L2A"
     )
 
     # Use the mock for extract_S2_datacube
     with patch('eo_processing.openeo.preprocessing.extract_S2_datacube', return_value=data_cube):
-        extracted_cube = extract_S2_datacube(dummy_backend.connection, bbox=BBOX, start=DATE_START, end=DATE_END, **params)
+        extracted_cube = extract_S2_datacube(oeo_con100, bbox=BBOX, start=DATE_START, end=DATE_END, **params)
 
     generated_process_graph = extracted_cube.to_json()
 

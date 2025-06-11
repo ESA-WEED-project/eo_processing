@@ -16,13 +16,13 @@ import tests.config_collections as collections
         ("cube_generation/generate_S1_feature_cube.json", False)
     ],
 )
-def test_generate_S1_feature_cube(dummy_backend, groundtruth_filename, integration):
+def test_generate_S1_feature_cube(oeo_con100, groundtruth_filename, integration):
     """
     Test generate_S1_feature_cube function with an annual data cube
     """
     # Generate job info
     generated_cube=generate_S1_feature_cube(
-        connection=dummy_backend.connection,
+        connection=oeo_con100,
         S1_collection='SENTINEL1_GRD',
         bbox=BBOX,
         start=DATE_START,
@@ -43,13 +43,13 @@ def test_generate_S1_feature_cube(dummy_backend, groundtruth_filename, integrati
         ("cube_generation/generate_S2_feature_cube.json", False)
     ],
 )
-def test_generate_S2_feature_cube(dummy_backend, groundtruth_filename, integration):
+def test_generate_S2_feature_cube(oeo_con100, groundtruth_filename, integration):
     """
     Test generate_S2_feature_cube function with an annual data cube
     """
     # Generate job info
     generated_cube=generate_S2_feature_cube(
-        connection=dummy_backend.connection,
+        connection=oeo_con100,
         S2_collection='SENTINEL2_L2A',
         bbox=BBOX,
         start=DATE_START,
@@ -70,13 +70,13 @@ def test_generate_S2_feature_cube(dummy_backend, groundtruth_filename, integrati
         ("cube_generation/generate_master_feature_cube_with_catboost_inference.json", "EUNIS2021plus_EU_v1_2024_PAN",  False)
     ],
 )
-def test_master_cube_with_udf_catboost_inference(dummy_backend, groundtruth_filename, model_id, integration):
+def test_master_cube_with_udf_catboost_inference(oeo_con100, groundtruth_filename, model_id, integration):
     """
     Test generate_master_feature_cube function with an annual data cube with the catboost inference applied
     """
     # Create Master feature Cube with WENR & DEM STACs merged
     data_cube=generate_master_feature_cube(
-        connection=dummy_backend.connection,
+        connection=oeo_con100,
         S1_collection='SENTINEL1_GRD',
         S2_collection='SENTINEL2_L2A',
         bbox=BBOX,
@@ -84,7 +84,7 @@ def test_master_cube_with_udf_catboost_inference(dummy_backend, groundtruth_file
         end=DATE_END)
     
     # load the DEM from a CDSE collection
-    DEM = dummy_backend.connection.load_collection("COPERNICUS_30", bands=["DEM"])
+    DEM = oeo_con100.load_collection("COPERNICUS_30", bands=["DEM"])
     # reduce the temporal domain since copernicus_30 collection is "special" and feature only are one time stamp
     DEM = DEM.reduce_dimension(dimension='t', reducer=lambda x: x.last(ignore_nodata=True))
     # resample the cube to 10m and EPSG of corresponding 20x20km grid tile
@@ -96,7 +96,7 @@ def test_master_cube_with_udf_catboost_inference(dummy_backend, groundtruth_file
     data_cube = data_cube.merge_cubes(DEM)
 
     # load the WERN features from public STAC
-    WENR = dummy_backend.connection.load_stac("https://catalogue.weed.test/collections/wern_features")
+    WENR = oeo_con100.load_stac("https://catalogue.weed.test/collections/wern_features")
     # resample the cube to 10m and EPSG of corresponding 20x20km grid tile
     WENR = WENR.resample_spatial(projection=TARGET_CRS,
                                     resolution=TARGET_RESOLUTION,

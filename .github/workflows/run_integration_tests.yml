@@ -1,20 +1,17 @@
-name: Unit Tests
+name: Integration Tests
 
-# Trigger this workflow on every push to any branch
+# Trigger for every push or pull request to main
 on:
   push:
-    branches:
-      - '**'  # Run on all branches
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
 
-# Define the job to run the unit tests using a matrix for multiple Python versions
 jobs:
-  test:
-    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
-
-    # Use a matrix strategy to test across multiple Python versions
-    strategy:
-      matrix:
-        python-version: [3.11, 3.12]
+  integration-tests:
+    name: "Run integration tests"
+    runs-on: ubuntu-latest
 
     # Define the steps for setting up the environment and running tests
     steps:
@@ -22,11 +19,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Set up Python environment based on the matrix version
+      # Step 2: Set up Python environment 
       - name: Set up Python environment with uv
         uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: 3.12
 
       # Step 3: Install dependencies from requirements.txt
       - name: Install dependencies
@@ -37,8 +34,8 @@ jobs:
           uv pip install pytest-cov
           uv pip install rio-cogeo
           uv pip install -r requirements.txt
-
+      
       # Step 4: Run unit tests using pytest, targeting the 'tests_unit' directory
       - name: Run tests
         run: |
-          uv run pytest tests/ --disable-warnings
+          uv run pytest tests/ --integration -n auto -vv

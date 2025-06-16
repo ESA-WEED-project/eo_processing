@@ -11,6 +11,7 @@ import datetime
 from pathlib import Path
 import collections
 import time
+import numpy as np
 from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_stat, JobDatabaseInterface,
                                          ignore_connection_errors, _ColumnProperties, _start_job_default,
                                          get_job_db)
@@ -404,6 +405,7 @@ class WeedJobManager(MultiBackendJobManager):
                 print(e)
 
         stats["job_db persist"] += 1
+        active = active.replace(np.nan, None)
         job_db.persist(active)
 
         if self.viz:

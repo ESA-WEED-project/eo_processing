@@ -17,7 +17,7 @@ from tqdm import tqdm
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import s3_credentials_format
 
-WEED_BUCKETS = ['ecdc', 'model', 'extent', 'test']
+WEED_BUCKETS = ['ecdc', 'model', 'extent', 'test', 'ecdc-stac', 'extent-stac']
 
 class storage:
     """

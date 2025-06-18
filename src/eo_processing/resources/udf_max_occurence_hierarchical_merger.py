@@ -155,7 +155,7 @@ def _merge_hierarchical(cube: xr.DataArray, df, df_high_prob) -> xr.DataArray:
 def parse_prob_classes_fromStac(band_names):
 
     band_info = []
-    pattern = re.compile(r"Level([\w\d]+)_class-([\w\d]+)_habitat-([\w\d]+)-(\d+)")
+    pattern = re.compile(r"Level([\w\d]+)_class-([\w\d]+)_habitat-([\w\D\d]+)-(\d+)")
     for band_nr, band_name in enumerate(band_names, start=1):
         match = pattern.search(band_name.replace(" ", ""))  # make sure no white spaces pending
         if match:

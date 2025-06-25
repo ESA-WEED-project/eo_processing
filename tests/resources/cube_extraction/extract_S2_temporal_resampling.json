@@ -33,11 +33,11 @@
           }
         },
         "spatial_extent": {
-          "east": 5.5,
-          "south": 49.5,
-          "west": 4.5,
-          "north": 50.5,
-          "crs": "EPSG:4326"
+          "east": 4880000,
+          "south": 2898000,
+          "west": 4878000,
+          "north": 2900000,
+          "crs": "EPSG:3035"
         },
         "temporal_extent": [
           "2021-01-01",
@@ -45,23 +45,32 @@
         ]
       }
     },
-    "apply1": {
-      "process_id": "apply",
+    "resamplespatial1": {
+      "process_id": "resample_spatial",
       "arguments": {
+        "align": "upper-left",
         "data": {
           "from_node": "loadcollection1"
         },
-        "process": {
+        "method": "near",
+        "projection": "EPSG:3857",
+        "resolution": 20.0
+      }
+    },
+    "aggregatetemporalperiod1": {
+      "process_id": "aggregate_temporal_period",
+      "arguments": {
+        "data": {
+          "from_node": "resamplespatial1"
+        },
+        "period": "P1M",
+        "reducer": {
           "process_graph": {
-            "linearscalerange1": {
-              "process_id": "linear_scale_range",
+            "median1": {
+              "process_id": "median",
               "arguments": {
-                "inputMax": 65534,
-                "inputMin": 0,
-                "outputMax": 65534,
-                "outputMin": 0,
-                "x": {
-                  "from_parameter": "x"
+                "data": {
+                  "from_parameter": "data"
                 }
               },
               "result": true
@@ -70,15 +79,15 @@
         }
       }
     },
-    "apply2": {
+    "apply1": {
       "process_id": "apply",
       "arguments": {
         "data": {
-          "from_node": "apply1"
+          "from_node": "aggregatetemporalperiod1"
         },
         "process": {
           "process_graph": {
-            "linearscalerange2": {
+            "linearscalerange1": {
               "process_id": "linear_scale_range",
               "arguments": {
                 "inputMax": 65534,

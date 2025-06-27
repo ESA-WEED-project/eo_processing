@@ -751,7 +751,7 @@ def get_AOI_interactive(map_center: Tuple[float, float] = (51.22, 5.08), zoom: i
 
 def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, processing_type: str,
                          discriminator: Optional[str] = None, target_crs: Optional[int] = None, version: Optional[str] = None,
-                         model_urls: Optional[List[str]] = None, output_band_names: Optional[List[str]] = None,
+                         model_ID: Optional[str] = None,
                          storage_options: Optional[storage_option_format] = None,
                          organization_id : Optional[int] = None) -> gpd.GeoDataFrame:
     """
@@ -770,10 +770,8 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
     :param target_crs: Optional target CRS (Coordinate Reference System) EPSG code for reprojection. If not provided,
                        inferred from existing data.
     :param version: Optional string denoting the version identifier to append to the generated file prefix.
-    :param model_urls: Optional list of model URLs; added to the output GeoDataFrame for the 'eunis_habitat_probabilities'
+    :param model_ID: Optional model ID; added to the output GeoDataFrame for the 'eunis_habitat_probabilities'
                        processing type.
-    :param output_band_names: Optional list of band names required for specific processing types like
-                              'eunis_habitat_probabilities'.
     :param storage_options: Optional dictionary containing storage configuration parameters. Expected to contain a key
                             'S3_prefix', which specifies the storage path prefix PLUS the export_workspace name for S3 export.
     :param organization_id: Optional integer representing the organization ID; added to every row in the resulting GeoDataFrame.
@@ -803,8 +801,8 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
         job_df['s2_tileid_list'] = None
 
     # the time context is given by start and end date
-    job_df['start_date'] = f'{year}-01-01'
-    job_df['end_date'] = f'{year+1}-01-01'  # the end is always exclusive
+    job_df['start_date'] = f'{year}-01-01T00:00:00Z'
+    job_df['end_date'] = f'{year}-12-31T23:59:59Z'
 
     #organization ID is the same for all rows
     job_df['organization_id'] = organization_id
@@ -847,11 +845,10 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
 
     if 'proba' in processing_type.lower(): # probability genration in inference
         # adding the model_urls and output_band_names (all the same for all tiles) for inference
-        job_df['model_urls'] = [model_urls] * len(job_df)
-        job_df['output_band_names'] = [output_band_names] * len(job_df)
+        job_df['model_ID'] = model_ID
         #update dtypes dict
-        columns.extend(['model_urls','output_band_names'])
-        dtypes.update({'model_urls':'string','output_band_names':'string'})
+        columns.extend(['model_ID'])
+        dtypes.update({'model_ID':'string'})
     elif 'feature' in processing_type.lower(): # feature cube for point extraction or datacube generation
         pass
     else:

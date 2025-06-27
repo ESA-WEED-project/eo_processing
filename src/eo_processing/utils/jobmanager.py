@@ -802,7 +802,7 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
 
     # the time context is given by start and end date
     job_df['start_date'] = f'{year}-01-01T00:00:00Z'
-    job_df['end_date'] = f'{year}-12-31T23:59:59Z'  # the end is always exclusive
+    job_df['end_date'] = f'{year}-12-31T23:59:59Z'
 
     #organization ID is the same for all rows
     job_df['organization_id'] = organization_id

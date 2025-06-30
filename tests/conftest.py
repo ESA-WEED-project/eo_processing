@@ -43,7 +43,7 @@ def pytest_collection_modifyitems(config, items):
 OPENEO_API_URL = "https://oeo.test/"
 STAC_CAT_URL = "https://catalogue.weed.test"
 
-GROUNDTRUTH_DIR = "tests\\resources"
+GROUNDTRUTH_DIR = "tests//resources"
 BBOX = {"east": 4880000, "south": 2898000, "west": 4878000, "north": 2900000, 'crs': 'EPSG:3035'} # 2x2 km bbox in Germany
 DATE_START = "2021-01-01"
 DATE_END = "2022-01-01"

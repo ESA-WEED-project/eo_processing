@@ -87,7 +87,7 @@
               "arguments": {
                 "inputMax": 10000,
                 "inputMin": 0,
-                "outputMax": 1.0,
+                "outputMax": 1,
                 "outputMin": 0,
                 "x": {
                   "from_parameter": "x"
@@ -162,7 +162,7 @@
             "subtract2": {
               "process_id": "subtract",
               "arguments": {
-                "x": 1.0,
+                "x": 1,
                 "y": {
                   "from_node": "arrayelement2"
                 }
@@ -404,7 +404,7 @@
                 "x": {
                   "from_node": "add6"
                 },
-                "y": 3.0
+                "y": 3
               }
             },
             "subtract8": {
@@ -446,7 +446,7 @@
                 "x": {
                   "from_node": "add8"
                 },
-                "y": 3.0
+                "y": 3
               }
             },
             "add9": {
@@ -640,7 +640,7 @@
                 "x": {
                   "from_node": "add14"
                 },
-                "y": 2.0
+                "y": 2
               }
             },
             "subtract14": {
@@ -688,7 +688,7 @@
             "multiply4": {
               "process_id": "multiply",
               "arguments": {
-                "x": 35.0,
+                "x": 35,
                 "y": {
                   "from_node": "divide14"
                 }
@@ -697,7 +697,7 @@
             "add15": {
               "process_id": "add",
               "arguments": {
-                "x": 705.0,
+                "x": 705,
                 "y": {
                   "from_node": "multiply4"
                 }

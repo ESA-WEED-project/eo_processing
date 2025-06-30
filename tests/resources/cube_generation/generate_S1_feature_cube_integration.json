@@ -93,7 +93,7 @@
             "multiply1": {
               "process_id": "multiply",
               "arguments": {
-                "x": 10.0,
+                "x": 10,
                 "y": {
                   "from_node": "log1"
                 }
@@ -105,7 +105,7 @@
                 "x": {
                   "from_node": "multiply1"
                 },
-                "y": 83.0
+                "y": 83
               }
             },
             "divide1": {
@@ -114,7 +114,7 @@
                 "x": {
                   "from_node": "add1"
                 },
-                "y": 20.0
+                "y": 20
               }
             },
             "power1": {
@@ -176,7 +176,7 @@
             "multiply2": {
               "process_id": "multiply",
               "arguments": {
-                "x": 10.0,
+                "x": 10,
                 "y": {
                   "from_node": "log2"
                 }
@@ -188,7 +188,7 @@
                 "x": {
                   "from_node": "multiply2"
                 },
-                "y": 83.0
+                "y": 83
               }
             },
             "divide2": {
@@ -197,7 +197,7 @@
                 "x": {
                   "from_node": "add2"
                 },
-                "y": 20.0
+                "y": 20
               }
             },
             "power2": {
@@ -311,7 +311,7 @@
             "multiply3": {
               "process_id": "multiply",
               "arguments": {
-                "x": 20.0,
+                "x": 20,
                 "y": {
                   "from_node": "log3"
                 }
@@ -323,7 +323,7 @@
                 "x": {
                   "from_node": "multiply3"
                 },
-                "y": 83.0
+                "y": 83
               }
             },
             "arrayelement6": {
@@ -347,7 +347,7 @@
             "multiply4": {
               "process_id": "multiply",
               "arguments": {
-                "x": 20.0,
+                "x": 20,
                 "y": {
                   "from_node": "log4"
                 }
@@ -359,7 +359,7 @@
                 "x": {
                   "from_node": "multiply4"
                 },
-                "y": 83.0
+                "y": 83
               }
             },
             "arraycreate2": {

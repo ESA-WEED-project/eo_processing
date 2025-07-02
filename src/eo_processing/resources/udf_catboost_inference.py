@@ -297,6 +297,37 @@ def create_output_xarray(probabilities: np.ndarray, input_xr: xr.DataArray) -> x
     )
 
 
+def fill_missing_bands(cube: xr.DataArray, required_bands: List[str], fill_value: float = np.nan) -> xr.DataArray:
+    """
+    Ensure `cube` contains all `required_bands` along the 'bands' dimension.
+    Missing bands are appended, filled with a constant `fill_value`.
+    :param cube: Input xarray DataArray with a 'bands' dimension (plus spatial/time dims).
+    :param required_bands: The list of band names needed.
+    :param fill_value: Scalar value to use for missing bands (default: NaN).
+    :return: DataArray containing all bands; newly added bands are filled with `fill_value`.
+    """
+    existing = set(cube.coords["bands"].values)
+    missing = [b for b in required_bands if b not in existing]
+    if not missing:
+        inspect(message=f"No missing bands")
+        return cube
+    
+    inspect(message=f"Missing bands: {missing}. Filling with {fill_value}.")
+    # Get shape and coordinates excluding 'bands'
+    sample = cube.isel(bands=0)
+    data_shape = sample.shape
+    dims = sample.dims
+    coords = {dim: cube.coords[dim] for dim in dims}
+    # Create fill array
+    fill_data = np.full((len(missing), *data_shape), fill_value, dtype=cube.dtype)
+    fill_array = xr.DataArray(
+        data=fill_data,
+        coords={"bands": missing, **coords},
+        dims=("bands",) + dims,
+    )
+    return xr.concat([cube, fill_array], dim="bands")
+
+
 def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     """
     Applies multiple ONNX models on a given data cube for inference. The function ensures that the input
@@ -329,11 +360,14 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
 
         # load the ONNX model and extract metadata
         ort_session, metadata = load_onnx_model(url, cache_dir="/tmp/cache")
-        input_band = metadata["input_features"]
+        input_bands = metadata["input_features"]
+
+        # Fill missing bands before subsetting
+        cube = fill_missing_bands(cube, required_bands=input_bands, fill_value=0)
 
         # Subset the data array using the selected indices
         inspect(message=f"Subsetting the feature datacube by needed input features.")
-        subsampled_data_array = cube.sel(bands=input_band)
+        subsampled_data_array = cube.sel(bands=input_bands)
 
         # preprocess input array to numpy array in correct shape
         input_np, input_shape = preprocess_input(subsampled_data_array, ort_session)
@@ -354,6 +388,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
         else:
             # Append to output_cube starting from the second iteration
             output_cube = xr.concat([output_cube, model_output_cube], dim="bands")
+            
     # make sure output Xarray has the correct dtype
     output_cube = output_cube.astype("uint8")
 

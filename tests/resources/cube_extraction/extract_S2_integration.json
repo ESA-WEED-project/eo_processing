@@ -4,33 +4,8 @@
     "description": "Integration test from the WEED eo-processing extract_S2_integration",
     "backend": "openeo.dataspace.copernicus.eu",
     "process_graph": {
-        "apply1": {
-            "arguments": {
-                "data": {
-                    "from_node": "loadcollection1"
-                },
-                "process": {
-                    "process_graph": {
-                        "linearscalerange1": {
-                            "arguments": {
-                                "inputMax": 65534,
-                                "inputMin": 0,
-                                "outputMax": 65534,
-                                "outputMin": 0,
-                                "x": {
-                                    "from_parameter": "x"
-                                }
-                            },
-                            "process_id": "linear_scale_range",
-                            "result": true
-                        }
-                    }
-                }
-            },
-            "process_id": "apply",
-            "result": true
-        },
         "loadcollection1": {
+            "process_id": "load_collection",
             "arguments": {
                 "bands": [
                     "B02",
@@ -49,31 +24,56 @@
                     "eo:cloud_cover": {
                         "process_graph": {
                             "lte1": {
+                                "process_id": "lte",
                                 "arguments": {
                                     "x": {
                                         "from_parameter": "value"
                                     },
                                     "y": 95
                                 },
-                                "process_id": "lte",
                                 "result": true
                             }
                         }
                     }
                 },
                 "spatial_extent": {
-                    "crs": "EPSG:3035",
                     "east": 4880000,
-                    "north": 2900000,
                     "south": 2898000,
-                    "west": 4878000
+                    "west": 4878000,
+                    "north": 2900000,
+                    "crs": "EPSG:3035"
                 },
                 "temporal_extent": [
                     "2021-01-01",
                     "2022-01-01"
                 ]
+            }
+        },
+        "apply1": {
+            "process_id": "apply",
+            "arguments": {
+                "data": {
+                    "from_node": "loadcollection1"
+                },
+                "process": {
+                    "process_graph": {
+                        "linearscalerange1": {
+                            "process_id": "linear_scale_range",
+                            "arguments": {
+                                "inputMax": 65534,
+                                "inputMin": 0,
+                                "outputMax": 65534,
+                                "outputMin": 0,
+                                "x": {
+                                    "from_parameter": "x"
+                                }
+                            },
+                            "result": true
+                        }
+                    }
+                }
             },
-            "process_id": "load_collection"
+            "result": true
         }
     },
     "job_options": {

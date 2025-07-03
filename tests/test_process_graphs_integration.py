@@ -5,7 +5,7 @@ from pathlib import Path
 import openeo
 import pytest
 from rio_cogeo.cogeo import cog_validate
-from tests.conftest import compare_job_info, INTEGRATION_JOB_OPTIONS
+from tests.conftest import INTEGRATION_JOB_OPTIONS
 
 
 INTEGRATION_TESTS = (
@@ -105,12 +105,6 @@ def test_process_graph_integration(pg_path: Path):
     ), f"Job {job.job_id} failed with status {job.status()}"
 
     job_results = job.get_results()
-
-    # Compare job information with ground truth process graphs
-    compare_job_info(
-        job_info=job.describe().get("process"),
-        filename=pg_path,
-        as_benchmark_scenario=True)
 
     # Check the number of assets
     assert (

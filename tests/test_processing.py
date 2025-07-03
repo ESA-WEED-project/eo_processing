@@ -13,7 +13,8 @@ import tests.config_collections as collections
 @pytest.mark.parametrize(
     "groundtruth_filename, integration",
     [
-        ("cube_generation/generate_S1_feature_cube.json", False)
+        ("cube_generation/generate_S1_feature_cube.json", False),
+        ("cube_generation/generate_S1_feature_cube_integration.json", True)
     ],
 )
 def test_generate_S1_feature_cube(oeo_con100, groundtruth_filename, integration):
@@ -40,7 +41,8 @@ def test_generate_S1_feature_cube(oeo_con100, groundtruth_filename, integration)
 @pytest.mark.parametrize(
     "groundtruth_filename, integration",
     [
-        ("cube_generation/generate_S2_feature_cube.json", False)
+        ("cube_generation/generate_S2_feature_cube.json", False),
+        ("cube_generation/generate_S2_feature_cube_integration.json", True)
     ],
 )
 def test_generate_S2_feature_cube(oeo_con100, groundtruth_filename, integration):
@@ -67,7 +69,8 @@ def test_generate_S2_feature_cube(oeo_con100, groundtruth_filename, integration)
 @pytest.mark.parametrize(
     "groundtruth_filename, model_id, integration",
     [
-        ("cube_generation/generate_master_feature_cube_with_catboost_inference.json", "EUNIS2021plus_EU_v1_2024_PAN",  False)
+        ("cube_generation/generate_master_feature_cube_with_catboost_inference.json", "EUNIS2021plus_EU_v1_2024_PAN",  False),
+        ("cube_generation/generate_master_feature_cube_with_catboost_inference_integration.json", "EUNIS2021plus_EU_v1_2024_PAN",  True)
     ],
 )
 def test_master_cube_with_udf_catboost_inference(oeo_con100, groundtruth_filename, model_id, integration):

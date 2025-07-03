@@ -56,6 +56,7 @@ def changed_process_graphs():
             .startswith(Path("tests/resources").absolute().as_uri())
             and _is_integration_pg(f)
         ]
+        print(f"Changed integration process graphs: {json_files}")
         return json_files
     except subprocess.CalledProcessError as e:
         print(f"Error getting changed files: {e}")

@@ -100,7 +100,7 @@ def is_onnx_file(file_path: str) -> bool:
     return file_path.endswith(".onnx")
 
 
-def download_file(url: str, max_file_size_mb: int = 100, cache_dir: str = "/tmp/cache") -> str:
+def download_file(url: str, max_file_size_mb: int = 250, cache_dir: str = "/tmp/cache") -> str:
     """
     Downloads a file from the specified URL. The file is
     cached in a given directory, and downloads of the same file are prevented using a locking

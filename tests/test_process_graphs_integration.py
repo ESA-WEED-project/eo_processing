@@ -67,10 +67,9 @@ def _is_integration_pg(pg_path: Path) -> bool:
     return pg_path.name in INTEGRATION_TESTS.keys()
 
 
-@pytest.mark.integration
 @pytest.mark.parametrize(
-    "pg_path",
-    changed_process_graphs(),
+    "pg_path, integration",
+    [(pg, True) for pg in changed_process_graphs()],
     ids=[x.name for x in changed_process_graphs()],
 )
 def test_process_graph_integration(pg_path: Path):

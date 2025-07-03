@@ -297,6 +297,23 @@ def create_output_xarray(probabilities: np.ndarray, input_xr: xr.DataArray) -> x
     )
 
 
+def ensure_no_missing_bands(cube: xr.DataArray, required_bands: List[str]) -> xr.DataArray:
+    """
+    Ensure `cube` contains all `required_bands` along the 'bands' dimension.
+    Raises an error if any bands are missing.
+
+    :param cube: Input xarray DataArray with a 'bands' dimension (plus spatial/time dims).
+    :param required_bands: The list of band names needed.
+    :return: The original DataArray if no bands are missing.
+    """
+    existing = set(cube.coords["bands"].values)
+    missing = [b for b in required_bands if b not in existing]
+    if missing:
+        raise ValueError(f"Missing bands: {missing}. Execution halted.")
+    
+    return cube
+
+
 def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     """
     Applies multiple ONNX models on a given data cube for inference. The function ensures that the input
@@ -329,11 +346,14 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
 
         # load the ONNX model and extract metadata
         ort_session, metadata = load_onnx_model(url, cache_dir="/tmp/cache")
-        input_band = metadata["input_features"]
+        input_bands = metadata["input_features"]
+
+        # Ensure they are no missing bands for executing inference
+        cube = ensure_no_missing_bands(cube, required_bands=input_bands)
 
         # Subset the data array using the selected indices
         inspect(message=f"Subsetting the feature datacube by needed input features.")
-        subsampled_data_array = cube.sel(bands=input_band)
+        subsampled_data_array = cube.sel(bands=input_bands)
 
         # preprocess input array to numpy array in correct shape
         input_np, input_shape = preprocess_input(subsampled_data_array, ort_session)
@@ -354,6 +374,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
         else:
             # Append to output_cube starting from the second iteration
             output_cube = xr.concat([output_cube, model_output_cube], dim="bands")
+            
     # make sure output Xarray has the correct dtype
     output_cube = output_cube.astype("uint8")
 

@@ -72,7 +72,7 @@ def _is_integration_pg(pg_path: Path) -> bool:
     [(pg, True) for pg in changed_process_graphs()],
     ids=[x.name for x in changed_process_graphs()],
 )
-def test_process_graph_integration(pg_path: Path):
+def test_process_graph_integration(pg_path: Path, integration):
     """
     Tests the changed process graphs marked with integration.
 

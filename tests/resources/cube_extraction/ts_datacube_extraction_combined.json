@@ -4,6 +4,76 @@
       "process_id": "load_collection",
       "arguments": {
         "bands": [
+          "B02",
+          "B03",
+          "B04",
+          "B05",
+          "B06",
+          "B07",
+          "B08",
+          "B8A",
+          "B11",
+          "B12"
+        ],
+        "id": "SENTINEL2_L2A",
+        "properties": {
+          "eo:cloud_cover": {
+            "process_graph": {
+              "lte1": {
+                "process_id": "lte",
+                "arguments": {
+                  "x": {
+                    "from_parameter": "value"
+                  },
+                  "y": 95
+                },
+                "result": true
+              }
+            }
+          }
+        },
+        "spatial_extent": {
+          "east": 4880000,
+          "south": 2898000,
+          "west": 4878000,
+          "north": 2900000,
+          "crs": "EPSG:3035"
+        },
+        "temporal_extent": [
+          "2021-01-01",
+          "2022-01-01"
+        ]
+      }
+    },
+    "apply1": {
+      "process_id": "apply",
+      "arguments": {
+        "data": {
+          "from_node": "loadcollection1"
+        },
+        "process": {
+          "process_graph": {
+            "linearscalerange1": {
+              "process_id": "linear_scale_range",
+              "arguments": {
+                "inputMax": 65534,
+                "inputMin": 0,
+                "outputMax": 65534,
+                "outputMin": 0,
+                "x": {
+                  "from_parameter": "x"
+                }
+              },
+              "result": true
+            }
+          }
+        }
+      }
+    },
+    "loadcollection2": {
+      "process_id": "load_collection",
+      "arguments": {
+        "bands": [
           "VH",
           "VV"
         ],
@@ -25,11 +95,11 @@
           }
         },
         "spatial_extent": {
-          "east": 5.5,
-          "south": 49.5,
-          "west": 4.5,
-          "north": 50.5,
-          "crs": "EPSG:4326"
+          "east": 4880000,
+          "south": 2898000,
+          "west": 4878000,
+          "north": 2900000,
+          "crs": "EPSG:3035"
         },
         "temporal_extent": [
           "2021-01-01",
@@ -43,7 +113,7 @@
         "coefficient": "sigma0-ellipsoid",
         "contributing_area": false,
         "data": {
-          "from_node": "loadcollection1"
+          "from_node": "loadcollection2"
         },
         "elevation_model": null,
         "ellipsoid_incidence_angle": false,
@@ -59,33 +129,11 @@
         }
       }
     },
-    "aggregatetemporalperiod1": {
-      "process_id": "aggregate_temporal_period",
-      "arguments": {
-        "data": {
-          "from_node": "sarbackscatter1"
-        },
-        "period": "P1M",
-        "reducer": {
-          "process_graph": {
-            "mean1": {
-              "process_id": "mean",
-              "arguments": {
-                "data": {
-                  "from_parameter": "data"
-                }
-              },
-              "result": true
-            }
-          }
-        }
-      }
-    },
     "applydimension1": {
       "process_id": "apply_dimension",
       "arguments": {
         "data": {
-          "from_node": "aggregatetemporalperiod1"
+          "from_node": "sarbackscatter1"
         },
         "dimension": "bands",
         "process": {
@@ -274,7 +322,7 @@
         }
       }
     },
-    "apply1": {
+    "apply2": {
       "process_id": "apply",
       "arguments": {
         "data": {
@@ -282,13 +330,61 @@
         },
         "process": {
           "process_graph": {
-            "linearscalerange1": {
+            "linearscalerange2": {
               "process_id": "linear_scale_range",
               "arguments": {
                 "inputMax": 65534,
                 "inputMin": 1,
                 "outputMax": 65534,
                 "outputMin": 1,
+                "x": {
+                  "from_parameter": "x"
+                }
+              },
+              "result": true
+            }
+          }
+        }
+      }
+    },
+    "mergecubes1": {
+      "process_id": "merge_cubes",
+      "arguments": {
+        "cube1": {
+          "from_node": "apply1"
+        },
+        "cube2": {
+          "from_node": "apply2"
+        }
+      }
+    },
+    "filtertemporal1": {
+      "process_id": "filter_temporal",
+      "arguments": {
+        "data": {
+          "from_node": "mergecubes1"
+        },
+        "extent": [
+          "2021-01-01",
+          "2022-01-01"
+        ]
+      }
+    },
+    "apply3": {
+      "process_id": "apply",
+      "arguments": {
+        "data": {
+          "from_node": "filtertemporal1"
+        },
+        "process": {
+          "process_graph": {
+            "linearscalerange3": {
+              "process_id": "linear_scale_range",
+              "arguments": {
+                "inputMax": 65534,
+                "inputMin": 0,
+                "outputMax": 65534,
+                "outputMin": 0,
                 "x": {
                   "from_parameter": "x"
                 }

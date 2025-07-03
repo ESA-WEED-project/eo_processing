@@ -1,6 +1,9 @@
 {
     "python.testing.pytestArgs": [
-        "tests"
+        "tests", // Tells pytest to look for tests in the "tests" directory
+        "-vv",   // Show output verbose
+        "--disable-warnings", // Disable warnings
+        //"--integration"
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true

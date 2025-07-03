@@ -1,4 +1,8 @@
 {
+  "id": "WEED_ts_datacube_extraction_S1_integration",
+  "type": "openeo",
+  "description": "Integration test from the WEED eo-processing ts_datacube_extraction_S1_integration",
+  "backend": "openeo.dataspace.copernicus.eu",
   "process_graph": {
     "loadcollection1": {
       "process_id": "load_collection",
@@ -33,15 +37,15 @@
           }
         },
         "spatial_extent": {
-          "east": 5.5,
-          "south": 49.5,
-          "west": 4.5,
-          "north": 50.5,
-          "crs": "EPSG:4326"
+          "east": 4880000,
+          "south": 2898000,
+          "west": 4878000,
+          "north": 2900000,
+          "crs": "EPSG:3035"
         },
         "temporal_extent": [
           "2021-01-01",
-          "2021-12-31"
+          "2022-01-01"
         ]
       }
     },
@@ -96,5 +100,19 @@
       },
       "result": true
     }
-  }
-}
+  },
+  "job_options": {
+      "job_options": {
+          "driver-memory": "1000m",
+          "driver-memoryOverhead": "1000m",
+          "executor-memory": "1500m",
+          "executor-memoryOverhead": "1500m",
+          "python-memory": "4000m",
+          "max-executors": 20,
+          "udf-dependency-archives": [
+            "https://s3.waw3-1.cloudferro.com/swift/v1/project_dependencies/onnx_dependencies_1.16.3.zip#onnx_deps"
+            ]
+      }
+    },
+  "reference_data": {}
+} 

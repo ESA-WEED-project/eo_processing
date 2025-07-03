@@ -33,11 +33,11 @@
           }
         },
         "spatial_extent": {
-          "east": 5.5,
-          "south": 49.5,
-          "west": 4.5,
-          "north": 50.5,
-          "crs": "EPSG:4326"
+          "east": 4880000,
+          "south": 2898000,
+          "west": 4878000,
+          "north": 2900000,
+          "crs": "EPSG:3035"
         },
         "temporal_extent": [
           "2021-01-01",
@@ -45,96 +45,23 @@
         ]
       }
     },
-    "loadcollection2": {
-      "process_id": "load_collection",
+    "resamplespatial1": {
+      "process_id": "resample_spatial",
       "arguments": {
-        "bands": [
-          "SCL"
-        ],
-        "id": "SENTINEL2_L2A",
-        "properties": {
-          "eo:cloud_cover": {
-            "process_graph": {
-              "lte2": {
-                "process_id": "lte",
-                "arguments": {
-                  "x": {
-                    "from_parameter": "value"
-                  },
-                  "y": 95
-                },
-                "result": true
-              }
-            }
-          }
-        },
-        "spatial_extent": {
-          "east": 5.5,
-          "south": 49.5,
-          "west": 4.5,
-          "north": 50.5,
-          "crs": "EPSG:4326"
-        },
-        "temporal_extent": [
-          "2021-01-01",
-          "2022-01-01"
-        ]
-      }
-    },
-    "toscldilationmask1": {
-      "process_id": "to_scl_dilation_mask",
-      "arguments": {
-        "data": {
-          "from_node": "loadcollection2"
-        },
-        "erosion_kernel_size": 3,
-        "kernel1_size": 17,
-        "kernel2_size": 77,
-        "mask1_values": [
-          2,
-          4,
-          5,
-          6,
-          7
-        ],
-        "mask2_values": [
-          3,
-          8,
-          9,
-          10,
-          11
-        ],
-        "scl_band_name": "SCL"
-      }
-    },
-    "renamelabels1": {
-      "process_id": "rename_labels",
-      "arguments": {
-        "data": {
-          "from_node": "toscldilationmask1"
-        },
-        "dimension": "bands",
-        "target": [
-          "S2-L2A-SCL_DILATED_MASK"
-        ]
-      }
-    },
-    "mask1": {
-      "process_id": "mask",
-      "arguments": {
+        "align": "upper-left",
         "data": {
           "from_node": "loadcollection1"
         },
-        "mask": {
-          "from_node": "renamelabels1"
-        }
+        "method": "near",
+        "projection": "EPSG:3857",
+        "resolution": 20.0
       }
     },
     "apply1": {
       "process_id": "apply",
       "arguments": {
         "data": {
-          "from_node": "mask1"
+          "from_node": "resamplespatial1"
         },
         "process": {
           "process_graph": {
@@ -155,7 +82,7 @@
         }
       }
     },
-    "loadcollection3": {
+    "loadcollection2": {
       "process_id": "load_collection",
       "arguments": {
         "bands": [
@@ -180,11 +107,11 @@
           }
         },
         "spatial_extent": {
-          "east": 5.5,
-          "south": 49.5,
-          "west": 4.5,
-          "north": 50.5,
-          "crs": "EPSG:4326"
+          "east": 4880000,
+          "south": 2898000,
+          "west": 4878000,
+          "north": 2900000,
+          "crs": "EPSG:3035"
         },
         "temporal_extent": [
           "2021-01-01",
@@ -198,7 +125,7 @@
         "coefficient": "sigma0-ellipsoid",
         "contributing_area": false,
         "data": {
-          "from_node": "loadcollection3"
+          "from_node": "loadcollection2"
         },
         "elevation_model": null,
         "ellipsoid_incidence_angle": false,
@@ -214,11 +141,23 @@
         }
       }
     },
+    "resamplespatial2": {
+      "process_id": "resample_spatial",
+      "arguments": {
+        "align": "upper-left",
+        "data": {
+          "from_node": "sarbackscatter1"
+        },
+        "method": "near",
+        "projection": "EPSG:3857",
+        "resolution": 20.0
+      }
+    },
     "applydimension1": {
       "process_id": "apply_dimension",
       "arguments": {
         "data": {
-          "from_node": "sarbackscatter1"
+          "from_node": "resamplespatial2"
         },
         "dimension": "bands",
         "process": {

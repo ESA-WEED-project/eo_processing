@@ -81,7 +81,7 @@ def test_process_graph_integration(pg_path: Path, integration):
 
     Inspired by Integration testing in https://github.com/VITO-RS-Vegetation/lcfm-production.
     """
-
+    print(f'Benchmarking: {integration}')
     # Make connection to CDSE
     con_cdse = openeo.connect("openeo.dataspace.copernicus.eu").authenticate_oidc()
 

@@ -1,20 +1,26 @@
 # -*- coding: utf-8 -*-
 # !/usr/bin/env python
+from __future__ import annotations
 import openeo
 import requests
 import matplotlib.pyplot as plt
 import geopandas as gpd
 from shapely.geometry import box
-import importlib.resources as importlib_resources
 import eo_processing.resources
 from os.path import normpath
-from eo_processing.utils.geoprocessing import openEO_bbox_format
 import uuid
 import hashlib
 from datetime import datetime
 import json
 from ast import literal_eval
-from typing import Union, Dict, List
+from typing import Union, Dict, List, TYPE_CHECKING
+try:
+    import importlib.resources as importlib_resources
+except:
+    import importlib_resources
+
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import openEO_bbox_format
 
 def init_connection(provider: str) -> openeo.Connection :
     """
@@ -24,7 +30,7 @@ def init_connection(provider: str) -> openeo.Connection :
     entry point.
 
     :param provider: The name of the OpenEO backend provider. Supported values
-                     are 'terrascope', 'development', 'cdse', 'cdse-stagging',
+                     are 'terrascope', 'development', 'cdse', 'cdse-staging',
                      or other for default OpenEO connection.
     :return: An authenticated OpenEO connection to the specified provider.
 
@@ -38,7 +44,7 @@ def init_connection(provider: str) -> openeo.Connection :
         connection = openeo.connect("https://openeo-dev.vito.be").authenticate_oidc()
     elif provider == 'cdse':
         connection = openeo.connect(url="openeo.dataspace.copernicus.eu").authenticate_oidc()
-    elif provider == 'cdse-stagging':
+    elif provider == 'cdse-staging':
         connection = openeo.connect(url='openeo-staging.dataspace.copernicus.eu').authenticate_oidc()
     else:
         print('currently no specific connections to backends like creodias and sentinelhub are setup.')

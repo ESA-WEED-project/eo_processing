@@ -1,4 +1,4 @@
-name: Run Unit Tests
+name: Unit Tests
 
 # Trigger this workflow on every push to any branch
 on:
@@ -20,23 +20,25 @@ jobs:
     steps:
       # Step 1: Checkout the repository's code
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       # Step 2: Set up Python environment based on the matrix version
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Python environment with uv
+        uses: astral-sh/setup-uv@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       # Step 3: Install dependencies from requirements.txt
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pytest
-          pip install requests-mock
-          pip install -r requirements.txt
+          uv pip install pytest
+          uv pip install requests-mock
+          uv pip install pytest-xdist
+          uv pip install pytest-cov
+          uv pip install rio-cogeo
+          uv pip install -r requirements.txt
 
       # Step 4: Run unit tests using pytest, targeting the 'tests_unit' directory
       - name: Run tests
         run: |
-          pytest tests/tests_unit/
+          uv run pytest tests/ --disable-warnings

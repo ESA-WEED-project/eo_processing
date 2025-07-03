@@ -1,0 +1,41 @@
+name: Integration Tests
+
+# Trigger for every push or pull request to main
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  integration-tests:
+    name: "Run integration tests"
+    runs-on: ubuntu-latest
+
+    # Define the steps for setting up the environment and running tests
+    steps:
+      # Step 1: Checkout the repository's code
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Python environment 
+      - name: Set up Python environment with uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: 3.12
+
+      # Step 3: Install dependencies from requirements.txt
+      - name: Install dependencies
+        run: |
+          uv pip install pytest
+          uv pip install requests-mock
+          uv pip install pytest-xdist
+          uv pip install pytest-cov
+          uv pip install rio-cogeo
+          uv pip install -r requirements.txt
+      
+      # Step 4: Run unit tests using pytest, targeting the 'tests_unit' directory
+      - name: Run tests
+        run: |
+          uv run pytest tests/ --integration -n auto -vv

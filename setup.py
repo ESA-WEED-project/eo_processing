@@ -30,7 +30,12 @@ setup(
     url='https://github.com/ESA-WEED-project/eo_processing',
     python_requires=">=3.12",
     setup_requires=['pytest-runner'],
-    tests_require=['pytest'],
+    tests_require=[
+        "pytest>=8.3.4",
+        "pytest-xdist>=3.6.1",
+        "pytest-cov>=6.1.1",
+        "requests-mock>=1.12.1",
+        "rio-cogeo>=5.4.1"],
     test_suite='tests',
     include_package_data=True,
     package_dir={'': 'src'},
@@ -39,7 +44,7 @@ setup(
     zip_safe=True,
     install_requires=[
         "rasterio>=1.3.11",
-        "openeo==0.37.0",
+        "openeo==0.42.1",
         "geopandas>=1.0.1",
         "notebook>=7.2.2",
         "matplotlib>=3.9.2",

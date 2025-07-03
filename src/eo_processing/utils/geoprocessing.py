@@ -1,5 +1,6 @@
+from __future__ import annotations
 import os.path
-
+from os import PathLike
 import pyproj
 from shapely.geometry import Polygon
 from shapely.geometry import box
@@ -9,14 +10,19 @@ import geopandas as gpd
 import numpy as np
 import geojson
 import json
-from typing import Union, TypedDict, Tuple, Optional
+from typing import Union, Tuple, Optional, TYPE_CHECKING
 from eo_processing.utils.mgrs import LL_2_UTM, floor_to_nearest_5, UTM_2_LL, UTM_2_MGRSid10, UTM_2_grid20id
+from urllib3.util.url import parse_url
+import eo_processing.resources
+import fsspec
+try:
+    import importlib.resources as importlib_resources
+except:
+    import importlib_resources
 
-openEO_bbox_format = TypedDict('openEO_bbox_format', {'east': float,
-                                                      'south': float,
-                                                      'west': float,
-                                                      'north': float,
-                                                      'crs': str})
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import openEO_bbox_format
+    from eo_processing.utils.storage import WEED_storage
 
 def laea20km_id_to_extent(laea_id: str) -> openEO_bbox_format:
     """
@@ -48,6 +54,148 @@ def laea20km_id_to_extent(laea_id: str) -> openEO_bbox_format:
         'north': south + 20000,
         'crs': 'EPSG:3035'
     }
+
+def AOI_tiler(AOI: Union[gpd.GeoDataFrame, openEO_bbox_format, geojson.GeoJSON, Polygon, PathLike[str]],
+              tiling_grid: Union[str, PathLike[str], gpd.GeoDataFrame] = 'global',
+              merge_columns: Optional[list] = None,
+              storage: Optional[WEED_storage] = None) -> gpd.GeoDataFrame:
+    """
+    Splits an Area of Interest (AOI) into grid tiles using a provided tiling grid and returns the resulting
+    geospatial dataframe compatible with the AOI bounds. The function takes various formats for AOI and tiling grid inputs,
+    handles reprojection, and can merge additional columns from the AOI if requested. This method is designed to support
+    EU or global tiling grids or custom grid files, with an optional storage object for remote data access.
+
+    :param AOI: The Area of Interest to be tiled, which can be provided as various formats including a
+        GeoDataFrame, openEO bounding box dictionary, a geojson object, a Path to local file on disk (geoparquet,
+        GeoJson, or other GeoPandas format), or a shapely Polygon.
+    :param tiling_grid: The tiling grid to be used for generating tiles within the AOI bounds. This can be a string such as
+        "EU" or "global", a file path to local geospatial data in geoparquet, geoJSON or geopandas file,
+        a URL pointing to a geoparquet resource, or a GeoDataFrame.
+    :param merge_columns: An optional list of column names in the AOI GeoDataFrame that will be merged with the grid tiles.
+    :param storage: An optional storage object (e.g., WEED_storage) required when loading a global tiling grid using remote resources.
+
+    :return: The resulting GeoDataFrame containing the intersected and processed tiling grid for the AOI.
+    """
+    from eo_processing.config.data_formats import openEO_bbox_format
+
+    # load the AOI and make sure it is in EPSG: 4326
+    if isinstance(AOI, gpd.GeoDataFrame):
+        gdf_aoi = AOI.copy()
+        gdf_aoi = gdf_aoi.to_crs('EPSG:4326')
+    elif (isinstance(AOI, dict)) and (set(AOI.keys()) == set(openEO_bbox_format.__annotations__.keys())):
+        gdf_aoi = gpd.GeoDataFrame(geometry=[reproj_bbox_to_ll(AOI, densify=True)])
+        gdf_aoi.crs = 'EPSG:4326'
+    elif is_geojson(AOI):
+        gdf_aoi = gpd.GeoDataFrame.from_features(AOI['features'])
+        gdf_aoi.crs = 'EPSG:4326'
+    elif isinstance(AOI, Polygon):
+        gdf_aoi = gpd.GeoDataFrame(geometry=[AOI])
+        gdf_aoi.crs = 'EPSG:4326'
+    elif isinstance(os.fspath(AOI), str):
+        # we load geoparquet or geopandas or geoJSON from disk
+        try:
+            gdf_aoi = gpd.read_parquet(AOI)
+            gdf_aoi = gdf_aoi.to_crs('EPSG:4326')
+        except:
+            try:
+                gdf_aoi = gpd.read_file(AOI)
+                gdf_aoi = gdf_aoi.to_crs('EPSG:4326')
+            except:
+                raise ValueError('If a path to a local file was supplied, it must be either a geoparquet or '
+                                 'geopandas file or a geoJSON file. ')
+    else:
+        raise ValueError('AOI must be either a geopandas GeoDataFrame, openEO bbox dict, GeoJSON, GeoJSON Path '
+                         'or shapely Polygon')
+
+    # get the total bounds of the AOI for spatial filtering of tiling grid
+    total_bbox = tuple(gdf_aoi.total_bounds)
+    minx, miny, maxx, maxy = gdf_aoi.total_bounds
+    # Create a Polygon from the bounding box coordinates
+    bbox_polygon = Polygon([
+        (minx, miny),
+        (minx, maxy),
+        (maxx, maxy),
+        (maxx, miny),
+        (minx, miny)  # Close the polygon
+    ])
+
+    #load the correct tiling_grid
+    if isinstance(tiling_grid, gpd.GeoDataFrame):
+        tiling_grid_gdf = tiling_grid.copy()
+        tiling_grid_gdf = tiling_grid_gdf.to_crs('EPSG:4326')
+        tiling_grid_gdf = tiling_grid_gdf[tiling_grid_gdf.geometry.intersects(bbox_polygon)]
+    elif (isinstance(tiling_grid, str)) and (tiling_grid in ['EU', 'global']):
+        if tiling_grid == 'EU':
+            grid_path = importlib_resources.files(eo_processing.resources).joinpath('LAEA-20km_add-info.gpkg')
+            tiling_grid_gdf = gpd.read_file(os.path.normpath(grid_path), bbox=total_bbox)
+        elif tiling_grid == 'global':
+            from eo_processing.utils.storage import WEED_storage
+            if isinstance(storage, WEED_storage):
+                # load
+                tiling_grid_gdf = storage.get_gdrive_gdf('global_terrestrial_UTM20k_grid_v2.gpkg',
+                                                       filter_bbox=total_bbox)
+            else:
+                raise ValueError('For loading "global" tiling grid you need to provide a storage object')
+    elif isinstance(tiling_grid, str):
+        # check if we have a string, a path to file or a link to file
+        if parse_url(tiling_grid).scheme in ['http', 'https']:
+            # we load a geoparquet into geopandas
+            with fsspec.open(tiling_grid, mode='rb') as f:
+                tiling_grid_gdf = gpd.read_parquet(f)
+            tiling_grid_gdf = tiling_grid_gdf.to_crs('EPSG:4326')
+            tiling_grid_gdf = tiling_grid_gdf[tiling_grid_gdf.geometry.intersects(bbox_polygon)]
+        elif isinstance(os.fspath(tiling_grid), str):
+            # we load geoparquet or geopandas or geoJSON from disk
+            try:
+                tiling_grid_gdf = gpd.read_parquet(tiling_grid)
+                tiling_grid_gdf = tiling_grid_gdf.to_crs('EPSG:4326')
+                tiling_grid_gdf = tiling_grid_gdf[tiling_grid_gdf.geometry.intersects(bbox_polygon)]
+            except:
+                try:
+                    tiling_grid_gdf = gpd.read_file(tiling_grid)
+                    tiling_grid_gdf = tiling_grid_gdf.to_crs('EPSG:4326')
+                    tiling_grid_gdf = tiling_grid_gdf[tiling_grid_gdf.geometry.intersects(bbox_polygon)]
+                except:
+                    raise ValueError('If a path to a local file was supplied, it must be either a geoparquet or '
+                                     'geopandas file or a geoJSON file. ')
+        else:
+            raise ValueError('tiling grid must be a valid URL to geoparquet file or a path to local geoparquet, '
+                             'geoparquet or geoJSON file.')
+    else:
+        raise ValueError('I tried my best. tiling_grid must be either "EU" or "global" string. '
+                         'Or a valid url to a geoparquet; or path to local geopandas, geoparquet or geoJSON file')
+
+    # intersect to get AOI tiles dataframe
+    # ToDO: the filtering via the CLIP is way faster then to do an intersection in GeoPandas. optimize this behavior.
+    if 'grid20id' in tiling_grid_gdf.columns:
+        result_gdf = tiling_grid_gdf[tiling_grid_gdf.grid20id.isin(tiling_grid_gdf.clip(gdf_aoi).grid20id.unique().tolist())]
+    elif 'name' in tiling_grid_gdf.columns:
+        result_gdf = tiling_grid_gdf[tiling_grid_gdf.name.isin(tiling_grid_gdf.clip(gdf_aoi).name.unique().tolist())]
+    else:
+        try:
+            print('WARNING: the column "grid20id" or "name" was not found in the tiling grid. '
+                  'slower workflow for intersection is used.')
+            result_gdf = tiling_grid_gdf[tiling_grid_gdf.intersects(gdf_aoi.union_all())]
+        except:
+            raise ValueError('tiling_grid must contain either "grid20id" or "name" column for proper filtering.')
+
+    # adding data columns from AOI
+    if merge_columns is not None:
+        # now we check if the needed columns even exist in the AOI dataframe
+        existing_columns = [col for col in merge_columns if col in gdf_aoi.columns]
+        if existing_columns:
+            # spatial join
+            result_gdf = gpd.sjoin(result_gdf, gdf_aoi[existing_columns + ['geometry']],
+                                   how="left", predicate="intersects")
+        else:
+            print(f'WARNING: non of the requested columns to merge from the AOI to job dataframe exist')
+
+    if 'bbox_dict' not in result_gdf.columns:
+        print('WARNING: the column "bbox_dict" was not found in the tiling grid. Automatic spatial extent '
+              'generation in the job_function of the JobManager will be not possible')
+
+    # reset the index
+    return result_gdf.reset_index()
 
 def reproj_bbox_to_ll(bbox: openEO_bbox_format, buffer: bool = False, densify: bool = False,
                       return_geojson: bool = False) -> Union[Polygon, geojson.Feature]:
@@ -177,7 +325,8 @@ def get_point_info(longitude: float, latitude: float) -> Tuple[str, float, float
 
     return MGRSid10, round(center_lon, 7), round(center_lat, 7), grid20id
 
-def geoJson_2_BBOX(file_path: str, delete_file: bool = False, size_check: Optional[int] = None) -> openEO_bbox_format:
+def geoJson_2_BBOX(file_path: str, delete_file: bool = False,
+                   size_check: Optional[int] = None) -> Optional[openEO_bbox_format]:
     """
     Processes a GeoJSON file to extract the bounding box (BBOX) of all geometries combined
     and converts it into an openEO-compliant bounding box format. Optionally, the function
@@ -244,3 +393,73 @@ def geoJson_2_BBOX(file_path: str, delete_file: bool = False, size_check: Option
     except Exception as e:
         print(f"An error occurred: {e}")
 
+
+def is_valid_geometry(geometry: dict) -> bool:
+    """
+    Checks if the given geometry is a valid GeoJSON geometry object.
+
+    This function validates whether the input dictionary adheres to the standard
+    structure of a GeoJSON geometry. It ensures the presence of required keys and
+    validates the geometry type against a predefined set of valid GeoJSON geometry
+    types.
+
+    :param geometry: A dictionary representing the GeoJSON geometry object. It should
+        contain at least a "type" and "coordinates" key. The "type" should be one of the
+        supported GeoJSON types: "Point", "MultiPoint", "LineString", "MultiLineString",
+        "Polygon", "MultiPolygon", or "GeometryCollection".
+    :return: True if the input dictionary matches the structure of a valid GeoJSON
+        geometry object, and the "type" is one of the valid GeoJSON geometry types.
+        False otherwise.
+    """
+    if not isinstance(geometry, dict):
+        return False
+    if "type" not in geometry or "coordinates" not in geometry:
+        return False
+    valid_geom_types = {
+        "Point",
+        "MultiPoint",
+        "LineString",
+        "MultiLineString",
+        "Polygon",
+        "MultiPolygon",
+        "GeometryCollection"
+    }
+    return geometry["type"] in valid_geom_types
+
+
+def is_geojson(data: str | dict) -> bool:
+    """
+    Determine if the given data represents a valid GeoJSON object.
+
+    The function accepts input in the form of a string or a dictionary. It verifies whether the
+    data conforms to GeoJSON specifications, including checking the "type" field and ensuring
+    the presence of required attributes for valid GeoJSON objects such as "Feature",
+    "FeatureCollection", or other geometric types.
+
+    :param data: The input data to validate as GeoJSON. Can be a JSON string or a dictionary.
+    :return: True if the input data is a valid GeoJSON object, otherwise False.
+    """
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError:
+            return False
+
+    if not isinstance(data, dict) or "type" not in data:
+        return False
+
+    if data["type"] == "Feature":
+        return (
+                "geometry" in data and is_valid_geometry(data["geometry"]) and
+                "properties" in data and isinstance(data["properties"], dict)
+        )
+    elif data["type"] == "FeatureCollection":
+        return (
+                "features" in data and isinstance(data["features"], list) and
+                all(is_geojson(feature) for feature in data["features"])
+        )
+    elif data["type"] in {"Point", "MultiPoint", "LineString", "MultiLineString", "Polygon", "MultiPolygon",
+                          "GeometryCollection"}:
+        return is_valid_geometry(data)
+
+    return False

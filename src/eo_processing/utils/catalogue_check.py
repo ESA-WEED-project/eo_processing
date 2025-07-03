@@ -1,9 +1,13 @@
+from __future__ import annotations
 import requests
 import json
 import pandas as pd
 from eo_processing.utils.geoprocessing import reproj_bbox_to_ll
-from eo_processing.utils.geoprocessing import openEO_bbox_format
 import geojson
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import openEO_bbox_format
 
 def catalogue_check_S1(orbit_direction: str, start: str, end: str, bbox: openEO_bbox_format) -> str | None:
     """
@@ -13,8 +17,8 @@ def catalogue_check_S1(orbit_direction: str, start: str, end: str, bbox: openEO_
     :param orbit_direction: The direction of the orbit, either 'ASCENDING' or 'DESCENDING'. If not
         specified, the function will check data for both orbit directions. Must comply with the
         specified format.
-    :param start: The start date of the desired time range in ISO 8601 date format (YYYY-MM-DD).
-    :param end: The end date of the desired time range in ISO 8601 date format (YYYY-MM-DD).
+    :param start: The start date of the desired time range in ISO 8601 date format (YYYY-MM-DD) or 'YYYY-MM-DDThh:mm:ss.SSZ'..
+    :param end: The end date of the desired time range in ISO 8601 date format (YYYY-MM-DD) or 'YYYY-MM-DDThh:mm:ss.SSZ'..
     :param bbox: The bounding box of the area of interest in openEO_bbox_format. It will be reprojected
         to a latitude and longitude format for API queries.
     :return: Returns the specified orbit direction if sufficient Sentinel-1 images for the given
@@ -23,6 +27,12 @@ def catalogue_check_S1(orbit_direction: str, start: str, end: str, bbox: openEO_
         does not meet the threshold.
     """
     #standard settigns for amount of expected files per day
+    #quickfix on dates that are in date format
+    if not 'Z' in start:
+        start = start + "T00:00:00.00Z"
+    if not 'Z' in end:
+        end = end + "T00:00:00.00Z"
+
     MIN_VALUE_S1 = 1./12.
     percentage = 0.8
     latlon_box = reproj_bbox_to_ll(bbox)
@@ -34,7 +44,7 @@ def catalogue_check_S1(orbit_direction: str, start: str, end: str, bbox: openEO_
 
         url=  (f"https://datahub.creodias.eu/odata/v1/Products?$filter=Collection/Name eq 'SENTINEL-1' and "
                f"OData.CSC.Intersects(area=geography'SRID=4326;{latlon_box}') and ContentDate/Start gt "
-               f"{start}T00:00:00.000Z and ContentDate/Start lt {end}T00:00:00.000Z and "
+               f"{start} and ContentDate/Start lt {end} and "
                f"Attributes/OData.CSC.StringAttribute/any(att:att/Name eq 'orbitDirection' and "
                f"att/OData.CSC.StringAttribute/Value eq '{orbit_direction}')&$top={100}")
         results = requests.get(url)
@@ -59,8 +69,8 @@ def catalogue_check_S2(start: str, end: str, bbox: openEO_bbox_format) -> None:
     and bounding box. The function calculates the expected minimum number of images
     and raises a ValueError if the actual count is insufficient.
 
-    :param start: The start date of the time period, in the format 'YYYY-MM-DD'.
-    :param end: The end date of the time period, in the format 'YYYY-MM-DD'.
+    :param start: The start date of the time period, in the format 'YYYY-MM-DD' or 'YYYY-MM-DDThh:mm:ss.SSZ'.
+    :param end: The end date of the time period, in the format 'YYYY-MM-DD'or 'YYYY-MM-DDThh:mm:ss.SSZ'..
     :param bbox: The bounding box defining the spatial extent, must be in openEO
         bounding box format.
     :return: None
@@ -74,6 +84,13 @@ def catalogue_check_S2(start: str, end: str, bbox: openEO_bbox_format) -> None:
     if pd.to_datetime(start).year == '2017':
         MIN_VALUE_S2 = 1./10.
     temp_extent_days = (pd.to_datetime(end)-pd.to_datetime(start)).days
+
+    #quickfix on dates that are in date format
+    if not 'Z' in start:
+        start = start + "T00:00:00.00Z"
+    if not 'Z' in end:
+        end = end + "T00:00:00.00Z"
+
 
     nbr_files = count_amount_of_files('S2', latlon_box, start, end)
     if nbr_files < MIN_VALUE_S2*percentage*temp_extent_days:
@@ -103,7 +120,7 @@ def count_amount_of_files(sentinel: str, latlon_box: geojson.Feature, start: str
 
     url=  (f"https://datahub.creodias.eu/odata/v1/Products?$filter=Collection/Name eq '{satelite}' and "
            f"OData.CSC.Intersects(area=geography'SRID=4326;{latlon_box}') and ContentDate/Start "
-           f"gt {start}T00:00:00.000Z and ContentDate/Start lt {end}T00:00:00.000Z&$top={100}")
+           f"gt {start} and ContentDate/Start lt {end}&$top={100}")
     results = requests.get(url)
     json_data = json.loads(results.text)
     return len(json_data["value"])

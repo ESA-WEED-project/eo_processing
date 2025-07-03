@@ -1,8 +1,11 @@
+from __future__ import annotations
 from skimage.morphology import disk
 from openeo.rest.datacube import DataCube
 import openeo
-from eo_processing.utils.geoprocessing import openEO_bbox_format
-from typing import Union
+from typing import Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import openEO_bbox_format
 
 def convolve(img: DataCube, radius: int) -> DataCube:
     """

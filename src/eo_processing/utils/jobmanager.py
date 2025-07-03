@@ -1,6 +1,8 @@
+from __future__ import annotations
 import os
 import json
 import logging
+import geopandas as gpd
 from threading import Thread, active_count
 from openeo.util import rfc3339
 import re
@@ -9,15 +11,19 @@ import datetime
 from pathlib import Path
 import collections
 import time
+import numpy as np
 from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_stat, JobDatabaseInterface,
                                          ignore_connection_errors, _ColumnProperties, _start_job_default,
                                          get_job_db)
 from openeo.rest import OpenEoApiError
 import pandas as pd
-from typing import Optional, Mapping, Union, Dict, Tuple
+from typing import Optional, Mapping, Union, Dict, Tuple, TYPE_CHECKING, List
 import openeo
 import warnings
-from eo_processing.config.settings import storage_option_format
+from eo_processing.utils.helper import string_to_dict
+
+if TYPE_CHECKING:
+    from eo_processing.config.data_formats import storage_option_format
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +269,7 @@ class WeedJobManager(MultiBackendJobManager):
 
             else :
                 s3_client = self.storage_options["WEED_storage"].get_s3_client()
-                bucket_name= self.storage_options["WEED_storage"].s3_bucket()
+                bucket_name= self.storage_options["WEED_storage"].get_s3_bucket_name()
                 s3_client.download_file(bucket_name, os.path.join(S3_prefix,f"timeseries.{file_ext}"),
                                         job_dir / f"{title}.{file_ext}")
 
@@ -311,6 +317,10 @@ class WeedJobManager(MultiBackendJobManager):
 
         active = job_db.get_by_status(statuses=["created", "queued", "running", "downloading"])
 
+        jobs_done = []
+        jobs_error = []
+        jobs_canceled = []
+
         for i in active.index:
             job_id = active.loc[i, "id"]
             backend_name = active.loc[i, "backend_name"]
@@ -337,6 +347,7 @@ class WeedJobManager(MultiBackendJobManager):
 
                 if new_status == "finished" and previous_status != "downloading":
                     stats["job finished"] += 1
+                    jobs_done.append((the_job, active.loc[i]))
                      #Implement of max threading to avoid possible overflow of Threads
                     while active_count() > 15:
                         logger.warning(f"To many thread busy. Max 15 threads are allowed and {active_count()} are active.")
@@ -353,6 +364,7 @@ class WeedJobManager(MultiBackendJobManager):
 
                 if previous_status != "error" and new_status == "error":
                     stats["job failed"] += 1
+                    jobs_error.append((the_job, active.loc[i]))
                     error_reason = self.on_job_error(the_job, active.loc[i])
                     if error_reason:
                         new_status = error_reason
@@ -363,6 +375,7 @@ class WeedJobManager(MultiBackendJobManager):
 
                 if new_status == "canceled":
                     stats["job canceled"] += 1
+                    jobs_canceled.append((the_job, active.loc[i]))
                     self.on_job_cancel(the_job, active.loc[i])
                     if active.loc[i, "attempt"] <= self.max_attempts:
                         new_status = "not_started"
@@ -392,10 +405,15 @@ class WeedJobManager(MultiBackendJobManager):
                 print(e)
 
         stats["job_db persist"] += 1
+        active = active.replace(np.nan, None)
         job_db.persist(active)
 
         if self.viz:
             self.create_viz_status(job_db)
+
+        return [], [], []
+
+
 
     def _launch_job(self, start_job, df, i, backend_name, stats: Optional[Dict] = None):
         """Helper method for launching jobs
@@ -424,6 +442,20 @@ class WeedJobManager(MultiBackendJobManager):
 
         df.loc[i, "backend_name"] = backend_name
         row = df.loc[i]
+
+        #before launching jobs will first check if, in case of export workspace that the workspace (s3-bucket)
+        #is reachable
+        if self.storage_options.get('workspace_export',False):
+            #however when credentials are not given this check should be omitted
+            if self.storage_options.get("WEED_storage",False):
+                logger.info(f"Checking if the workspace/s3 bucket {self.storage_options["WEED_storage"].get_s3_bucket_name()} is reachable")
+                bucket_exist = self.storage_options["WEED_storage"].s3_bucket_exists()
+                if not bucket_exist:
+                    df.loc[i, "status"] = "skipped_workspace_unavailable"
+                    if df.loc[i, "attempt"] <= self.max_attempts:
+                        df.loc[i, "status"] = "not_started"
+
+
         try:
             logger.info(f"Starting job on backend {backend_name} for {row.to_dict()}")
             connection = self._get_connection(backend_name, resilient=True)
@@ -431,7 +463,6 @@ class WeedJobManager(MultiBackendJobManager):
             stats["start_job call"] += 1
             job = start_job(
                 row=row,
-                connection_provider=self._get_connection,
                 connection=connection,
                 provider=backend_name,
             )
@@ -717,3 +748,112 @@ def get_AOI_interactive(map_center: Tuple[float, float] = (51.22, 5.08), zoom: i
         return m
     else:
         print('this function is only available in a jupyter notebook')
+
+def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, processing_type: str,
+                         discriminator: Optional[str] = None, target_crs: Optional[int] = None, version: Optional[str] = None,
+                         model_ID: Optional[str] = None,
+                         storage_options: Optional[storage_option_format] = None,
+                         organization_id : Optional[int] = None) -> gpd.GeoDataFrame:
+    """
+    Creates a new GeoDataFrame containing job-related configurations for processing geospatial data. The input
+    GeoDataFrame is copied and augmented with new columns based on the input parameters and processing type.
+
+    The resulting GeoDataFrame is structured to include columns needed for subsequent geospatial data processing
+    tasks, such as file naming, bounding box information, projection details, date ranges, and additional
+    process-specific fields when applicable.
+
+    :param gdf: Input GeoDataFrame containing the geospatial data.
+    :param year: Year used for setting start and end dates, as well as constructing unique identifiers.
+    :param file_name_base: Base string utilized for generating file prefixes.
+    :param processing_type: Specifies the type of processing, e.g., 'feature' or 'eunis_habitat_probabilities'.
+    :param discriminator: Optional column name used for further distinguishing rows during file naming and job identification.
+    :param target_crs: Optional target CRS (Coordinate Reference System) EPSG code for reprojection. If not provided,
+                       inferred from existing data.
+    :param version: Optional string denoting the version identifier to append to the generated file prefix.
+    :param model_ID: Optional model ID; added to the output GeoDataFrame for the 'eunis_habitat_probabilities'
+                       processing type.
+    :param storage_options: Optional dictionary containing storage configuration parameters. Expected to contain a key
+                            'S3_prefix', which specifies the storage path prefix PLUS the export_workspace name for S3 export.
+    :param organization_id: Optional integer representing the organization ID; added to every row in the resulting GeoDataFrame.
+
+    :return: A GeoDataFrame containing the input data along with additional columns tailored to the specified processing type.
+    """
+
+    columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date','export_workspace',
+               's3_prefix', 'organization_id', 's2_tileid_list']
+    dtypes = {'name': 'string', 'tileID': 'string', 'target_epsg': 'UInt16',
+              'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string', 's3_prefix': 'string',
+              'geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16','s2_tileid_list':'string',
+              'export_workspace':'string'}
+
+    job_df = gdf.copy()
+
+    # evaluate if tileID is given by 'name' or 'grid20id'
+    if 'grid20id' in job_df.columns:
+        tile_col = 'grid20id'
+    else:
+        tile_col = 'name'
+
+    if 's2_tileid_list' in job_df.columns:
+        #we know we need to split this string into list
+        job_df['s2_tileid_list'] = job_df.apply(lambda row : row['s2_tileid_list'].split(','), axis =1)
+    else :
+        job_df['s2_tileid_list'] = None
+
+    # the time context is given by start and end date
+    job_df['start_date'] = f'{year}-01-01T00:00:00Z'
+    job_df['end_date'] = f'{year}-12-31T23:59:59Z'
+
+    #organization ID is the same for all rows
+    job_df['organization_id'] = organization_id
+
+    # set the target epsg
+    if target_crs is None:
+        job_df['target_epsg'] = job_df.apply(lambda row: int(string_to_dict(row['bbox_dict'])['crs']), axis=1)
+    else:
+        job_df['target_epsg'] = target_crs
+
+    job_df['bbox'] = job_df['bbox_dict']
+
+    # set the s3_prefix which is needed for the path to S3 storage relative to bucket if we export
+    if storage_options:
+        job_df['s3_prefix'] = storage_options.get('S3_prefix', None)
+        job_df['export_workspace'] = storage_options['WEED_storage'].get_export_workspace()
+    else:
+        job_df['s3_prefix'] = None
+        job_df['export_workspace'] = None
+
+    # a fix since the "name" column has to be unique
+    job_df['tileID'] = job_df[tile_col].copy()
+    if discriminator:
+        job_df['name'] = job_df[tile_col] + f'_{year}' + f'_' + job_df[discriminator]
+    else:
+        job_df['name'] = job_df[tile_col] + f'_{year}'
+
+    #get version
+    if version:
+        version = f'_{version}'
+    else: version = ''
+
+    if discriminator:
+        job_df['file_prefix'] = job_df.apply(lambda
+                                                 row: f'{file_name_base}_{processing_type}-cube_year{year}_{row['tileID']}_{row[discriminator]}{version}',
+                                             axis=1)
+    else:
+        job_df['file_prefix'] = job_df.apply(
+            lambda row: f'{file_name_base}_{processing_type}-cube_year{year}_{row['tileID']}{version}', axis=1)
+
+    if 'proba' in processing_type.lower(): # probability genration in inference
+        # adding the model_urls and output_band_names (all the same for all tiles) for inference
+        job_df['model_ID'] = model_ID
+        #update dtypes dict
+        columns.extend(['model_ID'])
+        dtypes.update({'model_ID':'string'})
+    elif 'feature' in processing_type.lower(): # feature cube for point extraction or datacube generation
+        pass
+    else:
+        logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. "
+                       f"If needed, extended the function for specific options for processing_type: {processing_type}")
+
+    columns.append('geometry')
+    return job_df[columns].astype(dtypes)

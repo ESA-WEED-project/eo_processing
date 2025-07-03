@@ -1,11 +1,7 @@
 name: Integration Tests
 
-# Trigger for every push or pull request to main
+# this workflow can be triggered manually from the GitHub Actions tab
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:

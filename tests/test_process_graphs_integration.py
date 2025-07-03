@@ -31,9 +31,9 @@ def changed_process_graphs():
     Get the list of changed process graphs in the current branch compared to origin/main.
 
     it uses the git diff command to get the list of changed files and filters them to only include
-    .json files in the tests/process_graphs directory that are marked as integration process graphs.
+    .json files in the tests/resources directory that are marked as integration process graphs.
 
-    New process graphs should be added to the tests/process_graphs and added to the
+    New process graphs should be added to the tests/resources and added to the
     git tracking.
 
     Inspired by Integration testing in https://github.com/VITO-RS-Vegetation/lcfm-production.
@@ -41,19 +41,18 @@ def changed_process_graphs():
     try:
         # Get the list of changed .json files
         result = subprocess.run(
-            ["git", "diff", "origin/main", "HEAD", "--name-only"],
+            ["git", "diff", "origin/main", "--name-only"],
             stdout=subprocess.PIPE,
             check=True,
             text=True,
         )
         changed_files = [Path(f) for f in result.stdout.splitlines()]
+        print(f"Changed integration process graphs: {changed_files}")
+        base_uri = Path("tests/resources").absolute().as_uri()
         json_files = [
-            f
-            for f in changed_files
+            f for f in changed_files
             if f.suffix == ".json"
-            and f.parent.absolute()
-            .as_uri()
-            .startswith(Path("tests/resources").absolute().as_uri())
+            and f.absolute().as_uri().startswith(base_uri)
             and _is_integration_pg(f)
         ]
         print(f"Changed integration process graphs: {json_files}")

@@ -1,6 +1,6 @@
 {
     "id": "WEED_generate_master_feature_cube_with_catboost_inference_integration",
-    "type": "openeo",
+    "type": "openeo", 
     "description": "Integration test from the WEED eo-processing generate_master_feature_cube_with_catboost_inference_integration",
     "backend": "openeo.dataspace.copernicus.eu",
     "process_graph": {

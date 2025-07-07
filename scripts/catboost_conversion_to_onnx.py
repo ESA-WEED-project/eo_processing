@@ -6,8 +6,8 @@ test script to convert catboost model to onnx as reference for the UNIX tests
 from eo_processing.utils.onnx_model_utilities import convert_model_to_onnx_with_metadata
 
 # Define paths and features
-catboost_model_path = r'C:\\tmp\\model\\catboost_v1.cbm'
-output_onnx_path = r'C:\\Users\\wannijnj\\Documents\\Projects\\WEED\\eo_processing\\src\\eo_processing\\resources\\catboost_test.onnx'
+catboost_model_path = r'H:\\slovakia\\models\\v5\\L1\\models\\65predictors\\v1\\catboost_v1.cbm'
+output_onnx_path = r'C:\\Git_projects\\eo_processing\\src\\eo_processing\\resources\\test.onnx'
 
 input_features = ['BLFEI_p98', 'NDVIMNDWI_mean', 'MNDWI_mean', 'B12_iqr', 'CIRE_p98',
                   'VHVVR_median', 'NDVI_iqr', 'NDMI_p2', 'VH_mean', 'VHVVR_sd', 'B05_p25',

@@ -1,11 +1,15 @@
 #%%
+import joblib
 import json
 import os
 import onnx
 from onnx import StringStringEntryProto
 from catboost import CatBoostClassifier
+from sklearn.base import BaseEstimator
+from skl2onnx import convert_sklearn
+from skl2onnx.common.data_types import FloatTensorType
 from eo_processing.utils.external_dependency_utilities import download_file
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Type, Any, Union
 
 def load_catboost_model(catboost_model_path: str) -> CatBoostClassifier:
     """
@@ -29,33 +33,76 @@ def load_catboost_model(catboost_model_path: str) -> CatBoostClassifier:
         return model
     except Exception as e:
         raise ValueError(f"Failed to load CatBoost model from {catboost_model_path}: {e}")
-
-def save_model_to_onnx(model: CatBoostClassifier, output_onnx_path: str) -> None:
+    
+def load_sklearn_model(model_path: str, expected_type: Optional[Type] = None) -> Any:
     """
-    Saves a CatBoost model in ONNX format.
+    Loads a scikit-learn model from the specified file path. This function ensures that
+    the provided file path exists and attempts to load the model using joblib. Optionally,
+    it can verify that the loaded object matches an expected scikit-learn class.
 
-    This function takes a trained CatBoostClassifier model and saves it to the specified
-    output path in ONNX format. If the saving process fails for any reason, an exception
-    is raised with relevant details.
+    :param model_path: Path to the scikit-learn model file to be loaded.
+    :param expected_type: (Optional) Expected class type of the loaded model (e.g., PCA, RandomForestClassifier).
+    :return: A loaded scikit-learn model instance.
+    :raises FileNotFoundError: If the provided file path does not exist.
+    :raises ValueError: If loading fails or the model type does not match expected_type.
+    """
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found at: {model_path}")
 
-    :param model: The trained CatBoostClassifier model to be saved. The model should be
-        fully trained and ready for exporting to ONNX format.
-    :param output_onnx_path: The destination file path where the ONNX model will be saved.
-        The path should include the desired filename and .onnx extension.
-    :return: This function does not return a value. It only saves the model to the specified
-        location.
-    :raises ValueError: If the model fails to save to ONNX format.
+    try:
+        model = joblib.load(model_path)
+        if expected_type is not None and not isinstance(model, expected_type):
+            raise ValueError(f"Loaded model is not of expected type {expected_type.__name__}. Got: {type(model).__name__}")
+        print(f"Model loaded from {model_path}")
+        return model
+    except Exception as e:
+        raise ValueError(f"Failed to load model from {model_path}: {e}")
+    
+def save_model_to_onnx(model: Union[CatBoostClassifier, BaseEstimator],
+                       output_onnx_path: str) -> None:
+    """
+    Saves a CatBoost or scikit-learn model in ONNX format.
+
+    :param model: The trained model (CatBoostClassifier or scikit-learn estimator).
+    :param output_onnx_path: File path to save the ONNX model (should end in .onnx).
+    :param sample_input: Required for scikit-learn models. A sample input array (n_samples, n_features)
+                         to define input types for ONNX conversion.
+    :raises ValueError: If model type is unsupported or saving fails.
     """
     try:
-        model.save_model(output_onnx_path,
-                         format="onnx",
-                         export_parameters={
-                             "onnx_domain": "ai.catboost",
-                             "onnx_model_version": 1,
-                             "onnx_doc_string": "CatBoost model in VITO's hierarchical habitat mapping framework.",
-                             "onnx_graph_name": os.path.splitext(os.path.basename(output_onnx_path))[0]
-                         })
-        print(f"Model saved to ONNX format: {os.path.basename(output_onnx_path)}")
+        if isinstance(model, CatBoostClassifier):
+            model.save_model(
+                output_onnx_path,
+                format="onnx",
+                export_parameters={
+                    "onnx_doc_string": "CatBoost model in ONNX format.",
+                    "onnx_domain": "ai.catboost",
+                    "onnx_model_version": 1,
+                    "onnx_graph_name": os.path.splitext(os.path.basename(output_onnx_path))[0]
+                }
+            )
+            print(f"CatBoost model saved to ONNX: {os.path.basename(output_onnx_path)}")
+
+        elif isinstance(model, BaseEstimator):
+            n_features = model.n_features_in_
+            
+            initial_type = [('input', FloatTensorType([None, n_features]))]
+            onnx_model = convert_sklearn(model, initial_types=initial_type)
+
+            # Modify ONNX metadata
+            onnx_model.doc_string = "Scikit-learn model in ONNX format"
+            onnx_model.domain = "ai.sklearn"
+            onnx_model.model_version = 1
+            onnx_model.graph.name = os.path.splitext(os.path.basename(output_onnx_path))[0]
+            
+            with open(output_onnx_path, "wb") as f:
+                f.write(onnx_model.SerializeToString())
+            
+            print(f"scikit-learn model saved to ONNX: {os.path.basename(output_onnx_path)}")
+
+        else:
+            raise ValueError("Unsupported model type. Only CatBoostClassifier and scikit-learn models are supported.")
+
     except Exception as e:
         raise ValueError(f"Failed to save model to ONNX format at {output_onnx_path}: {e}")
 
@@ -112,7 +159,12 @@ def add_metadata_to_onnx(onnx_path: str, input_features: Optional[List] = None,
     # create also from the outbandnames the dict for the class_names encoder
     class_dict = {}
     for bname in output_features:
-        class_dict[int(bname.split('-')[-1])] = bname.split('-')[-2]
+        parts = bname.split('-')
+        if len(parts) >= 2 and parts[-1].isdigit():
+            class_dict[int(parts[-1])] = parts[-2]
+        else:
+            print(f"Warning: Skipping malformed output name '{bname}'")
+
 
     metadata_entries.update({
         'class_names': class_dict,
@@ -139,35 +191,41 @@ def add_metadata_to_onnx(onnx_path: str, input_features: Optional[List] = None,
     except Exception as e:
         raise ValueError(f"Failed to save ONNX model with metadata at {onnx_path}: {e}")
 
-def convert_catboost_model_to_onnx_with_metadata(catboost_model_path: str,
-                                                 input_features: Optional[List] = None,
-                                                 output_features: Optional[List] = None,
-                                                 output_onnx_path: Optional[str] = None,
-                                                 add_metadata: Optional[Dict] = None) -> None:
+def convert_model_to_onnx_with_metadata(model_path: str,
+                                        input_features: Optional[List] = None,
+                                        output_features: Optional[List] = None,
+                                        output_onnx_path: Optional[str] = None,
+                                        add_metadata: Optional[Dict] = None) -> None:
     """
-    Convert a CatBoost model to ONNX format and optionally add metadata.
+    Convert a CatBoost or scikit-learn model to ONNX format and optionally add metadata.
 
-    This function loads a pre-trained CatBoost model from the given path, converts it
+    This function loads a pre-trained CatBoost or scikit-learn model from the given path, converts it
     to ONNX format, and saves it. Optionally, it allows adding metadata for input
     and output features to the ONNX model.
 
-    :param catboost_model_path: Path to the CatBoost model file to be converted.
+    :param catboost_model_path: Path to the model file to be converted.
     :param input_features: Optional list of input feature names to be added as ONNX
         metadata.
     :param output_features: Optional list of output feature names to be added as ONNX
         metadata.
     :param output_onnx_path: Optional path to save the converted ONNX model. If not
-        specified, a default ONNX filename will be created based on the CatBoost model
+        specified, a default ONNX filename will be created based on the model
         path.
     :param add_metadata: Optional dictionary containing any additional metadata to be
         added to the ONNX model.
     """
     
-    # Step 1: Load the CatBoost model
-    model = load_catboost_model(catboost_model_path)
+    # Step 1: Load the model
+    try: 
+        if model_path.endswith(".cbm"):
+            model = load_catboost_model(model_path)
+        elif model_path.endswith((".pkl", ".joblib")):
+            model = load_sklearn_model(model_path)
+    except Exception as e: 
+        raise ValueError(f"Failed to load ONNX model from {model_path}: {e}")
 
     if output_onnx_path is None:
-        output_onnx_path = onnx_output_path(catboost_model_path)
+        output_onnx_path = onnx_output_path(model_path)
     
     # Step 2: Save the CatBoost model to ONNX format
     save_model_to_onnx(model, output_onnx_path)
@@ -229,27 +287,30 @@ def extract_features_from_onnx(onnx_model_path: str) -> Dict[str, List[str]]:
         'output_features': output_features_list
     }
 
-def onnx_output_path(catboost_model_path: str) -> str:
+def onnx_output_path(model_path: str) -> str:
     """
-    Generates the ONNX output file path for a given CatBoost model file.
+    Generates the ONNX output file path for a given CatBoost or scikit-learn model file.
 
-    This function takes the file path of a CatBoost model as input and computes
+    This function takes the file path of a CatBoost or scikit-learn model as input and computes
     the corresponding ONNX file path by replacing the file extension with `.onnx`.
     It verifies the existence of the provided file and raises an exception if
     not found. The function also logs the generated ONNX path for inspection.
 
-    :param catboost_model_path: The file path of the CatBoost model (must include
+    :param model_path: The file path of the CatBoost or scikit-learn model (must include
         the `.cbm` extension). The path must exist, otherwise an exception
         is raised.
     :return: The file path for the ONNX model with the `.onnx` extension.
-    :raises FileNotFoundError: If the specified CatBoost model file does not
+    :raises FileNotFoundError: If the specified model file does not
         exist at the provided path.
     """
-    if not os.path.exists(catboost_model_path):
-        raise FileNotFoundError(f"CatBoost model file not found at: {catboost_model_path}")
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found at: {model_path}")
 
-    directory, file_name = os.path.split(catboost_model_path)
-    new_file_name = file_name.replace('.cbm', '.onnx')
+    directory, file_name = os.path.split(model_path)
+    for ext in ('.cbm', '.pkl', '.joblib'):
+        if file_name.endswith(ext):
+            new_file_name = file_name[:-len(ext)] + '.onnx'
+            break
     output_onnx_path = os.path.join(directory, new_file_name)
     print(f"ONNX output path generated: {output_onnx_path}")
     return output_onnx_path

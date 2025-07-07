@@ -270,7 +270,7 @@ def get_training_features_from_model(url: str) -> Dict[str, List[str]]:
              and the list of output features under the key 'output_features'.
     """
     # Step 1: Process the model file
-    onnx_model_path = download_file(url, max_file_size_mb=250)
+    onnx_model_path = download_file(url)
     
     # Step 2: Extract metadata from the ONNX model
     try:

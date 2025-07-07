@@ -1,13 +1,16 @@
 import os
+import sys
 import functools
 import joblib
 import glob
 import xarray as xr
 import numpy as np
-from sklearn.decomposition import PCA
 from openeo.metadata import CubeMetadata
 from openeo.udf import inspect
 from typing import Union
+
+sys.path.append("sklearn_deps")
+from sklearn.decomposition import PCA
 
 
 def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
@@ -75,7 +78,7 @@ def find_model_file(model_type: str) -> str:
     
     for base_dir in possible_dirs:
         # Model file should always be unzipped from working-drectory of the Driver
-        for path in glob.glob(f"{base_dir}/**/work-dir/models/{model_filename}", recursive=True):
+        for path in glob.glob(f"{base_dir}/**/{model_filename}", recursive=True):
             inspect(message=f"Found model file: {path}")
             return path
     
@@ -112,7 +115,7 @@ def load_dim_reduction_model(model_type: str = "PCA") -> Union[PCA]:
         return joblib.load(model_path)
     
     except Exception as e:
-        raise ValueError(f"Failed to load reduction model from {model_path}: {e}")
+        raise ValueError(f"Failed to load reduction model: {e}")
 
 
 def get_significant_band_mask(context: dict = None):

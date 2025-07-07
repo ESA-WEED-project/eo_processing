@@ -1,16 +1,18 @@
 import os
+import sys
 import functools
 import joblib
 import glob
 import xarray as xr
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE, SpectralEmbedding as SE, LocallyLinearEmbedding as LLE
-# from umap import UMAP #TODO implement umap
 from sklearn.preprocessing import MinMaxScaler
 from openeo.udf import inspect
 from openeo.metadata import CubeMetadata
 from typing import Dict, Union
-import numpy as np
+
+sys.path.append("sklearn_deps")
+from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE, SpectralEmbedding as SE, LocallyLinearEmbedding as LLE
+from umap import UMAP 
 
 
 def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
@@ -19,7 +21,7 @@ def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
     :param metadata: Metadata of the input data
     :param context: Optional dictionary containing configuration values.
                     Expected key:
-                        - "model_type" (str): model_type to run ("PCA" | "TSNE" | "LLE" | "SE")
+                        - "model_type" (str): model_type to run ("PCA" | "TSNE" | "LLE" | "SE" | "UMAP")
     :return: Filtered & renamed components of labels
     """
     # Get model type
@@ -51,7 +53,7 @@ def is_dim_reduction_model_file(file_path: str) -> bool:
     verifying that it contains a valid dimensionality reduction model object.
 
     :param file_path: The path to the file.
-    :return: True if the file has a `.pkl` extension and contains a PCA, t-SNE, LLE or SE model, otherwise False.
+    :return: True if the file has a `.pkl` extension and contains a PCA, t-SNE, LLE, SE & UMAP model, otherwise False.
     """
     if not file_path.endswith(".pkl") or not os.path.isfile(file_path):
         inspect(message=f'Not a valid pickle file')
@@ -61,7 +63,7 @@ def is_dim_reduction_model_file(file_path: str) -> bool:
         with open(file_path, 'rb') as f:
             model = joblib.load(f)
         
-        return isinstance(model, (PCA, TSNE, SE, LLE))
+        return isinstance(model, (PCA, TSNE, SE, LLE, UMAP))
 
     except Exception as e:
         raise ValueError(f"Error loading file: {e}")
@@ -87,7 +89,7 @@ def find_model_file(model_type: str) -> str:
     
     for base_dir in possible_dirs:
         # Model file should always be unzipped from working-drectory of the Driver
-        for path in glob.glob(f"{base_dir}/**/work-dir/models/{model_filename}", recursive=True):
+        for path in glob.glob(f"{base_dir}/**/work-dir/sklearn_models/**/{model_filename}", recursive=True):
             inspect(message=f"Found model file: {path}")
             return path
     
@@ -95,19 +97,19 @@ def find_model_file(model_type: str) -> str:
 
 
 @functools.lru_cache(maxsize=1)
-def load_dim_reduction_model(model_type: str) -> Union[PCA, TSNE, LLE, SE]:
+def load_dim_reduction_model(model_type: str) -> Union[PCA, TSNE, LLE, SE, UMAP]:
     """
     Loads a dimensionality reduction from a given URL, caches the model locally, and initializes an dimensionality reduction session.
 
     The function ensures the dimensionality reduction model is locally stored in the specified driver directory
     to optimize repeated access. It also validates if the file is a dimensionality reduction model.
 
-    :param model_type: The type of model to load. Must be either "PCA", "T-SNE", "LLE" or "SE".
+    :param model_type: The type of model to load. Must be either "PCA", "T-SNE", "LLE", "SE" OR "UMAP".
     :param model_dir: Directory path where the model files are located.
     :return: A dimensionality reduction model
     :raises ValueError: If model_type is invalid or if the model file is not found or invalid.
     """
-    valid_types = {"PCA", "TSNE", "LLE", "SE"}
+    valid_types = {"PCA", "TSNE", "LLE", "SE", "UMAP"}
     if model_type not in valid_types:
         raise ValueError(f"Invalid model_type '{model_type}'. Must be one of {valid_types}")
     
@@ -123,7 +125,7 @@ def load_dim_reduction_model(model_type: str) -> Union[PCA, TSNE, LLE, SE]:
         return joblib.load(model_path)
     
     except Exception as e:
-        raise ValueError(f"Failed to load reduction model from {model_path}: {e}")
+        raise ValueError(f"Failed to load reduction model: {e}")
 
 
 def apply_datacube(cube: xr.DataArray, context: Dict = None) -> xr.DataArray:
@@ -139,7 +141,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict = None) -> xr.DataArray:
     :param cube: The data cube on which dimensionality reduction will be applied. It must be an `xr.DataArray`.
     :param context: Optional dictionary containing configuration values.
                     Expected key:
-                        - "model_type" (str): model_type ro tun ("PCA" | "TSNE" | "LLE" | "SE")
+                        - "model_type" (str): model_type ro tun ("PCA" | "TSNE" | "LLE" | "SE" | "UMAP")
     :return: An `xr.DataArray` representing the processed output cube after successfully applying the model
     """  
     # fill nan in cube and make sure cube is in right dtype for dimensionality reduction

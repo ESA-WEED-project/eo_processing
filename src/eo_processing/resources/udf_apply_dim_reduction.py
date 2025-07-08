@@ -126,6 +126,32 @@ def load_dim_reduction_model(model_type: str) -> Union[PCA, TSNE, LLE, SE, UMAP]
     
     except Exception as e:
         raise ValueError(f"Failed to load reduction model: {e}")
+    
+
+def create_output_xarray(n_components: int, components: xr.DataArray, input_xr: xr.DataArray) -> xr.DataArray:
+    """
+    Generate an xarray.DataArray based on dimensionality reduction components and the 
+    coordinate information from the input xarray.DataArray. This function structures 
+    the component data into a 3D DataArray with spatial alignment inherited from the input.
+
+    :param n_components: The number of components (e.g., principal components) generated 
+        by a dimensionality reduction algorithm.
+    :param components: A 3D array (xarray.DataArray or NumPy array) containing component values 
+        with shape [n_components, y, x].
+    :param input_xr: The input xarray.DataArray used to extract the 'x' and 'y' coordinates, 
+        ensuring spatial alignment in the output.
+    :return: An xarray.DataArray with dimensions ['bands', 'y', 'x'], where 'bands' are 
+        labeled as "COMP1", "COMP2", etc., and spatial coordinates are taken from input_xr.
+    """
+    coords = {
+        "bands": [f"COMP{i+1}" for i in range(n_components)],
+        "y": input_xr.coords["y"],
+        "x": input_xr.coords["x"],
+    }
+    result = xr.DataArray(components, dims=("bands", "y", "x"), coords=coords)
+    inspect(message=f"Output dims: {result.dims}, shape: {result.shape}")
+
+    return result
 
 
 def apply_datacube(cube: xr.DataArray, context: Dict = None) -> xr.DataArray:
@@ -175,13 +201,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict = None) -> xr.DataArray:
     result_data = transformed_normalized.T.reshape((n_components, y, x))
 
     # Build coords and return xr.DataArray
-    coords = {
-        "bands": [f"COMP{i+1}" for i in range(n_components)],
-        "y": cube.coords["y"],
-        "x": cube.coords["x"],
-    }
-    result = xr.DataArray(result_data, dims=("bands", "y", "x"), coords=coords)
-    inspect(message=f"Output dims: {result.dims}, shape: {result.shape}")
+    result = create_output_xarray(n_components=n_components, components=result_data, input_xr=cube)
 
     # Attach result cube attrs 
     result.attrs = cube.attrs

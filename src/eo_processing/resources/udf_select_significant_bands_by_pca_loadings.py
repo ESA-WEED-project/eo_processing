@@ -9,7 +9,7 @@ from openeo.metadata import CubeMetadata
 from openeo.udf import inspect
 from typing import Union
 
-sys.path.append("sklearn_deps")
+sys.path.append("dim_reduction_deps")
 from sklearn.decomposition import PCA
 
 

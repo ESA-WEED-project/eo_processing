@@ -1,18 +1,16 @@
 import os
 import sys
 import functools
-import joblib
 import glob
 import xarray as xr
 from sklearn.preprocessing import MinMaxScaler
 from openeo.udf import inspect
 from openeo.metadata import CubeMetadata
-from typing import Dict, Union
+from typing import Dict, List, Tuple
+import numpy as np
 
-sys.path.append("sklearn_deps")
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE, SpectralEmbedding as SE, LocallyLinearEmbedding as LLE
-from umap import UMAP 
+sys.path.append("onnx_deps")
+import onnxruntime as ort
 
 
 def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
@@ -28,45 +26,31 @@ def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
     model_type = (context or {}).get("model_type", "")
 
     # Get amount of components from the model in the context
-    dim_reduction_model = load_dim_reduction_model(model_type=model_type)
-    n_components = dim_reduction_model.n_components
-
-    # Original list of band names
-    bands = metadata.band_names  
-
-    # Rename only the first `n_components` bands
-    new_band_names = [f"COMP{i+1}" for i in range(n_components)] + bands[n_components:]
+    _, metadata_dict = load_dim_reduction_model(model_type=model_type)
     
     # rename and reduce band labels to component labels 
-    metadata = metadata.rename_labels(dimension="bands", target=new_band_names)
-    metadata = metadata.filter_bands([f"COMP{i+1}" for i in range(n_components)])
+    metadata = metadata.rename_labels(dimension="bands", target=metadata_dict["output_features"])
+    metadata = metadata.filter_bands(metadata_dict["output_features"])
 
     # rename band labels
     return metadata
 
 
-def is_dim_reduction_model_file(file_path: str) -> bool:
+def is_onnx_file(file_path: str) -> bool:
     """
-    Determines if a file is a pickle file that contains a dimensionality reduction model
+    Determines if a file is an ONNX file based on its extension.
 
-    This function checks whether the file has a `.pkl` extension and attempts to load it,
-    verifying that it contains a valid dimensionality reduction model object.
+    This function checks the provided file path and determines whether the file
+    is an ONNX file by checking if the file name ends with the `.onnx` file extension.
 
-    :param file_path: The path to the file.
-    :return: True if the file has a `.pkl` extension and contains a PCA, t-SNE, LLE, SE & UMAP model, otherwise False.
+    :param file_path: The path to the file whose extension is to be verified.
+    :return: True if the file has a `.onnx` extension, otherwise False.
     """
-    if not file_path.endswith(".pkl") or not os.path.isfile(file_path):
-        inspect(message=f'Not a valid pickle file')
+    if not file_path.endswith(".onnx") or not os.path.isfile(file_path):
+        inspect(message=f'Not a valid ONNX file')
         return False
-
-    try:
-        with open(file_path, 'rb') as f:
-            model = joblib.load(f)
-        
-        return isinstance(model, (PCA, TSNE, SE, LLE, UMAP))
-
-    except Exception as e:
-        raise ValueError(f"Error loading file: {e}")
+    else: 
+        return True
 
 
 def find_model_file(model_type: str) -> str:
@@ -74,7 +58,7 @@ def find_model_file(model_type: str) -> str:
     Locates a serialized dimensionality reduction model file within common temporary directories.
 
     This function searches recursively through a set of predefined directories (e.g., /tmp, /opt, /mnt, /home)
-    to locate a model file named according to the pattern `dim_reduction_<model_type>.pkl`.
+    to locate a model file named according to the pattern `dim_reduction_<model_type>.onnx`.
     It assumes the file has been extracted from the job’s dependency archive into a subdirectory of 
     structure like `*/work-dir/models/`, coressponding to the driver's working directory.
 
@@ -85,19 +69,34 @@ def find_model_file(model_type: str) -> str:
     """
     # Look in likely temp dirs
     possible_dirs = ["/tmp", "/opt", "/mnt", "/home"]  # backend-specific
-    model_filename = f"dim_reduction_{model_type.lower()}.pkl"
+    model_filename = f"dim_reduction_{model_type.lower()}.onnx"
     
     for base_dir in possible_dirs:
         # Model file should always be unzipped from working-drectory of the Driver
-        for path in glob.glob(f"{base_dir}/**/work-dir/sklearn_models/**/{model_filename}", recursive=True):
+        for path in glob.glob(f"{base_dir}/**/work-dir/onnx_models/**/{model_filename}", recursive=True):
             inspect(message=f"Found model file: {path}")
             return path
     
     raise FileNotFoundError(f"Model file {model_filename} not found in any of {possible_dirs}")
 
 
+def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> np.ndarray:
+    """
+    Executes inference using an ONNX Runtime session and input numpy array. This function
+    returns the dimensionality-reduced output.
+
+    :param input_np: Numpy array containing the input tensor data for inference.
+    :param ort_session: ONNX Runtime inference session object used to execute the dimensionality reduction model.
+    :return: Numpy array containing the dimensionality-reduced features.
+    """
+    ort_inputs = {ort_session.get_inputs()[0].name: input_np}
+    ort_outputs = ort_session.run(None, ort_inputs)
+    transformed = ort_outputs[0]
+    return transformed
+
+
 @functools.lru_cache(maxsize=1)
-def load_dim_reduction_model(model_type: str) -> Union[PCA, TSNE, LLE, SE, UMAP]:
+def load_dim_reduction_model(model_type: str) -> Tuple[ort.InferenceSession, Dict[str, List[str]]]:
     """
     Loads a dimensionality reduction from a given URL, caches the model locally, and initializes an dimensionality reduction session.
 
@@ -113,22 +112,76 @@ def load_dim_reduction_model(model_type: str) -> Union[PCA, TSNE, LLE, SE, UMAP]
     if model_type not in valid_types:
         raise ValueError(f"Invalid model_type '{model_type}'. Must be one of {valid_types}")
     
-    try:
-        # Process the model file to ensure it's a valid dimensionality reduction technique model
-        model_path = find_model_file(model_type)
-        inspect(message=f"Downloading model file from {model_path}...")
+    # Process the model file to ensure it's a valid dimensionality reduction technique model
+    model_path = find_model_file(model_type)
+    inspect(message=f"Downloading model file from {model_path}...")
 
-        if not is_dim_reduction_model_file(model_path):
-            raise ValueError(f"No valid {model_type} model file found in directory: {model_path}")
-        
-        inspect(message=f"Found valid model file: {model_path}")
-        return joblib.load(model_path)
-    
-    except Exception as e:
-        raise ValueError(f"Failed to load reduction model: {e}")
+    if not is_onnx_file(model_path):
+        raise ValueError(f"No valid {model_type} model file found in directory: {model_path}")
+    inspect(message=f"Found valid model file: {model_path}")
+
+    # Initialize the ONNX Runtime session
+    inspect(message=f"Initializing ONNX Runtime session for model at {model_path}...")
+    ort_session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
+
+    # Extract metadata
+    model_meta = ort_session.get_modelmeta()
+
+    input_features = model_meta.custom_metadata_map.get("input_features", "")
+    if input_features:
+        if input_features.startswith('"') and input_features.endswith('"'):
+            input_features = input_features[1:-1]
+    input_features = [band.strip() for band in input_features.split(",")]
+
+    output_features = model_meta.custom_metadata_map.get("output_features", "")
+    if output_features:
+        if output_features.startswith('"') and output_features.endswith('"'):
+            output_features = output_features[1:-1]
+    output_features = [band.strip() for band in output_features.split(",")]
+    n_components = len(output_features)
+    inspect(message=f"Dimensionality reduction components: {n_components}")
+
+    metadata = {
+        "input_features": input_features,
+        "output_features": output_features,
+        "n_components": n_components
+    }
+
+    inspect(message=f"Successfully extracted metadata from model at {model_path}...")
+    return ort_session, metadata 
+
+
+def preprocess_input(
+    input_xr: xr.DataArray, ort_session: ort.InferenceSession
+) -> Tuple[np.ndarray, Tuple[int, int, int]]:
+    """
+    Preprocesses input data for model inference using an ONNX runtime session. This
+    function takes an xarray DataArray, rearranges its dimensions, and reshapes its
+    values to match the input requirements of the ONNX model specified by the given
+    ONNX InferenceSession.
+
+    :param input_xr: Input data in the format of an xarray DataArray. The expected
+        dimensions are "y", "x", and "bands", and the order of the dimensions will
+        be transposed to match this requirement.
+    :param ort_session: ONNX runtime inference session that specifies the model for
+        inference. Used to determine the required input shape of the model.
+    :return: A tuple containing:
+        - A numpy array formatted to fit the input shape of the ONNX model.
+        - The original shape of the input data as a tuple with the transposed "y",
+          "x", and "bands" dimensions.
+    """
+    # Ensure input is in ('bands', 'y', 'x') order
+    input_xr = input_xr.transpose("y", "x", "bands")
+    input_shape = input_xr.shape
+    inspect(message=f"Input dims: {input_xr.dims}, shape: {input_xr.shape}")
+
+    # Make numpy array for ONNX InferenceSession
+    input_np = input_xr.values.reshape(-1, ort_session.get_inputs()[0].shape[1])
+
+    return input_np, input_shape
     
 
-def create_output_xarray(n_components: int, components: xr.DataArray, input_xr: xr.DataArray) -> xr.DataArray:
+def create_output_xarray(transformed: np.ndarray, original_shape: Tuple[int, int, int], input_xr: xr.DataArray) -> xr.DataArray:
     """
     Generate an xarray.DataArray based on dimensionality reduction components and the 
     coordinate information from the input xarray.DataArray. This function structures 
@@ -143,18 +196,36 @@ def create_output_xarray(n_components: int, components: xr.DataArray, input_xr: 
     :return: An xarray.DataArray with dimensions ['bands', 'y', 'x'], where 'bands' are 
         labeled as "COMP1", "COMP2", etc., and spatial coordinates are taken from input_xr.
     """
+    # Construct DataArray output
+    y, x, _ = original_shape
+    n_components = transformed.shape[1]
+
+    # Reshape back to (n_components/back, y, x)
+    reshaped = transformed.T.reshape((n_components, y, x))
+
+    # Normalize component weights
+    scaler = MinMaxScaler()
+    transformed_normalized = scaler.fit_transform(reshaped)
+    inspect(message=f"Normalizing ouput components...")
+
+    # Construct output array
     coords = {
         "bands": [f"COMP{i+1}" for i in range(n_components)],
         "y": input_xr.coords["y"],
         "x": input_xr.coords["x"],
     }
-    result = xr.DataArray(components, dims=("bands", "y", "x"), coords=coords)
+
+    result = xr.DataArray(transformed_normalized, dims=("bands", "y", "x"), coords=coords)
     inspect(message=f"Output dims: {result.dims}, shape: {result.shape}")
+
+    # Attach input cube attrs 
+    result.attrs = input_xr.attrs
+    result.rename('__xarray_dataarray_components__')
 
     return result
 
 
-def apply_datacube(cube: xr.DataArray, context: Dict = None) -> xr.DataArray:
+def apply_datacube(input_cube: xr.DataArray, context: Dict = None) -> xr.DataArray:
     """
     Applies a dimensionality reduction model on a given data cube for dimensionality reduction. The function ensures that the input
     cube is processed to fill any missing values and is in the correct data type to be compatible with the
@@ -171,41 +242,26 @@ def apply_datacube(cube: xr.DataArray, context: Dict = None) -> xr.DataArray:
     :return: An `xr.DataArray` representing the processed output cube after successfully applying the model
     """  
     # fill nan in cube and make sure cube is in right dtype for dimensionality reduction
-    cube = cube.fillna(0)
-    cube = cube.astype("float32")
+    input_cube = input_cube.fillna(0)
+    input_cube = input_cube.astype("float32")
    
-    # Ensure input is in ('bands', 'y', 'x') order
-    cube = cube.transpose('bands', 'y', 'x')
-    inspect(message=f"Input dims: {cube.dims}, shape: {cube.shape}")
+    # preprocess input array to numpy array in correct shape
+    input_np, input_shape = preprocess_input(input_cube, ort_session)
 
-    # Reshape to (pixels, bands)
-    bands, y, x = cube.shape
-    data = cube.values.reshape((bands, y * x)).T  # shape: (pixels, bands)
-
-   # Get model type
+    # Get model type
     model_type = (context or {}).get("model_type", "")
 
-    # Apply Dimensionality Reduction model
-    dim_reduction_model = load_dim_reduction_model(model_type=model_type)
-    n_components = dim_reduction_model.n_components
-    inspect(message=f"Dimensionality reduction components: {n_components}")
-    inspect(message=f"Fitting dimensionality reduction model...")
-    transformed = dim_reduction_model.fit_transform(data)  # shape: (pixels, n_components)
+    # Load the ONNX model and extract metadata
+    ort_session, _ = load_dim_reduction_model(model_type=model_type)
 
-    # Normalize Dimensionality Reduction output
-    inspect(message=f"Normalizing ouput components...")
-    scaler = MinMaxScaler()
-    transformed_normalized = scaler.fit_transform(transformed)
-    
-    # Reshape back to (n_components, y, x)
-    result_data = transformed_normalized.T.reshape((n_components, y, x))
+    # Apply Dimensionality Reduction model by running inference
+    inspect(message=f"Running inference ...")
+    component_array = run_inference(input_np, ort_session)
 
     # Build coords and return xr.DataArray
-    result = create_output_xarray(n_components=n_components, components=result_data, input_xr=cube)
-
-    # Attach result cube attrs 
-    result.attrs = cube.attrs
-    result.rename('__xarray_dataarray_components__')
+    result = create_output_xarray(transformed=component_array, 
+                                  original_shape=input_shape,
+                                  input_xr=input_cube)
     
     # make sure output Xarray has the correct dtype
     result.astype("float32")

@@ -59,7 +59,7 @@ def load_sklearn_model(model_path: str, expected_type: Optional[Type] = None) ->
         raise ValueError(f"Failed to load model from {model_path}: {e}")
     
 def save_model_to_onnx(model: Union[CatBoostClassifier, BaseEstimator],
-                       output_onnx_path: str) -> None:
+                       output_onnx_path: str, opset_version: Optional[str] ='9') -> None:
     """
     Saves a CatBoost or scikit-learn model in ONNX format.
 
@@ -87,7 +87,7 @@ def save_model_to_onnx(model: Union[CatBoostClassifier, BaseEstimator],
             n_features = model.n_features_in_
             
             initial_type = [('input', FloatTensorType([None, n_features]))]
-            onnx_model = convert_sklearn(model, initial_types=initial_type)
+            onnx_model = convert_sklearn(model, initial_types=initial_type, target_opset=opset_version)
 
             # Modify ONNX metadata
             onnx_model.doc_string = "Scikit-learn model in ONNX format"
@@ -195,6 +195,7 @@ def convert_model_to_onnx_with_metadata(model_path: str,
                                         input_features: Optional[List] = None,
                                         output_features: Optional[List] = None,
                                         output_onnx_path: Optional[str] = None,
+                                        opset_version: Optional[str] = None,
                                         add_metadata: Optional[Dict] = None) -> None:
     """
     Convert a CatBoost or scikit-learn model to ONNX format and optionally add metadata.
@@ -228,7 +229,7 @@ def convert_model_to_onnx_with_metadata(model_path: str,
         output_onnx_path = onnx_output_path(model_path)
     
     # Step 2: Save the CatBoost model to ONNX format
-    save_model_to_onnx(model, output_onnx_path)
+    save_model_to_onnx(model, output_onnx_path, opset_version)
     
     # Step 3: Add input/output features metadata to the ONNX model
     add_metadata_to_onnx(output_onnx_path, input_features=input_features, output_features=output_features,

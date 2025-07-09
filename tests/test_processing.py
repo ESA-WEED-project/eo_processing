@@ -6,14 +6,15 @@ from eo_processing.utils.helper import getUDFpath
 from eo_processing.openeo.processing import generate_master_feature_cube, \
     generate_S1_feature_cube, generate_S2_feature_cube
 
-from tests.conftest import BBOX, DATE_START, DATE_END, TARGET_CRS, TARGET_RESOLUTION, \
+from tests.conftest import BBOX, DATE_START, DATE_END, TARGET_CRS, TARGET_RESOLUTION, STAC_CAT_URL, \
     oeo_con100, compare_job_info
 import tests.config_collections as collections
 
 @pytest.mark.parametrize(
     "groundtruth_filename, integration",
     [
-        ("cube_generation/generate_S1_feature_cube.json", False)
+        ("cube_generation/generate_S1_feature_cube.json", False),
+        ("cube_generation/generate_S1_feature_cube_integration.json", True)
     ],
 )
 def test_generate_S1_feature_cube(oeo_con100, groundtruth_filename, integration):
@@ -40,7 +41,8 @@ def test_generate_S1_feature_cube(oeo_con100, groundtruth_filename, integration)
 @pytest.mark.parametrize(
     "groundtruth_filename, integration",
     [
-        ("cube_generation/generate_S2_feature_cube.json", False)
+        ("cube_generation/generate_S2_feature_cube.json", False),
+        ("cube_generation/generate_S2_feature_cube_integration.json", True)
     ],
 )
 def test_generate_S2_feature_cube(oeo_con100, groundtruth_filename, integration):
@@ -65,12 +67,19 @@ def test_generate_S2_feature_cube(oeo_con100, groundtruth_filename, integration)
 
 
 @pytest.mark.parametrize(
-    "groundtruth_filename, model_id, integration",
+    "groundtruth_filename, model_id, WERN_url, integration",
     [
-        ("cube_generation/generate_master_feature_cube_with_catboost_inference.json", "EUNIS2021plus_EU_v1_2024_PAN",  False)
+        ("cube_generation/generate_master_feature_cube_with_catboost_inference.json", 
+         "EUNIS2021plus_EU_v1_2024_PAN", 
+         STAC_CAT_URL+ '/collections/wern_features',
+         False),
+        ("cube_generation/generate_master_feature_cube_with_catboost_inference_integration.json",
+         "EUNIS2021plus_EU_v1_2024_PAN", 
+         'https://stac.openeo.vito.be/collections/wenr_features',
+         True)
     ],
 )
-def test_master_cube_with_udf_catboost_inference(oeo_con100, groundtruth_filename, model_id, integration):
+def test_master_cube_with_udf_catboost_inference(oeo_con100, groundtruth_filename, model_id, WERN_url, integration):
     """
     Test generate_master_feature_cube function with an annual data cube with the catboost inference applied
     """
@@ -96,7 +105,7 @@ def test_master_cube_with_udf_catboost_inference(oeo_con100, groundtruth_filenam
     data_cube = data_cube.merge_cubes(DEM)
 
     # load the WERN features from public STAC
-    WENR = oeo_con100.load_stac("https://catalogue.weed.test/collections/wern_features")
+    WENR = oeo_con100.load_stac(WERN_url)
     # resample the cube to 10m and EPSG of corresponding 20x20km grid tile
     WENR = WENR.resample_spatial(projection=TARGET_CRS,
                                     resolution=TARGET_RESOLUTION,

@@ -39,6 +39,6 @@ jobs:
           uv pip install -r requirements.txt
 
       # Step 4: Run unit tests using pytest, targeting the 'tests_unit' directory
-      - name: Run tests
+      - name: Run Unit tests
         run: |
           uv run pytest tests/ --disable-warnings

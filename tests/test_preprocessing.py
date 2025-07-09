@@ -8,8 +8,12 @@ from tests.conftest import BBOX, DATE_START, DATE_END, \
 
 # Define the different test scenarios and processing options
 ts_test_scenarios = [
-    ("cube_extraction/ts_datacube_extraction_S1.json", {"S1_collection": None}, False),
+    ("cube_extraction/ts_datacube_extraction_S1.json", {"S1_collection": "SENTINEL1_GRD"}, False),
+    ("cube_extraction/ts_datacube_extraction_S2.json", {"S2_collection": "SENTINEL2_L2A"}, False),
     ("cube_extraction/ts_datacube_extraction_combined.json", {}, False),
+    ("cube_extraction/ts_datacube_extraction_S1_integration.json", {"S1_collection": "SENTINEL1_GRD"}, True),
+    ("cube_extraction/ts_datacube_extraction_S2_integration.json", {"S2_collection": "SENTINEL2_L2A"}, True),
+    ("cube_extraction/ts_datacube_extraction_combined_integration.json", {}, True),
     ("cube_extraction/ts_datacube_extraction_S2_with_masking.json", {"SLC_masking_algo": "mask_scl_dilation"},
      False),
     ("cube_extraction/ts_datacube_extraction_S1_interpolation.json", {
@@ -29,6 +33,7 @@ ts_test_scenarios = [
 # Define test scenarios for `extract_S1_datacube`
 s1_test_scenarios = [
     ("cube_extraction/extract_S1_basic.json", {"S1_collection": "SENTINEL1_GRD"}, False),
+    ("cube_extraction/extract_S1_integration.json", {"S1_collection": "SENTINEL1_GRD"}, True),
     ("cube_extraction/extract_S1_temporal_aggregation.json", {
         "S1_collection": "SENTINEL1_GRD",
         "ts_interval": "P1M"
@@ -46,6 +51,7 @@ s1_test_scenarios = [
 # Define test scenarios for `extract_S2_datacube`
 s2_test_scenarios = [
     ("cube_extraction/extract_S2_basic.json", {"S2_collection": "SENTINEL2_L2A"}, False),
+    ("cube_extraction/extract_S2_integration.json", {"S2_collection": "SENTINEL2_L2A"}, True),
     ("cube_extraction/extract_S2_with_masking.json", {
         "S2_collection": "SENTINEL2_L2A",
         "SLC_masking_algo": "mask_scl_dilation"

@@ -13,7 +13,6 @@ def pytest_addoption(parser):
     parser.addoption(
         "--integration",
         action="store_true",
-        dest="integration",
         default=False,
         help="enable integration tests for running changed process graphs",
     )
@@ -24,20 +23,27 @@ def pytest_configure(config):
 
 
 def pytest_collection_modifyitems(config, items):
+    run_integration = config.getoption("--integration")
+    skip_marker = pytest.mark.skip(reason="need --integration option to run")
 
-    if config.getoption("--integration"):
-        # integration given in cli: skip all tests without the marker
-        for item in items:
-            if "integration" not in item.keywords:
+    for item in items:
+        is_integration_marker = "integration" in item.keywords
+        is_integration_param = False
+
+        # Check for integration=True in parametrized test cases
+        if hasattr(item, 'callspec') and 'integration' in item.callspec.params:
+            is_integration_param = item.callspec.params['integration'] is True
+
+        if run_integration:
+            # Only run integration tests; skip others
+            if not (is_integration_marker or is_integration_param):
                 item.add_marker(pytest.mark.skip(
-                    reason="Test not marked as integration test and --integration given"
+                    reason="Test not marked or parametrized as integration test and --integration given"
                 ))
-    else:
-        # integration not given in cli: skip all tests with the marker
-        skip_integration = pytest.mark.skip(reason="need --integration option to run")
-        for item in items:
-            if "integration" in item.keywords:
-                item.add_marker(skip_integration)
+        else:
+            # Skip integration tests
+            if is_integration_marker or is_integration_param:
+                item.add_marker(skip_marker)
 
 
 OPENEO_API_URL = "https://oeo.test/"

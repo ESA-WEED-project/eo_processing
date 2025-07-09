@@ -1,75 +1,75 @@
 {
-  "process_graph": {
-    "loadcollection1": {
-      "process_id": "load_collection",
-      "arguments": {
-        "bands": [
-          "B02",
-          "B03",
-          "B04",
-          "B05",
-          "B06",
-          "B07",
-          "B08",
-          "B8A",
-          "B11",
-          "B12"
-        ],
-        "id": "SENTINEL2_L2A",
-        "properties": {
-          "eo:cloud_cover": {
-            "process_graph": {
-              "lte1": {
-                "process_id": "lte",
-                "arguments": {
-                  "x": {
-                    "from_parameter": "value"
-                  },
-                  "y": 95
+    "process_graph": {
+        "loadcollection1": {
+            "process_id": "load_collection",
+            "arguments": {
+                "bands": [
+                    "B02",
+                    "B03",
+                    "B04",
+                    "B05",
+                    "B06",
+                    "B07",
+                    "B08",
+                    "B8A",
+                    "B11",
+                    "B12"
+                ],
+                "id": "SENTINEL2_L2A",
+                "properties": {
+                    "eo:cloud_cover": {
+                        "process_graph": {
+                            "lte1": {
+                                "process_id": "lte",
+                                "arguments": {
+                                    "x": {
+                                        "from_parameter": "value"
+                                    },
+                                    "y": 95
+                                },
+                                "result": true
+                            }
+                        }
+                    }
                 },
-                "result": true
-              }
+                "spatial_extent": {
+                    "east": 4880000,
+                    "south": 2898000,
+                    "west": 4878000,
+                    "north": 2900000,
+                    "crs": "EPSG:3035"
+                },
+                "temporal_extent": [
+                    "2021-01-01",
+                    "2022-01-01"
+                ]
             }
-          }
         },
-        "spatial_extent": {
-          "east": 4880000,
-          "south": 2898000,
-          "west": 4878000,
-          "north": 2900000,
-          "crs": "EPSG:3035"
-        },
-        "temporal_extent": [
-          "2021-01-01",
-          "2022-01-01"
-        ]
-      }
-    },
-    "apply1": {
-      "process_id": "apply",
-      "arguments": {
-        "data": {
-          "from_node": "loadcollection1"
-        },
-        "process": {
-          "process_graph": {
-            "linearscalerange1": {
-              "process_id": "linear_scale_range",
-              "arguments": {
-                "inputMax": 65534,
-                "inputMin": 0,
-                "outputMax": 65534,
-                "outputMin": 0,
-                "x": {
-                  "from_parameter": "x"
+        "apply1": {
+            "process_id": "apply",
+            "arguments": {
+                "data": {
+                    "from_node": "loadcollection1"
+                },
+                "process": {
+                    "process_graph": {
+                        "linearscalerange1": {
+                            "process_id": "linear_scale_range",
+                            "arguments": {
+                                "inputMax": 65534,
+                                "inputMin": 0,
+                                "outputMax": 65534,
+                                "outputMin": 0,
+                                "x": {
+                                    "from_parameter": "x"
+                                }
+                            },
+                            "result": true
+                        }
+                    }
                 }
-              },
-              "result": true
-            }
-          }
+            },
+            "result": true
         }
-      },
-      "result": true
     }
-  }
 }

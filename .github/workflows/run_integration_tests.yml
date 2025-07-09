@@ -1,11 +1,7 @@
 name: Integration Tests
 
-# Trigger for every push or pull request to main
+# this workflow can be triggered manually from the GitHub Actions tab
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -18,6 +14,10 @@ jobs:
       # Step 1: Checkout the repository's code
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+            fetch-depth: 0 # fetch all history for all branches and tags
+            ref: ${{ github.ref }} # use the branch or tag that triggered the workflow
+
 
       # Step 2: Set up Python environment 
       - name: Set up Python environment with uv
@@ -36,6 +36,10 @@ jobs:
           uv pip install -r requirements.txt
       
       # Step 4: Run unit tests using pytest, targeting the 'tests_unit' directory
-      - name: Run tests
+      - name: Run integration tests
+        env:
+          OPENEO_AUTH_METHOD: "client_credentials"
+          OPENEO_AUTH_CLIENT_ID: "${{ secrets.OPENEO_CF_CLIENT_ID }}"
+          OPENEO_AUTH_CLIENT_SECRET: "${{ secrets.OPENEO_CF_CLIENT_SECRET }}"
         run: |
           uv run pytest tests/ --integration -n auto -vv

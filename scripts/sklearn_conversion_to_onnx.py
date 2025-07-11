@@ -2,12 +2,13 @@
 test script to convert catboost model to onnx as reference for the UNIX tests
 
 """
-
+# Add the parent directory to sys.path
+import os
 from eo_processing.utils.onnx_model_utilities import convert_model_to_onnx_with_metadata
 
 # Define paths and features
 sklearn_model_path = r'C:\\tmp\\model\\dim_reduction_pca.pkl'
-output_onnx_path = r'C:\\Users\\wannijnj\\Documents\\Projects\\WEED\\eo_processing\\src\\eo_processing\\resources\\sklearn_test.onnx'
+output_onnx_path = r'C:\\Users\\wannijnj\\Documents\\Projects\\WEED\\eo_processing\\src\\eo_processing\\resources\\models\\dim_reduction_pca.onnx'
 
 input_features = ["B01_mean", "B01_median", "B01_min", "B01_max", "B01_q05", "B01_q25", "B01_q75", "B01_q95",
     "B02_mean", "B02_median", "B02_min", "B02_max", "B02_q05", "B02_q25", "B02_q75", "B02_q95",

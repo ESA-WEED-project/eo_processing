@@ -6,7 +6,7 @@ import xarray as xr
 from sklearn.preprocessing import MinMaxScaler
 from openeo.udf import inspect
 from openeo.metadata import CubeMetadata
-from typing import Dict, List, Tuple
+from typing import List, Tuple, Dict
 import numpy as np
 
 sys.path.append("onnx_deps")
@@ -19,7 +19,7 @@ def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
     :param metadata: Metadata of the input data
     :param context: Optional dictionary containing configuration values.
                     Expected key:
-                        - "model_type" (str): model_type to run ("PCA" | "TSNE" | "LLE" | "SE" | "UMAP")
+                        - "model_type" (str): model_type to run ("PCA")
     :return: Filtered & renamed components of labels
     """
     # Get model type
@@ -62,7 +62,7 @@ def find_model_file(model_type: str) -> str:
     It assumes the file has been extracted from the job’s dependency archive into a subdirectory of 
     structure like `*/work-dir/models/`, coressponding to the driver's working directory.
 
-    :param model_type: The type of dimensionality reduction model (e.g., 'PCA', 'TSNE', 'SE', 'LLE').
+    :param model_type: The type of dimensionality reduction model (e.g., 'PCA').
                        This determines the expected filename of the model.
     :return: The full file path to the located model file.
     :raises FileNotFoundError: If the model file cannot be found in any of the predefined directories.
@@ -103,13 +103,13 @@ def load_dim_reduction_model(model_type: str) -> Tuple[ort.InferenceSession, Dic
     The function ensures the dimensionality reduction model is locally stored in the specified driver directory
     to optimize repeated access. It also validates if the file is a dimensionality reduction model.
 
-    :param model_type: The type of model to load. Must be either "PCA", "T-SNE", "LLE", "SE" OR "UMAP".
+    :param model_type: The type of model to load. Must be "PCA".
     :param model_dir: Directory path where the model files are located.
     :return: A dimensionality reduction model
     :raises ValueError: If model_type is invalid or if the model file is not found or invalid.
     """
-    valid_types = {"PCA", "TSNE", "LLE", "SE", "UMAP"}
-    if model_type not in valid_types:
+    valid_types = {"pca"}
+    if model_type.lower() not in valid_types:
         raise ValueError(f"Invalid model_type '{model_type}'. Must be one of {valid_types}")
     
     # Process the model file to ensure it's a valid dimensionality reduction technique model
@@ -151,9 +151,7 @@ def load_dim_reduction_model(model_type: str) -> Tuple[ort.InferenceSession, Dic
     return ort_session, metadata 
 
 
-def preprocess_input(
-    input_xr: xr.DataArray, ort_session: ort.InferenceSession
-) -> Tuple[np.ndarray, Tuple[int, int, int]]:
+def preprocess_input(input_xr: xr.DataArray) -> Tuple[np.ndarray, Tuple[int, int, int]]:
     """
     Preprocesses input data for model inference using an ONNX runtime session. This
     function takes an xarray DataArray, rearranges its dimensions, and reshapes its
@@ -175,8 +173,8 @@ def preprocess_input(
     input_shape = input_xr.shape
     inspect(message=f"Input dims: {input_xr.dims}, shape: {input_xr.shape}")
 
-    # Make numpy array for ONNX InferenceSession
-    input_np = input_xr.values.reshape(-1, ort_session.get_inputs()[0].shape[1])
+    # Make numpy array 
+    input_np = input_xr.values.reshape(-1, input_xr.shape[-1])
 
     return input_np, input_shape
     
@@ -200,13 +198,13 @@ def create_output_xarray(transformed: np.ndarray, original_shape: Tuple[int, int
     y, x, _ = original_shape
     n_components = transformed.shape[1]
 
-    # Reshape back to (n_components/back, y, x)
-    reshaped = transformed.T.reshape((n_components, y, x))
-
     # Normalize component weights
     scaler = MinMaxScaler()
-    transformed_normalized = scaler.fit_transform(reshaped)
+    transformed_normalized = scaler.fit_transform(transformed)
     inspect(message=f"Normalizing ouput components...")
+
+    # Reshape back to (n_components/back, y, x)
+    reshaped = transformed_normalized.T.reshape((n_components, y, x))
 
     # Construct output array
     coords = {
@@ -215,21 +213,21 @@ def create_output_xarray(transformed: np.ndarray, original_shape: Tuple[int, int
         "x": input_xr.coords["x"],
     }
 
-    result = xr.DataArray(transformed_normalized, dims=("bands", "y", "x"), coords=coords)
+    result = xr.DataArray(reshaped, dims=("bands", "y", "x"), coords=coords)
     inspect(message=f"Output dims: {result.dims}, shape: {result.shape}")
 
     # Attach input cube attrs 
     result.attrs = input_xr.attrs
-    result.rename('__xarray_dataarray_components__')
+    result = result.rename('__xarray_dataarray_components__')
 
     return result
 
 
-def apply_datacube(input_cube: xr.DataArray, context: Dict = None) -> xr.DataArray:
+def apply_datacube(cube: xr.DataArray, context: dict = None) -> xr.DataArray:
     """
-    Applies a dimensionality reduction model on a given data cube for dimensionality reduction. The function ensures that the input
-    cube is processed to fill any missing values and is in the correct data type to be compatible with the
-    models. 
+    Applies a dimensionality reduction model on a given data cube for dimensionality reduction.
+    The function ensures that the input cube is processed to fill any missing values and 
+    is in the correct data type to be compatible with the models. 
 
     Note: The function name and arguments are defined by the UDF API.
     More information can be found here:
@@ -238,21 +236,22 @@ def apply_datacube(input_cube: xr.DataArray, context: Dict = None) -> xr.DataArr
     :param cube: The data cube on which dimensionality reduction will be applied. It must be an `xr.DataArray`.
     :param context: Optional dictionary containing configuration values.
                     Expected key:
-                        - "model_type" (str): model_type ro tun ("PCA" | "TSNE" | "LLE" | "SE" | "UMAP")
+                        - "model_type" (str): model_type ro tun ("PCA")
     :return: An `xr.DataArray` representing the processed output cube after successfully applying the model
     """  
     # fill nan in cube and make sure cube is in right dtype for dimensionality reduction
-    input_cube = input_cube.fillna(0)
-    input_cube = input_cube.astype("float32")
-   
-    # preprocess input array to numpy array in correct shape
-    input_np, input_shape = preprocess_input(input_cube, ort_session)
+    cube = cube.fillna(0)
+    cube = cube.astype("float32")
 
     # Get model type
     model_type = (context or {}).get("model_type", "")
+    inspect(message=f"Running model: {model_type}")
 
     # Load the ONNX model and extract metadata
     ort_session, _ = load_dim_reduction_model(model_type=model_type)
+   
+    # preprocess input array to numpy array in correct shape
+    input_np, input_shape = preprocess_input(cube)
 
     # Apply Dimensionality Reduction model by running inference
     inspect(message=f"Running inference ...")
@@ -261,8 +260,8 @@ def apply_datacube(input_cube: xr.DataArray, context: Dict = None) -> xr.DataArr
     # Build coords and return xr.DataArray
     result = create_output_xarray(transformed=component_array, 
                                   original_shape=input_shape,
-                                  input_xr=input_cube)
+                                  input_xr=cube)
     
     # make sure output Xarray has the correct dtype
-    result.astype("float32")
+    result = result.astype("float32")
     return result

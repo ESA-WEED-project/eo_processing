@@ -7,7 +7,7 @@ from eo_processing.utils.onnx_model_utilities import convert_model_to_onnx_with_
 
 # Define paths and features
 catboost_model_path = r'H:\\slovakia\\models\\v5\\L1\\models\\65predictors\\v1\\catboost_v1.cbm'
-output_onnx_path = r'C:\\Git_projects\\eo_processing\\src\\eo_processing\\resources\\test.onnx'
+output_onnx_path = r'C:\\Git_projects\\eo_processing\\src\\eo_processing\\resources\\models\\catboost_test.onnx'
 
 input_features = ['BLFEI_p98', 'NDVIMNDWI_mean', 'MNDWI_mean', 'B12_iqr', 'CIRE_p98',
                   'VHVVR_median', 'NDVI_iqr', 'NDMI_p2', 'VH_mean', 'VHVVR_sd', 'B05_p25',

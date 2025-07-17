@@ -4,6 +4,7 @@ test script to convert catboost model to onnx as reference for the UNIX tests
 """
 # Add the parent directory to sys.path
 import os
+from joblib import load
 from eo_processing.utils.onnx_model_utilities import convert_model_to_onnx_with_metadata
 
 # Define paths and features
@@ -27,7 +28,26 @@ input_features = ["B01_mean", "B01_median", "B01_min", "B01_max", "B01_q05", "B0
 
 output_features = ['COMP1', 'COMP2', 'COMP3']
 
+metadata_keys = [
+    "n_components_", "components_", "explained_variance_",
+    "explained_variance_ratio_", "mean_", "n_features_", "n_samples_"
+]
+
+# Get `model` metadata from your trained PCA model
+add_metadata_dict = {}
+model = load(sklearn_model_path)
+for key in metadata_keys:
+    if hasattr(model, key):
+        value = getattr(model, key)
+        # Convert numpy arrays or other complex types to lists
+        if hasattr(value, "tolist"):
+            value = value.tolist()
+        add_metadata_dict[key] = value
+
+
 convert_model_to_onnx_with_metadata(sklearn_model_path, 
                                     input_features, 
                                     output_features, 
-                                    output_onnx_path)
+                                    output_onnx_path,
+                                    target_opset=9,
+                                    add_metadata=add_metadata_dict)

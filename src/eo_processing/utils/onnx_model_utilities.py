@@ -104,8 +104,10 @@ def save_model_to_onnx(model: Union[CatBoostClassifier, BaseEstimator],
     except Exception as e:
         raise ValueError(f"Failed to save model to ONNX format at {output_onnx_path}: {e}")
 
-def add_metadata_to_onnx(onnx_path: str, input_features: Optional[List] = None,
-                         output_features: Optional[List] = None, add_metadata: Optional[Dict] = None) -> None:
+def add_metadata_to_onnx(onnx_path: str,
+                         input_features: Optional[List] = None,
+                         output_features: Optional[List] = None,
+                         add_metadata: Optional[Dict] = None) -> None:
     """
     Add metadata to an ONNX model file.
 
@@ -143,7 +145,7 @@ def add_metadata_to_onnx(onnx_path: str, input_features: Optional[List] = None,
         else:
             raise ValueError("Input features must be a non-empty list.")
 
-    # Validate and add output band names bases on class_names (optional)
+    # Validate and add output band names basec on class_names (optional)
     if output_features:
         if isinstance(output_features, list) and output_features:
             output_features_string = ', '.join(output_features)
@@ -154,18 +156,8 @@ def add_metadata_to_onnx(onnx_path: str, input_features: Optional[List] = None,
     if metadata_entries:
         print(f"Metadata added: input_features = {input_features}, \noutput_features = {output_features}")
 
-    # create also from the outbandnames the dict for the class_names encoder
-    class_dict = {}
-    for bname in output_features:
-        parts = bname.split('-')
-        if len(parts) >= 2 and parts[-1].isdigit():
-            class_dict[int(parts[-1])] = parts[-2]
-        else:
-            print(f"Warning: Skipping malformed output name '{bname}'")
-
-
+    # Configure license for model
     metadata_entries.update({
-        'class_names': class_dict,
         'model_author': 'VITO',
         'model_license': 'CC BY-NC-SA 4.0',
     })
@@ -189,52 +181,65 @@ def add_metadata_to_onnx(onnx_path: str, input_features: Optional[List] = None,
     except Exception as e:
         raise ValueError(f"Failed to save ONNX model with metadata at {onnx_path}: {e}")
 
-def convert_model_to_onnx_with_metadata(model_path: str,
-                                        input_features: Dict,
-                                        output_features: Dict,
-                                        output_onnx_path: Dict,
-                                        target_opset: int = 9,
-                                        add_metadata: Optional[Dict] = None) -> None:
+def convert_model_to_onnx_with_metadata(
+        model_path: Optional[str] = None,
+        model: Optional[object] = None,
+        input_features: Dict = None,
+        output_features: Dict = None,
+        output_onnx_path: Optional[str] = None,
+        target_opset: int = 9,
+        add_metadata: Optional[Dict] = None
+        ) -> None:
     """
-    Convert a CatBoost or scikit-learn base models to ONNX format and optionally add metadata.
+    Convert a CatBoost or scikit-learn model to ONNX format and optionally add metadata.
 
-    This function loads a pre-trained CatBoost or scikit-learn base model from the given path, converts it
-    to ONNX format, and saves it. Optionally, it allows adding metadata for input
-    and output features to the ONNX model.
+    You can either pass a pre-loaded model via the `model` parameter or specify `model_path`
+    to load it from disk.
 
-    :param model_path: Path to the model file to be converted.
-    :param input_features: Optional list of input feature names to be added as ONNX
-        metadata.
-    :param output_features: Optional list of output feature names to be added as ONNX
-        metadata.
-    :param output_onnx_path: Optional path to save the converted ONNX model. If not
-        specified, a default ONNX filename will be created based on the model
-        path.
-    :param add_metadata: Optional dictionary containing any additional metadata to be
-        added to the ONNX model.
-    :param target_opset: target IR version of the output onnx file
+    :param model_path: Path to the model file (used if `model` is not provided).
+    :param model: Pre-loaded model object (CatBoost or scikit-learn).
+    :param input_features: Dictionary of input feature names and types.
+    :param output_features: Dictionary of output feature names and types.
+    :param output_onnx_path: Path to save the ONNX model. If None, it's auto-generated.
+    :param add_metadata: Optional metadata dictionary.
+    :param target_opset: Target ONNX opset version.
     """
-    
-    # Step 1: Load the model
-    try: 
-        if model_path.endswith(".cbm"):
-            model = load_catboost_model(model_path)
-        elif model_path.endswith((".pkl", ".joblib")):
-            model = load_sklearn_model(model_path)
-    except Exception as e: 
-        raise ValueError(f"Failed to load ONNX model from {model_path}: {e}")
 
+    # Step 1: Load the model if not provided directly
+    if model is None:
+        if model_path is None:
+            raise ValueError("Either `model` or `model_path` must be provided.")
+
+        try:
+            if model_path.endswith(".cbm"):
+                model = load_catboost_model(model_path)
+            elif model_path.endswith((".pkl", ".joblib")):
+                model = load_sklearn_model(model_path)
+            else:
+                raise ValueError(f"Unsupported model format: {model_path}")
+        except Exception as e:
+            raise ValueError(f"Failed to load model from {model_path}: {e}")
+    else:
+        # Optionally validate model type if needed
+        pass
+
+    # Step 2: Generate ONNX output path if not provided
     if output_onnx_path is None:
-        output_onnx_path = onnx_output_path(model_path)
-    
-    # Step 2: Save the model to ONNX format
+        if model_path is not None:
+            output_onnx_path = onnx_output_path(model_path)
+        else:
+            raise ValueError("`output_onnx_path` must be provided if `model_path` is not used.")
+
+    # Step 3: Convert to ONNX
     save_model_to_onnx(model, output_onnx_path, input_features, target_opset)
-    
-    # Step 3: Add input/output features metadata to the ONNX model
-    add_metadata_to_onnx(output_onnx_path, input_features=input_features, output_features=output_features,
+
+    # Step 4: Add metadata
+    add_metadata_to_onnx(output_onnx_path,
+                         input_features=input_features,
+                         output_features=output_features,
                          add_metadata=add_metadata)
 
-    print("Model successfully converted and saved to ONNX format with input/output features in metadata.")
+    print(f"Model successfully converted and saved to {output_onnx_path} with metadata.")
 
 def extract_features_from_onnx(onnx_model_path: str) -> Dict[str, List[str]]:
     """

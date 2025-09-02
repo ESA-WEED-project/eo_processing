@@ -2024,7 +2024,7 @@
         "loadstac1": {
             "process_id": "load_stac",
             "arguments": {
-                "url": "https://stac.openeo.vito.be/collections/wenr_features"
+                "url": "https://catalogue.weed.apex.esa.int/collections/wenr_features"
             }
         },
         "resamplespatial2": {

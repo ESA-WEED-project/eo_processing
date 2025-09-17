@@ -448,7 +448,7 @@ class storage:
         return s3_object_key
 
     def upload_directory_to_s3(self, local_dir_path: str, s3_prefix: str = '',
-                               progress_bar: bool = False, etag_check: bool = False, exist_check: bool = False):
+                               progress_bar: bool = False, etag_check: bool = False, exist_check: bool = False) -> List[str]:
         """
         :param local_file_path: A string representing the local path of the directory to be uploaded.
             Must be a valid path to an existing file.
@@ -461,11 +461,12 @@ class storage:
         :param exist_check: A boolean indicating whether to skip the upload if the file in a directory already exists
             on the S3 bucket with the same key. Defaults to False.
 
-        :return: A string representing the S3 object key of the uploaded file.
+        :return: A List of strings representing the S3 object keys of the uploaded files.
         """
         if not os.path.isdir(local_dir_path):
             raise NotADirectoryError(f"{local_dir_path} is not a directory or does not exist.")
 
+        s3_object_keys = []
         for root, dirs, files in os.walk(local_dir_path):
             for file in files:
                 local_file_path = os.path.join(root, file)
@@ -473,13 +474,16 @@ class storage:
                 s3_object_key = os.path.join(s3_prefix, relative_path).replace("\\", "/")
 
                 # Call the existing method for each file
-                self.upload_file_to_s3(
+                s3_object_key = self.upload_file_to_s3(
                     local_file_path=local_file_path,
                     s3_prefix=os.path.dirname(s3_object_key),
                     progress_bar=progress_bar,
                     etag_check=etag_check,
                     exist_check=exist_check
                 )
+                s3_object_keys.append(s3_object_key)
+
+        return s3_object_keys
 
     def s3_object_exists(self, s3_object_key: str) -> bool:
         """

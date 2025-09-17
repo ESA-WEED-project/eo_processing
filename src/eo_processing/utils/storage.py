@@ -446,7 +446,41 @@ class storage:
                 raise Exception('The uploaded file does not match the MDF5 of the local file.')
 
         return s3_object_key
+    
+    def upload_directory_to_s3(self, local_dir_path: str, s3_prefix: str = '',
+                            progress_bar: bool = False, etag_check: bool = False, exist_check: bool = False):
+        """
+        :param local_file_path: A string representing the local path of the file to be uploaded.
+            Must be a valid path to an existing file.
+        :param s3_prefix: A string representing the prefix/directory on the S3 bucket where
+            the file should be uploaded. Defaults to an empty string.
+        :param progress_bar: A boolean indicating whether to display the progress bar during
+            the upload process. Defaults to False.
+        :param etag_check: A boolean indicating whether to perform an ETag checksum comparison
+            between the uploaded file and the local file to validate data integrity. Defaults to False.
+        :param exist_check: A boolean indicating whether to skip the upload if the file already exists
+            on the S3 bucket with the same key. Defaults to False.
 
+        :return: A string representing the S3 object key of the uploaded file.
+        """
+        if not os.path.isdir(local_dir_path):
+            raise NotADirectoryError(f"{local_dir_path} is not a directory or does not exist.")
+
+        for root, dirs, files in os.walk(local_dir_path):
+            for file in files:
+                local_file_path = os.path.join(root, file)
+                relative_path = os.path.relpath(local_file_path, start=local_dir_path)
+                s3_object_key = os.path.join(s3_prefix, relative_path).replace("\\", "/")
+
+                # Call the existing method for each file
+                self.upload_file_to_s3(
+                    local_file_path=local_file_path,
+                    s3_prefix=os.path.dirname(s3_object_key),
+                    progress_bar=progress_bar,
+                    etag_check=etag_check,
+                    exist_check=exist_check
+                )
+                
     def s3_object_exists(self, s3_object_key: str) -> bool:
         """
         Checks if an S3 object exists in the specified bucket. This function determines

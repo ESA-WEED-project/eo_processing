@@ -448,17 +448,17 @@ class storage:
         return s3_object_key
 
     def upload_directory_to_s3(self, local_dir_path: str, s3_prefix: str = '',
-                            progress_bar: bool = False, etag_check: bool = False, exist_check: bool = False):
+                               progress_bar: bool = False, etag_check: bool = False, exist_check: bool = False):
         """
-        :param local_file_path: A string representing the local path of the file to be uploaded.
+        :param local_file_path: A string representing the local path of the directory to be uploaded.
             Must be a valid path to an existing file.
         :param s3_prefix: A string representing the prefix/directory on the S3 bucket where
-            the file should be uploaded. Defaults to an empty string.
+            the files of the local directory should be uploaded folowwing the relative path. Defaults to an empty string.
         :param progress_bar: A boolean indicating whether to display the progress bar during
-            the upload process. Defaults to False.
+            the upload process (per file). Defaults to False.
         :param etag_check: A boolean indicating whether to perform an ETag checksum comparison
             between the uploaded file and the local file to validate data integrity. Defaults to False.
-        :param exist_check: A boolean indicating whether to skip the upload if the file already exists
+        :param exist_check: A boolean indicating whether to skip the upload if the file in a directory already exists
             on the S3 bucket with the same key. Defaults to False.
 
         :return: A string representing the S3 object key of the uploaded file.

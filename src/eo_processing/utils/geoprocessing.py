@@ -11,7 +11,7 @@ import numpy as np
 import geojson
 import json
 from typing import Union, Tuple, Optional, TYPE_CHECKING
-from eo_processing.utils.mgrs import LL_2_UTM, floor_to_nearest_5, UTM_2_LL, UTM_2_MGRSid10, UTM_2_grid20id
+from eo_processing.utils.mgrs import LL_2_UTM, compute_pixel_center, UTM_2_LL, UTM_2_MGRSid, UTM_2_MGRSid10, UTM_2_MGRSid1, UTM_2_grid20id
 from urllib3.util.url import parse_url
 import eo_processing.resources
 import fsspec
@@ -285,7 +285,7 @@ def bbox_of_PointsFeatureCollection(points_collection: geojson.FeatureCollection
             'north': coords[:,1].max(),
             'crs': 'EPSG:4326'}
 
-def get_point_info(longitude: float, latitude: float) -> Tuple[str, float, float, str]:
+def get_point_info(longitude: float, latitude: float, resolution: float=10.0) -> Tuple[str, float, float, str]:
     """
     Gets metadata and identifiers for a geographical point based on its longitude and latitude.
 
@@ -298,8 +298,10 @@ def get_point_info(longitude: float, latitude: float) -> Tuple[str, float, float
 
     :param longitude: The longitude of the point in decimal degrees.
     :param latitude: The latitude of the point in decimal degrees.
+    :param resolution: The spatial resolution in meters for MGRSid calculation (e.g., 100, 10, 1).
+        Supports fractional resolutions.
     :return: A 4-tuple containing:
-             - MGRSid10: The MGRSid10 index for the point.
+             - MGRSid: The MGRSid index for the point at the given resolution.
              - center_lon: The longitude of the center of the UTM 10x10m pixel, rounded
                to 7 decimal places.
              - center_lat: The latitude of the center of the UTM 10x10m pixel, rounded
@@ -313,17 +315,27 @@ def get_point_info(longitude: float, latitude: float) -> Tuple[str, float, float
         raise ValueError('Given coordinates did not follow the required longitude, latitude standard.')
 
     # shift to the center of the corresponting UTM 10x10m pixel and get the LL coordinates for that
-    rounded_easting = floor_to_nearest_5(easting)
-    rounded_northing = floor_to_nearest_5(northing)
+    rounded_easting = compute_pixel_center(easting, 10.0)
+    rounded_northing = compute_pixel_center(northing, 10.0)
     center_lon, center_lat = UTM_2_LL(rounded_easting, rounded_northing, zone_number, zone_letter)
 
-    # get the MGRSid10 index for the reference point
-    MGRSid10 = UTM_2_MGRSid10(rounded_easting, rounded_northing, zone_number, zone_letter)
+    # Normalize resolution and select appropriate MGRSid function
+    resolution_UTM_2_MGRSid_dispatch = {
+    '100': UTM_2_MGRSid,
+    '10': UTM_2_MGRSid10,
+    '1': UTM_2_MGRSid1
+    }
+    resolution_str = f"{resolution:.10g}"  # removes insignificant trailing zeros
+    if resolution_str not in resolution_UTM_2_MGRSid_dispatch:
+        raise ValueError(f"Resolution {resolution} is not supported. Supported: {list(resolution_UTM_2_MGRSid_dispatch.keys())}")
+
+    MGRSid_func = resolution_UTM_2_MGRSid_dispatch[resolution_str]
+    MGRSid = MGRSid_func(rounded_easting, rounded_northing, zone_number, zone_letter)
 
     # get the corresponding grid20id to identify the openEO processing grid for the reference point
     grid20id = UTM_2_grid20id(rounded_easting, rounded_northing, zone_number, zone_letter)
 
-    return MGRSid10, round(center_lon, 7), round(center_lat, 7), grid20id
+    return MGRSid, round(center_lon, 7), round(center_lat, 7), grid20id
 
 def geoJson_2_BBOX(file_path: str, delete_file: bool = False,
                    size_check: Optional[int] = None) -> Optional[openEO_bbox_format]:

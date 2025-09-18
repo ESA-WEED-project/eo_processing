@@ -2,8 +2,9 @@
 # !/usr/bin/env python
 
 import pyproj
-from math import trunc
+from math import trunc, floor
 from typing import Union, Tuple
+import warnings
 
 def latitude_to_zone_letter(latitude: float) -> Union[str, None]:
     """
@@ -205,13 +206,30 @@ def UTM_2_MGRSid(easting: float, northing: float, zone_number: int, zone_letter:
 
     return str("{0:0>2}".format(zone_number) + zone_letter + letters_100kgrid)
 
+# TODO replace all floor_to_nearest_5 references by compute_pixel_center in pipelines
 def floor_to_nearest_5(value: float) -> int:
     """ Floor the given value to the nearest 10 and add 5.
 
     :param value: The input floating point number to be floored.
     :return: The nearest integer to the input value that is a multiple of 5.
     """
+    warnings.warn(
+        "floor_to_nearest_5 is deprecated and will be removed in a future release. "
+        "Use compute_pixel_center(value, resolution=10.0) instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     return (trunc(value / 10.0) * 10) + 5
+
+def compute_pixel_center(value: float, resolution: float=10.0) -> float:
+    """Floor the given value to the nearest resolution size and add half of the resolution.
+
+    :param value: The input floating point number to be floored.
+    :param resolution: The pixel/bin size.
+    :return: The center of the resolution-sized bin in which the input value lies.
+    """
+    half_res = resolution / 2
+    return (value // resolution * resolution) + half_res
 
 def UTM_2_MGRSid10(easting: float, northing: float, zone_number: int, zone_letter: str) -> str:
     """ Returns the 13-character Military Grid Reference System (MGRS) 10m identifier as a string.
@@ -255,8 +273,56 @@ def get_MGRSid10_centerLL(longitude: float, latitude: float) -> Tuple[float, flo
     except Exception:
         raise ValueError('Given coordinates did not follow the required longitude, latitude standard.')
 
-    rounded_easting = floor_to_nearest_5(easting)
-    rounded_northing = floor_to_nearest_5(northing)
+    rounded_easting = compute_pixel_center(easting, 10.0)
+    rounded_northing = compute_pixel_center(northing, 10.0)
+    center_lon, center_lat = UTM_2_LL(rounded_easting, rounded_northing, zone_number, zone_letter)
+
+    return round(center_lon, 7), round(center_lat, 7)
+
+def UTM_2_MGRSid1(easting: float, northing: float, zone_number: int, zone_letter: str) -> str:
+    """ Returns the 15-character Military Grid Reference System (MGRS) 1m identifier as a string.
+
+    :param easting: The easting value of the UTM coordinate.
+    :param northing: The northing value of the UTM coordinate.
+    :param zone_number: The UTM zone number.
+    :param zone_letter: The UTM latitude band letter.
+    :return: MGRSid1 string.
+    """
+    mgrs_id = UTM_2_MGRSid(easting, northing, zone_number, zone_letter)
+    formatted_easting = f"{int(easting):05d}"[-5:0]
+    formatted_northing = f"{int(northing):05d}"[-5:0]
+    return f'{mgrs_id}{formatted_easting}{formatted_northing}'
+
+def LL_2_MGRSid1(longitude: float, latitude: float) -> str:
+    """ Returns the 15-character Military Grid Reference System (MGRS) 1m identifier as a string.
+
+    :param longitude: Longitude of the point in decimal degrees
+    :param latitude: Latitude of the point in decimal degrees
+    :return: MGRSid1 string
+    """
+    try:
+        easting, northing, zone_number, zone_letter = LL_2_UTM(longitude, latitude)
+    except Exception:
+        raise ValueError('Given coordinates did not follow the required longitude, latitude standard.')
+
+    return UTM_2_MGRSid1(easting, northing, zone_number, zone_letter)
+
+def get_MGRSid1_centerLL(longitude: float, latitude: float) -> Tuple[float, float]:
+    """
+    Calculate the MGRSid1 Geolocation center coordinates in latitude and longitude of the corresponding
+    reference point location in MGRS 1-meter grid.
+
+    :param longitude: Longitude of the location in decimal degrees.
+    :param latitude: Latitude of the location in decimal degrees.
+    :return: center longitude, center latitude in decimal degrees.
+    """
+    try:
+        easting, northing, zone_number, zone_letter = LL_2_UTM(longitude, latitude)
+    except Exception:
+        raise ValueError('Given coordinates did not follow the required longitude, latitude standard.')
+
+    rounded_easting = compute_pixel_center(easting, 1.0)
+    rounded_northing = compute_pixel_center(northing, 1.0)
     center_lon, center_lat = UTM_2_LL(rounded_easting, rounded_northing, zone_number, zone_letter)
 
     return round(center_lon, 7), round(center_lat, 7)
@@ -344,7 +410,7 @@ def gridID_2_epsg(gridid: str) -> int:
         return 32700 + int(gridid[:2])
 
 def MGRSid_2_epsg(MGRSid: str) -> int:
-    """ Converts the MGRSid or MGRSid10 to the corresponding EPSG code of this 100x100km or 10x10m UTM grid.
+    """ Converts the MGRSid, MGRSid10 or MGRSid1 to the corresponding EPSG code of this 100x100km, 10x10m or 1mx1m UTM grid.
     :param MGRSid: String representing the MGRS tile ID (or S2 tile id).
     :return: EPSG code as an integer corresponding to tile ID.
     """

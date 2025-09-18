@@ -291,21 +291,22 @@ def get_point_info(longitude: float, latitude: float, resolution: float=10.0) ->
 
     This function performs multiple spatial transformations to extract identifiers and
     coordinates in standardized formats. It converts the provided longitude and latitude
-    to UTM format, shifts the coordinates to the center of the corresponding UTM 10x10m
-    pixel, and computes other related spatial indices. The output includes the reference
-    point in MGRSid10 format, its geodetic longitude and latitude, and the grid20id
-    associated with the point for openEO processing.
+    to UTM format, shifts the coordinates to the center of the corresponding UTM pixel
+    with the given resolution, and computes other related spatial indices. The output
+    includes the reference point in MGRSid10 format, its geodetic longitude and latitude, 
+    and the grid20id associated with the point for openEO processing.
 
     :param longitude: The longitude of the point in decimal degrees.
     :param latitude: The latitude of the point in decimal degrees.
     :param resolution: The spatial resolution in meters for MGRSid calculation (e.g., 100, 10, 1).
         Supports fractional resolutions.
     :return: A 4-tuple containing:
+
              - MGRSid: The MGRSid index for the point at the given resolution.
-             - center_lon: The longitude of the center of the UTM 10x10m pixel, rounded
-               to 7 decimal places.
-             - center_lat: The latitude of the center of the UTM 10x10m pixel, rounded
-               to 7 decimal places.
+             - center_lon: The longitude of the center of the corresponding UTM pixel
+                with the given resolution, rounded to 7 decimal places.
+             - center_lat: The latitude of the center of the corresponding UTM pixel
+                with the given resolution, rounded to 7 decimal places.
              - grid20id: The grid20id corresponding to the openEO processing grid.
     """
     # get the coordinates in UTM format

@@ -314,9 +314,9 @@ def get_point_info(longitude: float, latitude: float, resolution: float=10.0) ->
     except Exception:
         raise ValueError('Given coordinates did not follow the required longitude, latitude standard.')
 
-    # shift to the center of the corresponting UTM 10x10m pixel and get the LL coordinates for that
-    rounded_easting = compute_pixel_center(easting, 10.0)
-    rounded_northing = compute_pixel_center(northing, 10.0)
+    # shift to the center of the corresponting UTM pixel of the given resolution and get the LL coordinates for that
+    rounded_easting = compute_pixel_center(easting, resolution)
+    rounded_northing = compute_pixel_center(northing, resolution)
     center_lon, center_lat = UTM_2_LL(rounded_easting, rounded_northing, zone_number, zone_letter)
 
     # Normalize resolution and select appropriate MGRSid function

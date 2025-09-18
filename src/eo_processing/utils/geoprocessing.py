@@ -293,8 +293,8 @@ def get_point_info(longitude: float, latitude: float, resolution: float=10.0) ->
     coordinates in standardized formats. It converts the provided longitude and latitude
     to UTM format, shifts the coordinates to the center of the corresponding UTM pixel
     with the given resolution, and computes other related spatial indices. The output
-    includes the reference point in MGRSid10 format, its geodetic longitude and latitude, 
-    and the grid20id associated with the point for openEO processing.
+    includes the reference point in MGRSid format at the given resolution, its geodetic
+    longitude and latitude, and the grid20id associated with the point for openEO processing.
 
     :param longitude: The longitude of the point in decimal degrees.
     :param latitude: The latitude of the point in decimal degrees.
@@ -309,13 +309,13 @@ def get_point_info(longitude: float, latitude: float, resolution: float=10.0) ->
                 with the given resolution, rounded to 7 decimal places.
              - grid20id: The grid20id corresponding to the openEO processing grid.
     """
-    # get the coordinates in UTM format
+    # Get the coordinates in UTM format
     try:
         easting, northing, zone_number, zone_letter = LL_2_UTM(longitude, latitude)
     except Exception:
         raise ValueError('Given coordinates did not follow the required longitude, latitude standard.')
 
-    # shift to the center of the corresponting UTM pixel of the given resolution and get the LL coordinates for that
+    # Shift to the center of the corresponting UTM pixel of the given resolution and get the LL coordinates for that
     rounded_easting = compute_pixel_center(easting, resolution)
     rounded_northing = compute_pixel_center(northing, resolution)
     center_lon, center_lat = UTM_2_LL(rounded_easting, rounded_northing, zone_number, zone_letter)
@@ -333,7 +333,7 @@ def get_point_info(longitude: float, latitude: float, resolution: float=10.0) ->
     MGRSid_func = resolution_UTM_2_MGRSid_dispatch[resolution_str]
     MGRSid = MGRSid_func(rounded_easting, rounded_northing, zone_number, zone_letter)
 
-    # get the corresponding grid20id to identify the openEO processing grid for the reference point
+    # Get the corresponding grid20id to identify the openEO processing grid for the reference point
     grid20id = UTM_2_grid20id(rounded_easting, rounded_northing, zone_number, zone_letter)
 
     return MGRSid, round(center_lon, 7), round(center_lat, 7), grid20id

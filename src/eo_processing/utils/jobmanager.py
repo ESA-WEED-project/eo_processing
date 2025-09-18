@@ -337,13 +337,13 @@ class WeedJobManager(MultiBackendJobManager):
 
                 if previous_status in {"created", "queued"} and new_status in {"running", "finished"}:
                     stats["job started running"] += 1
-                    active.loc[i, "running_start_time"] = rfc3339.utcnow()
+                    active.loc[i, "running_start_time"] = rfc3339.now_utc()
 
                 # get running_start_time for cases where job is finished too fast
                 if new_status in {"running", "finished"}:
                     if pd.isnull(active.loc[i, "running_start_time"]) or active.loc[i, "running_start_time"]=='':
                         stats["job started running"] += 1
-                        active.loc[i, "running_start_time"] = rfc3339.utcnow()
+                        active.loc[i, "running_start_time"] = rfc3339.now_utc()
 
                 if new_status == "finished" and previous_status != "downloading":
                     stats["job finished"] += 1
@@ -474,7 +474,7 @@ class WeedJobManager(MultiBackendJobManager):
                 df.loc[i, "status"] = "not_started"
             stats["start_job error"] += 1
         else:
-            df.loc[i, "start_time"] = rfc3339.utcnow()
+            df.loc[i, "start_time"] = rfc3339.now_utc()
             df.loc[i, "attempt"] += 1
             if job:
                 df.loc[i, "id"] = job.job_id

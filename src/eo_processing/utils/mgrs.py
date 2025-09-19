@@ -289,8 +289,8 @@ def UTM_2_MGRSid1(easting: float, northing: float, zone_number: int, zone_letter
     :return: MGRSid1 string.
     """
     mgrs_id = UTM_2_MGRSid(easting, northing, zone_number, zone_letter)
-    formatted_easting = f"{int(easting):05d}"[-5:0]
-    formatted_northing = f"{int(northing):05d}"[-5:0]
+    formatted_easting = f"{int(easting):05d}"[-5:]
+    formatted_northing = f"{int(northing):05d}"[-5:]
     return f'{mgrs_id}{formatted_easting}{formatted_northing}'
 
 def LL_2_MGRSid1(longitude: float, latitude: float) -> str:

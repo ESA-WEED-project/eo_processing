@@ -15,6 +15,11 @@ import numpy as np
 from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_stat, JobDatabaseInterface,
                                          ignore_connection_errors, _ColumnProperties, _start_job_default,
                                          get_job_db)
+from openeo.rest.auth.auth import BearerAuth
+from openeo.extra.job_management._thread_worker import (
+    _JobManagerWorkerThreadPool,
+    _JobStartTask,
+)
 from openeo.rest import OpenEoApiError
 import pandas as pd
 from typing import Optional, Mapping, Union, Dict, Tuple, TYPE_CHECKING, List
@@ -315,7 +320,7 @@ class WeedJobManager(MultiBackendJobManager):
 
         stats = stats if stats is not None else collections.defaultdict(int)
 
-        active = job_db.get_by_status(statuses=["created", "queued", "running", "downloading"])
+        active = job_db.get_by_status(statuses=["created", "queued", "queued_for_start", "running", "downloading"])
 
         jobs_done = []
         jobs_error = []
@@ -335,7 +340,7 @@ class WeedJobManager(MultiBackendJobManager):
 
                 logger.info(f"Status of job {job_id!r} (on backend {backend_name}) is {new_status!r} (previously {previous_status!r})")
 
-                if previous_status in {"created", "queued"} and new_status in {"running", "finished"}:
+                if previous_status in {"created", "queued", "queued_for_start"} and new_status in {"running", "finished"}:
                     stats["job started running"] += 1
                     active.loc[i, "running_start_time"] = rfc3339.now_utc()
 
@@ -413,8 +418,6 @@ class WeedJobManager(MultiBackendJobManager):
 
         return [], [], []
 
-
-
     def _launch_job(self, start_job, df, i, backend_name, stats: Optional[Dict] = None):
         """Helper method for launching jobs
 
@@ -463,6 +466,7 @@ class WeedJobManager(MultiBackendJobManager):
             stats["start_job call"] += 1
             job = start_job(
                 row=row,
+                connection_provider=self._get_connection,
                 connection=connection,
                 provider=backend_name,
             )
@@ -485,16 +489,24 @@ class WeedJobManager(MultiBackendJobManager):
                     if status == "created":
                         # start job if not yet done by callback
                         try:
-                            job.start()
-                            stats["job start"] += 1
-                            df.loc[i, "status"] = job.status()
-                            stats["job get status"] += 1
+                            job_con = job.connection
+                            task = _JobStartTask(
+                                root_url=job_con.root_url,
+                                bearer_token=job_con.auth.bearer if isinstance(job_con.auth, BearerAuth) else None,
+                                job_id=job.job_id,
+                                df_idx=i,
+                            )
+                            self._worker_pool.submit_task(task)
+
+                            stats["job_queued_for_start"] += 1
+                            df.loc[i, "status"] = "queued_for_start"
+
                         except OpenEoApiError as e:
                             logger.error(e)
-                            df.loc[i, "status"] = "start_failed"
+                            df.loc[i, "status"] = "queued_for_start_failed"
+                            stats["job queued for start failed"] += 1
                             if df.loc[i, "attempt"] <= self.max_attempts:
                                 df.loc[i, "status"] = "not_started"
-                            stats["job start error"] += 1
             else:
                 # you can skip jobs before sending to openeo: eg some local processing needs to be finished before
                 # being able to process
@@ -526,6 +538,7 @@ class WeedJobManager(MultiBackendJobManager):
         # updating the colors for processing status
         color_dict = {"not_started": 'grey',
                       "created": 'gold',
+                      "queued_for_start": 'lightsteelblue',
                       "queued": 'lightsteelblue',
                       "running": 'navy',
                       "start_failed": 'salmon',
@@ -562,16 +575,17 @@ class WeedJobManager(MultiBackendJobManager):
     def start_job_thread(self, start_job, job_db):
         # Resume from existing db
         logger.info(f"Resuming `run_jobs` from existing {job_db}")
-        df = job_db.read()
 
         self._stop_thread = False
+        self._worker_pool = _JobManagerWorkerThreadPool()
+
         def run_loop():
 
             # TODO: support user-provided `stats`
             stats = collections.defaultdict(int)
 
             while (
-                sum(job_db.count_by_status(statuses=["not_started", "created", "queued", "running", "downloading"]).values()) > 0
+                sum(job_db.count_by_status(statuses=["not_started", "created", "queued","queued_for_start","running", "downloading"]).values()) > 0
                 and not self._stop_thread
             ):
                 print(f"Job status histogram: {job_db.count_by_status()}. Run stats: {dict(stats)}")
@@ -615,7 +629,9 @@ class WeedJobManager(MultiBackendJobManager):
         # TODO: support user-provided `stats`
         stats = collections.defaultdict(int)
 
-        while sum(job_db.count_by_status(statuses=["not_started", "created", "queued", "running", "downloading"]).values()) > 0:
+        self._worker_pool = _JobManagerWorkerThreadPool()
+
+        while sum(job_db.count_by_status(statuses=["not_started", "created", "queued", "queued_for_start", "running", "downloading"]).values()) > 0:
             self._job_update_loop(job_db=job_db, start_job=start_job, stats=stats)
             stats["run_jobs loop"] += 1
 
@@ -623,6 +639,8 @@ class WeedJobManager(MultiBackendJobManager):
             logger.info(f"Job status histogram: {job_db.count_by_status()}. Run stats: {dict(stats)}")
             time.sleep(self.poll_sleep)
             stats["sleep"] += 1
+
+        self._worker_pool.shutdown()
 
         return stats
 

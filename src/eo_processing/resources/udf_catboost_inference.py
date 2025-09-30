@@ -7,6 +7,7 @@ import xarray as xr
 import numpy as np
 import json
 import shutil
+import pyarrow.parquet as pq
 from urllib.parse import urlparse
 from openeo.udf import inspect
 from openeo.metadata import CubeMetadata
@@ -24,7 +25,10 @@ def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
     """
     # Get the model metadata
     model_id = context.get("model_id")
-    _, output_band_names = get_model_metadata(model_id)
+    if model_id.startswith('http'):
+        _ , output_band_names = get_model_metadata_artifact(model_id)
+    else:
+        _ , output_band_names = get_model_metadata(model_id)
     # rename band labels
     return metadata.rename_labels(dimension="bands", target=output_band_names)
 
@@ -85,6 +89,109 @@ def get_model_metadata(modelID) -> Tuple[List[str], List[str]]:
         inspect(message=f"Unexpected status {r.status_code}:")
         raise RuntimeError(r.text)
     return model_urls, output_band_names
+
+@functools.lru_cache(maxsize=1)
+def get_model_metadata_artifact(modelID: str) -> Tuple[List[str], List[str]]:
+    """
+    Fetches metadata for a given model ID from url . The metadata includes
+    the list of model URLs and the model's output band names. The search is crafted to
+    ensure that only one model with the specified model ID is retrieved, as model IDs
+    must be unique according to system rules. Raises an error in case of network issues,
+    timeout, or if results are not unique.
+
+    :param modelID: The unique identifier of the model for which metadata is being
+        requested.
+    :return: A tuple containing a list of URLs for the model (`model_urls`) and a
+        list of the model's output band names (`output_band_names`).
+
+    :raises RuntimeError: If a timeout occurs during communication with the API, if
+        other network or request-related errors occur, or if the model ID is either
+        not unique or not found in the system.
+    """
+    # Download model ensemble_artifact
+    inspect(message=f"Downloading model file for {modelID}...")
+    try:
+        model_path = download_file(modelID)
+    except Exception as e:
+        raise RuntimeError(f"Failed to download model {modelID}: {e}")
+
+    # Read metadata
+    try:
+        metadata = read_parquet_metadata(model_path)
+    except Exception as e:
+        raise RuntimeError(f"Failed to read parquet metadata for {modelID}: {e}")
+
+    if not metadata:
+        raise RuntimeError(f"No metadata found for model {modelID}")
+
+    # Extract model URLs and band names
+    model_urls = list(metadata.keys())
+    if not model_urls:
+        raise RuntimeError(f"No model URLs found in metadata for {modelID}")
+
+    band_names = []
+    for url, bands in metadata.items():
+        if not isinstance(url, str):
+            raise TypeError(f"Model URL must be a string, got {type(url)}")
+        if not isinstance(bands, list):
+            raise TypeError(f"Bands for {url} must be a list, got {type(bands)}")
+        if not all(isinstance(b, str) for b in bands):
+            raise TypeError(f"Bands for {url} must all be strings, got {bands}")
+        band_names.extend(bands)
+
+    if not band_names:
+        raise RuntimeError(f"No output band names found in metadata for {modelID}")
+
+    inspect(message=f"Metadata for model {modelID} successfully extracted.")
+
+    return model_urls, band_names
+
+
+def read_parquet_metadata(path_parquet: str) -> dict:
+    """
+    Reads the key-value metadata from a Parquet file using pyarrow.
+
+    :param path_parquet: Path to the Parquet file.
+    :return: A dictionary containing metadata key-value pairs. 
+        Values that are JSON strings will be converted to dicts or lists.
+        Returns an empty dict if no metadata is found.
+    """
+    inspect(f"Reading metadata of {path_parquet} ...")
+    parquet_file = pq.ParquetFile(path_parquet)
+    metadata = parquet_file.metadata
+
+    dict_metadata = {}
+
+    if metadata is not None and metadata.metadata is not None:
+        for key, value in metadata.metadata.items():
+            try:
+                key_object = decode_object(key)
+                value_object = decode_object(value)
+                dict_metadata[key_object] = value_object
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to decode parquet metadata key/value ({key}, {value}): {e}"
+                )
+
+    return dict_metadata
+
+def decode_object(obj: bytes, encoding: str = "utf-8") -> object:
+    """
+    Decode a bytes object back into Python object.
+
+    - First decode from bytes to string
+    - Then attempt JSON parsing (for dicts/lists/numbers/bools/null)
+    - If JSON parsing fails, return as plain string
+    """
+    if not isinstance(obj, (bytes, bytearray)):
+        raise TypeError(f"decode_object expected bytes, got {type(obj)}")
+
+    text = obj.decode(encoding)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
 
 
 def is_onnx_file(file_path: str) -> bool:
@@ -337,7 +444,10 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
 
     # get the list of models to apply on the cube from context
     model_id = context.get("model_id")
-    model_urls, _ = get_model_metadata(model_id)
+    if model_id.startswith('http'):
+        model_urls, _ = get_model_metadata_artifact(model_id)
+    else:
+        model_urls, _ = get_model_metadata(model_id)
 
     # loop over the models and apply on input array
     output_cube_initialized = False

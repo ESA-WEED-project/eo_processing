@@ -127,7 +127,7 @@ def test_master_cube_with_udf_catboost_inference(oeo_con100, groundtruth_filenam
     # Apply the UDF to the data cube.
     udf  = openeo.UDF.from_file(
             getUDFpath('udf_catboost_inference.py'),
-            runtime = "python",
+            runtime = "Python",
             version="3.11",
             context={"model_id": model_id})
 

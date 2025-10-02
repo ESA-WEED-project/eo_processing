@@ -1,6 +1,7 @@
 import json
 import pytest
-
+from pathlib import Path
+import os
 import openeo
 from eo_processing.utils.helper import getUDFpath
 from eo_processing.openeo.processing import generate_master_feature_cube, \
@@ -9,6 +10,8 @@ from eo_processing.openeo.processing import generate_master_feature_cube, \
 from tests.conftest import BBOX, DATE_START, DATE_END, TARGET_CRS, TARGET_RESOLUTION, STAC_CAT_URL, \
     oeo_con100, compare_job_info
 import tests.config_collections as collections
+
+basedir = Path(os.path.dirname(os.path.dirname(__file__)))
 
 @pytest.mark.parametrize(
     "groundtruth_filename, integration",
@@ -124,6 +127,8 @@ def test_master_cube_with_udf_catboost_inference(oeo_con100, groundtruth_filenam
     # Apply the UDF to the data cube.
     udf  = openeo.UDF.from_file(
             getUDFpath('udf_catboost_inference.py'),
+            runtime = "python",
+            version="3.11",
             context={"model_id": model_id})
 
     generated_cube = data_cube.apply_dimension(process=udf, dimension="bands")

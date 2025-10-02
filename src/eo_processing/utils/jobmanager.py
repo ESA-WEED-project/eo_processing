@@ -836,7 +836,9 @@ def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, 
     # set the s3_prefix which is needed for the path to S3 storage relative to bucket if we export
     if storage_options:
         job_df['s3_prefix'] = storage_options.get('S3_prefix', None)
-        job_df['export_workspace'] = storage_options['WEED_storage'].get_export_workspace()
+        if storage_optionsstorage_options.get('WEED_storage',None):
+            job_df['export_workspace'] = storage_optionsstorage_options['WEED_storage'].get_export_workspace()
+        else : job_df['export_workspace']=None
     else:
         job_df['s3_prefix'] = None
         job_df['export_workspace'] = None

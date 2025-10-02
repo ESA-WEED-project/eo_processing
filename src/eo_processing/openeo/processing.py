@@ -404,7 +404,7 @@ def generate_nonEO_feature_cube(
                                                       )
 
         else:
-            #if openeo the -v1 should be split off
+            #if openeo the -v1 should be split off of the collection
             if bands is None:
                 nonEO_feature_cube = connection.load_collection(collection.split('-')[0],
                                                                 temporal_extent=[start, end])

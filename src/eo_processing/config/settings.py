@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import storage_option_format
-    from eo_processing.utils.storage import WEED_storage
+    from eo_processing.utils.storage import WEED_S3_storage
 
 # ---------------------------------------------------
 # standard processing options
@@ -370,7 +370,7 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
 def generate_storage_options(workspace_export: bool = False,
                              S3_prefix: Optional[str] = None,
                              local_S3_needed: bool = False,
-                             storage: Optional[WEED_storage] = None) -> storage_option_format:
+                             storage: Optional[WEED_S3_storage] = None) -> storage_option_format:
     """
     Generates a dictionary of storage options based on provided parameters. This function is used to configure
     the storage settings for exporting results and handling S3 storage interactions.

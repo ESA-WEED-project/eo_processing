@@ -15,11 +15,15 @@ from hashlib import md5
 from tqdm import tqdm
 
 if TYPE_CHECKING:
-    from eo_processing.config.data_formats import s3_credentials_format
+    from eo_processing.config.data_formats import (s3_credentials_format, sql_credentials_format,
+                                                   gdrive_credentials_format, stac_credentials_format)
 
-WEED_BUCKETS = ['ecdc', 'model', 'extent', 'test', 'ecdc-stac', 'extent-stac']
+BUCKETS = {'WEED': ['ecdc', 'model', 'extent', 'test', 'ecdc-stac', 'extent-stac'],
+           'sonata':['sonata','sonata-stac'],
+        'obsgession':['obsgession','obsgession-stac']}
+STAC_CATS = ['dev','prod']
 
-class storage:
+class S3_storage:
     """
     Manages interaction with S3 storage, including initialization, content retrieval, and file
     operations.
@@ -636,129 +640,364 @@ class storage:
 
         return False
 
-class WEED_storage(storage):
+
+class SQL_storage:
     """
-    Handles storage operations using both Google Drive and AWS S3/storage services.
+    Manages interaction with PostSQL_database, including initialization, content retrieval, and content upload
+    operations.
 
-    This class provides a unified interface to manage files and data stored in the WEED
-    infrastructure. It integrates Google Drive and S3 functionalities using appropriate
-    APIs, allowing users to initialize settings, authenticate, browse, and interact with
-    these storages.
+    The class provides a set of methods for accessing and working with data stored in PostGreSQL database.
+     This includes initializing an S3 client, fetching content metadata, downloading
+    files, and building URLs. It uses psycopg2 to interact with the database.
 
-    It fetches credentials securely from the Terrascope VAULT and enables seamless access
-    to storage operations like fetching files, reading data into geospatial dataframes, and
-    filtering data with bounding boxes.
+    :ivar SQL_credentials: Dictionary containing SQL access and storage information. Contains
+        the following keys:
+            - user: The schema of the postgreSQL.
+            - dbname: The name of the database.
+            - password: password for accessing the PostGreSQL database.
+            - host: Url to access the database.
+            - port: Port to query the database.
 
-    Attributes:
-        username: Username for Terrascope VAULT authentication.
-        gdrive_entry_point: Entry point ID of the Google Drive folder.
-        s3_bucket: Name of the S3 bucket to be used.
-        gdrive_fs: Instance for handling Google Drive filesystem operations.
-        s3_client: AWS S3 client instance for interacting with S3 storage.
-        credentials: Dictionary containing fetched credentials for storages.
-        s3_credentials: Dictionary containing S3-specific credentials.
-        gdrive_credentials: Google Drive credentials fetched from the VAULT.
-        export_workspace: Path for data export associated with the S3 bucket.
     """
-    def __init__(self, username: str = 'buchhornm',
-                 gdrive_entry_point: str = "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu",
-                 s3_bucket: str = "ecdc"):
+    def __init__(self, sql_credentials: Optional[sql_credentials_format] = None):
         """
-        A class constructor that initializes settings for access to Google Drive and S3 services.
+        Initializes the configuration for sql storage credentials. If no credentials are provided,
+        a default set of empty values is used, along with a warning message. Validates the input
+        credentials if provided and raises an error for invalid formats.
 
-        The constructor sets up default values for the user credentials, Google Drive entry point,
-        and S3 bucket. It also initializes necessary credentials and configurations for using
-        Google Drive and S3 storage services.
+        :param s3_credentials: Dictionary containing sql credentials with keys matching
+                               the `sql_credentials_format` type. If not provided, defaults
+                               to None.
 
-        :param username: A username string used for accessing credentials.
-        :param gdrive_entry_point: The entry point ID of the Google Drive folder.
-        :param s3_bucket: The name of the S3 bucket to be used.
+        :raises ValueError: If the provided sql credentials do not match the expected format.
         """
-        #super().__init__()
-        self.gdrive_fs: Optional[GDriveFileSystem] = None
-        self.s3_client: Optional[boto3.client] = None
+        from eo_processing.config.data_formats import sql_credentials_format
+        if sql_credentials is None:
+            print('WARNING: no sql credentials were given or found in the environment variables. '
+                  'The storage object is not initialized.')
+            self.sql_credentials = {
+                "dbname": None,
+                "schema": None,
+                "password": None,
+                "host": None,
+                "host_hadoop": None,
+                "port": None
+            }
+        elif ((isinstance(sql_credentials, dict))
+              and (set(sql_credentials.keys()) == set(sql_credentials_format.__annotations__.keys()))):
+            self.sql_credentials = {
+                "dbname": sql_credentials['dbname'],
+                "schema": sql_credentials['schema'],
+                "password": sql_credentials['password'],
+                "host": sql_credentials['host'],
+                "port": sql_credentials['port']
+            }
+        else:
+            raise ValueError('The provided sql credentials are not valid. Please check the documentation '
+                             'for the correct format.')
 
-        self.username = username
-        self.credentials = self._get_credentials()
-        self.s3_credentials = None
-        self.s3_bucket = None
-        self.export_workspace = None
-        self._set_s3_credentials(bucket=s3_bucket)
-        self.gdrive_credentials = self.credentials['gdrive-access']
-        self.gdrive_entry_point = gdrive_entry_point
+        #at the moment we initialize with hadoop false. Not sure if it's need to have?
+        self.hadoop = False
 
-    def switch_s3_bucket(self, bucket: str) -> None:
-        """
-        Switches the current S3 bucket to the specified bucket name.
-
-        This method updates the credentials or settings related to the
-        new specified S3 bucket.
-
-        :param bucket: The name of the S3 bucket to switch to.
-        """
-        self._set_s3_credentials(bucket=bucket)
-
-    def _set_s3_credentials(self, bucket: str) -> None:
-        """
-        Sets the S3 credentials based on the specified bucket name. This method checks the validity
-        of the bucket against the predefined WEED buckets and retrieves necessary credentials to
-        interact with the corresponding S3 service. It also reinitializes the S3 client if it is already
-        initialized to ensure it uses the new credentials.
-
-        :param bucket: The name of the S3 bucket to set credentials for. Must be part of the WEED project.
-        :raises Exception: If the specified bucket does not exist in the WEED project.
-        """
-        # check
-        if not bucket.lower() in WEED_BUCKETS:
-            raise Exception('the specified bucket does not currently exist in the WEED project.')
-
-        s3_vito_vault = string_to_dict(self.credentials['S3-auth'])
-
-        # based on bucket we set variables.
-        bucket = s3_vito_vault['buckets'][bucket.lower()]
-
-        self.s3_credentials = {
-            "AWS_ACCESS_KEY_ID": s3_vito_vault['AWS_ACCESS_KEY_ID'],
-            "AWS_SECRET_ACCESS_KEY": s3_vito_vault['AWS_SECRET_ACCESS_KEY'],
-            "s3_endpoint": s3_vito_vault['s3_endpoint'],
-            "bucket_name": bucket['bucket_name'],
-            "export_workspace": bucket['export_workspace']
-        }
-        self.s3_bucket = self.s3_credentials['bucket_name']
-        self.export_workspace = self.s3_credentials['export_workspace']
-
-        # re-init the s3_client if needed
-        if self.s3_client is not None:
-            self.s3_client.close()
-            self._init_boto3()
-
-    def _get_credentials(self) -> Dict[str, str]:
-        """
-        Retrieves WEED access credentials from Terrascope VAULT using LDAP authentication.
-
-        This method prompts the user to enter their password for Terrascope VAULT, authenticates
-        with the VAULT using LDAP, and fetches credentials from the WEED KV storage path.
-
-        :return: credentials as a dictionary
-        """
-        password_prompt = 'Please enter your password for the Terrascope VAULT: '
-        service_account_password = getpass(prompt=password_prompt)
-
+    def create_connection(self):
         try:
-            client = hvac.Client(url='https://vault.vgt.vito.be')
-            client.auth.ldap.login(
-                username=self.username,
-                password=service_account_password,
-                mount_point='ldap'
-            )
-            secret_version_response = client.secrets.kv.v2.read_secret_version(mount_point='kv',
-                                                                               path='TAP/apps/WEED',
-                                                                               raise_on_deleted_version=True)
-            client.logout()
-        except:
-            raise Exception('Could not retrieve WEED credentials from Terrascope VAULT. '
-                            'Are you connected to the VITO VPN?')
-        return secret_version_response['data']['data']
+            # get connection to server
+            print("** Establish connection to the database ...")
+            if self.hadoop:
+                host = self.sql_credentials['host_hadoop']
+            else :
+                host = self.sql_credentials['host']
+
+            conn = psycopg.connect(dbname=self.sql_credentials['dbname'],
+                                   user=self.sql_credentials['schema'],
+                                   password=self.sql_credentials['password'],
+                                   host=host,
+                                   port=sql_credentials['port'])
+
+
+        except psycopg.Error as e:
+            print(e.pgerror)
+            print(e.pgcode)
+            print('-----Could not establish connection to the PostGREsql server...')
+            raise
+
+        return conn
+
+
+
+    def GenericQueryWithResult(self, ConfigSection, sql_statement):
+        """ A generic query which provides all results of the request as list"""
+        conn = self.create_connection()
+
+        # now we work in the database
+        try:
+            print('** get data from request')
+            # create cursor
+            cur = conn.cursor()
+            cur.execute(sql_statement)
+            # get data
+            vResult = cur.fetchall()
+            # close cursor
+            cur.close()
+        except psycopg.Error as e:
+            print(e.pgerror)
+            print(e.pgcode)
+            # excecute a rollback when the error didn't closed the connection
+            try:
+                conn.rollback()
+            except:
+                print('-----No RollBack possible or not needed!')
+            if cur.closed == False: cur.close()
+            print('** Could not get the data from the table... check error message')
+            raise
+        finally:
+            # close connection
+            if conn.closed == 0: conn.close()
+        return (vResult)
+
+    def GenericQueryWithOUTResult(self, ConfigSection, sql_statement):
+        """ A generic query which is only executed"""
+        conn = self.create_connection()
+
+        # now we work in the database
+        try:
+            print('** execute statement')
+            # create cursor
+            cur = conn.cursor()
+            cur.execute(sql_statement)
+            conn.commit()
+            # close cursor
+            cur.close()
+        except psycopg.Error as e:
+            print(e.pgerror)
+            print(e.pgcode)
+            # excecute a rollback when the error didn't closed the connection
+            try:
+                conn.rollback()
+            except:
+                print('-----No RollBack possible or not needed!')
+            if cur.closed == False: cur.close()
+            print('** Could not execute the sql statement correctly... check error message')
+            raise
+        finally:
+            # close connection
+            if conn.closed == 0: conn.close()
+
+    def BulkInsert(self, ConfigSection, vTable, data, lColumns):
+        """ A generic query which is only executed"""
+        conn = self.create_connection()
+
+        # now we work in the database
+        try:
+            print('**** execute bulk insert')
+            # create cursor
+            cur = conn.cursor()
+            cur.copy_from(data, vTable, null='nan', columns=lColumns)
+
+            conn.commit()
+            # close cursor
+            cur.close()
+        except psycopg.Error as e:
+            print(e.pgerror)
+            print(e.pgcode)
+            # excecute a rollback when the error didn't closed the connection
+            try:
+                conn.rollback()
+            except:
+                print('-----No RollBack possible or not needed!')
+            if cur.closed == False: cur.close()
+            print('**** Could not execute the bulk insert correctly... check error message')
+            raise
+        finally:
+            # close connection
+            if conn.closed == 0: conn.close()
+
+    def QueryItems(self, ConfigSection, table, lcolumns):
+        """ Queries the tile workflow table in the postgreSQL database
+            and returns requested columns
+
+            lcolumns = list of columns next to tile_id which have to be extracted
+            table = SQL table in schema to use for query
+            ConfigSection = HEADline for SQL server in Config ini
+            """
+        # pre-check if columns are requested
+        if len(lcolumns) == 0:
+            print('No columns for the query are specified...')
+            raise
+        # ini connection
+        conn = self.create_connection()
+
+        lresults = []
+        ## work in the postgresql database
+        try:
+            # create cursor
+            cur = conn.cursor('server_cursor')
+            query_time = time.time()
+            # create the SQL query statement
+            if len(lcolumns) == 1:
+                sql_statement = f"SELECT {lcolumns[0]} FROM {table};"
+            else:
+                sql_statement = f"SELECT {','.join(lcolumns)} FROM {table};"
+
+            print("** Downloading data from the database ...")
+            cur.execute(sql_statement)
+
+            # fetch data in batches using the server side cursor
+            while True:
+                rows = cur.fetchmany(500000)
+                if not rows: break
+                lresults.extend(rows)
+
+            # close cursor
+            cur.close()
+            print('** No errors - all data successfully retrieved from database. (' + "{:10.4f}".format(
+                time.time() - query_time) + ' sec)')
+
+        except psycopg.Error as e:
+            print(e.pgerror)
+            print(e.pgcode)
+            # excecute a rollback when the error didn't closed the connection
+            try:
+                conn.rollback()
+            except:
+                print('No RollBack possible or not needed!')
+            if cur.closed == False: cur.close()
+            print('** Could not get the data from the table... check error message')
+            raise
+
+        finally:
+            # close connection
+            if conn.closed == 0: conn.close()
+
+        return lresults
+
+
+    def StatusUpdateTiles(self, ConfigSection, table, tileid, lcolumns, lmsg):
+        """ Function to set the final status
+            for several columns in the workflow tile table
+
+            tileid = tile (row) in table which has to be updated
+            lcolumns = list of columns which have to be updated
+            lmsg = values for the columns which have to be updated
+            table = SQL table in schema to use for query
+            ConfigSection = HEADline for SQL server in Config ini
+            """
+        # establish connection to data base
+        # ini connection
+        conn = self.create_connection()
+
+        # set all following in a try loop so if even the pre-processing fails then the connection is closed and rolled back
+        try:
+            # create cursor
+            cur = conn.cursor()
+            # prepare UPDATE statement
+            print('** update the tile status...')
+            for i in range(0, len(lcolumns)):
+                sql_statement = "UPDATE %s SET %s = %%s WHERE tile_id = %%s;" % (table, lcolumns[i])
+                cur.execute(sql_statement, (lmsg[i], tileid))
+
+            # commit transactions
+            conn.commit()
+            # close cursor
+            cur.close()
+
+        except psycopg.Error as e:
+            print("** Could not update the data in the PostgreSQL database - error...")
+            print(e.pgerror)
+            print(e.pgcode)
+            # excecute a rollback when the error didn't closed the connection
+            try:
+                conn.rollback()
+            except:
+                print('No RollBack possible or not needed!')
+
+            if cur.closed == False: cur.close()
+            return False
+
+        finally:
+            # close connection
+            if conn.closed == 0: conn.close()
+
+        print('** No errors - all data successfully updated.')
+        return True
+
+class gdrive_storage:
+    """
+    Manages interaction with gdrive, including initialization, content retrieval, and content upload
+    operations.
+
+    The class provides a set of methods for accessing and working with data stored on gdrive.
+
+    :ivar gdrive_crendentials: Dictionary containing gdrive access and storage information. Contains
+        the following keys:
+            - type: account type.
+            - project_id: The name of the project id.
+            - private_key_id:
+            - private_key:
+            - client_email:
+            - client_id
+            - auth_uri
+            - token_uri
+            - auth_provider_x509_cert_url
+            - universe_domain
+
+
+    """
+    def __init__(self, gdrive_entry_point: str = "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu", gdrive_credentials: Optional[gdrive_credentials_format] = None):
+        """
+        Initializes the configuration for sql storage credentials. If no credentials are provided,
+        a default set of empty values is used, along with a warning message. Validates the input
+        credentials if provided and raises an error for invalid formats.
+
+        :param s3_credentials: Dictionary containing sql credentials with keys matching
+                               the `gdrive_credentials_format` type. If not provided, defaults
+                               to None.
+
+        :raises ValueError: If the provided sql credentials do not match the expected format.
+        """
+        from eo_processing.config.data_formats import gdrive_credentials_format
+
+        self.gdrive_fs: Optional[GDriveFileSystem] = None
+
+        if gdrive_credentials is None:
+            print('WARNING: no gdrive credentials were given or found in the environment variables. '
+                  'The storage object is not initialized.')
+            self.gdrive_credentials = {
+                "type": None,
+                "project_id": None,
+                "private_key_id": None,
+                "private_key": None,
+                "client_email": None,
+                "client_id": None,
+                "auth_uri": None,
+                "token_uri": None,
+                "auth_provider_x509_cert_url": None,
+                "universe_domain": None
+
+            }
+
+        elif ((isinstance(gdrive_credentials, dict))
+              and (set(gdrive_credentials.keys()) == set(gdrive_credentials_format.__annotations__.keys()))):
+            self.gdrive_credentials = {
+                "type": gdrive_credentials['type'],
+                "project_id": gdrive_credentials['project_id'],
+                "private_key_id": gdrive_credentials['private_key_id'],
+                "private_key": gdrive_credentials['private_key'],
+                "client_email": gdrive_credentials['client_email'],
+                "client_id": gdrive_credentials['client_id'],
+                "auth_uri": gdrive_credentials['auth_uri'],
+                "token_uri": gdrive_credentials['token_uri'],
+                "auth_provider_x509_cert_url": gdrive_credentials['auth_provider_x509_cert_url'],
+                "universe_domain": gdrive_credentials['universe_domain']
+            }
+
+        else:
+            raise ValueError('The provided gdrive credentials are not valid. Please check the documentation '
+                             'for the correct format.')
+
+        self.gdrive_entry_point=gdrive_entry_point
+
+
 
     def _init_GDRIVE(self) -> None:
         """
@@ -820,6 +1059,299 @@ class WEED_storage(storage):
                 return gpd.read_file(os.path.join(temp_dir, 'temp.gpkg'), bbox=filter_bbox)
             else:
                 return gpd.read_file(os.path.join(temp_dir, 'temp.gpkg'))
+
+
+class stac_storage:
+    """
+    Manages interaction with gdrive, including initialization, content retrieval, and content upload
+    operations.
+
+    The class provides a set of methods for accessing and working with data stored on gdrive.
+
+    :ivar gdrive_crendentials: Dictionary containing gdrive access and storage information. Contains
+        the following keys:
+            - type: account type.
+            - project_id: The name of the project id.
+            - private_key_id:
+            - private_key:
+
+
+
+    """
+
+    def __init__(self,
+                 stac_credentials: Optional[stac_credentials_format] = None):
+        """
+        Initializes the configuration for sql storage credentials. If no credentials are provided,
+        a default set of empty values is used, along with a warning message. Validates the input
+        credentials if provided and raises an error for invalid formats.
+
+        :param stac_credentials: Dictionary containing sql credentials with keys matching
+                               the `stac_credentials_format` type. If not provided, defaults
+                               to None.
+
+        :raises ValueError: If the provided sql credentials do not match the expected format.
+        """
+        from eo_processing.config.data_formats import stac_credentials_format
+
+
+        if stac_credentials is None:
+            print('WARNING: no stac credentials were given or found in the environment variables. '
+                  'The storage object is not initialized.')
+            self.stac_credentials = {
+                "CLIENT_ID": None,
+                "CLIENT_SECRET": None,
+                "TOKEN_URL": None,
+                "catalog_url": None,
+            }
+
+        elif ((isinstance(stac_credentials, dict))
+              and (set(stac_credentials.keys()) == set(stac_credentials_format.__annotations__.keys()))):
+            self.stac_credentials = {
+                "CLIENT_ID": stac_credentials['CLIENT_ID'],
+                "CLIENT_SECRET": stac_credentials['CLIENT_SECRET'],
+                "TOKEN_URL": stac_credentials['TOKEN_URL'],
+                "catalog_url": stac_credentials['catalog_url']
+
+            }
+
+        else:
+            raise ValueError('The provided stac credentials are not valid. Please check the documentation '
+                             'for the correct format.')
+
+
+
+class ReadFaker:
+    """
+    This class translate the pandas data frame row wise into a file-like
+    object which can be used with the psycopg copy_from bulk inserting into postgresql tables.
+    The object follows the specifications of psycopg for the copy_from function!!!
+    This could be extended to include the index column optionally. Right now the index
+    is not inserted.
+    Note: all other columns from the input pandas df are used, so make sure to specify the columns
+    correctly in the copy_from call.
+    """
+
+    def __init__(self, data):
+        self.iter = data.itertuples()
+
+    def readline(self, size=None):
+        try:
+            # get all columns values in that row
+            row_values = next(self.iter)[1:]  # element 0 is the index
+            # translate the row_values in a string
+            row_string = '\t'.join(str(x) for x in row_values) + '\n'
+        except StopIteration:
+            return ''
+        else:
+            return row_string
+
+    read = readline
+
+class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
+    """
+    Handles storage operations using both Google Drive, AWS S3/storage services and SQL_storage.
+
+    This class provides a unified interface to manage files and data stored in the WEED
+    infrastructure. It integrates Google Drive and S3 functionalities using appropriate
+    APIs, allowing users to initialize settings, authenticate, browse, and interact with
+    these storages.
+
+    It fetches credentials securely from the Terrascope VAULT and enables seamless access
+    to storage operations like fetching files, reading data into geospatial dataframes, and
+    filtering data with bounding boxes.
+
+    Attributes:
+        username: Username for Terrascope VAULT authentication.
+        gdrive_entry_point: Entry point ID of the Google Drive folder.
+        s3_bucket: Name of the S3 bucket to be used.
+        gdrive_fs: Instance for handling Google Drive filesystem operations.
+        s3_client: AWS S3 client instance for interacting with S3 storage.
+        credentials: Dictionary containing fetched credentials for storages.
+        s3_credentials: Dictionary containing S3-specific credentials.
+        gdrive_credentials: Google Drive credentials fetched from the VAULT.
+        sql_credentials: Dictionary containing SQL-specific credentials.
+        stac_credentials: Dictionary containing STAC-specific credentials.
+        export_workspace: Path for data export associated with the S3 bucket.
+    """
+    def __init__(self, username: str = 'buchhornm',
+                 gdrive_entry_point: str = "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu",
+                 s3_bucket: str = "ecdc",
+                 stac_env: str ='prod',
+                 project: str = 'WEED'):
+        """
+        A class constructor that initializes settings for access to Google Drive and S3 services.
+
+        The constructor sets up default values for the user credentials, Google Drive entry point,
+        and S3 bucket. It also initializes necessary credentials and configurations for using
+        Google Drive and S3 storage services.
+
+        :param username: A username string used for accessing credentials.
+        :param gdrive_entry_point: The entry point ID of the Google Drive folder.
+        :param s3_bucket: The name of the S3 bucket to be used.
+        :param stac_env: The environment name for the STAC catalog.
+        :param project: The name of the project.
+        """
+        #super().__init__()
+        self.gdrive_fs: Optional[GDriveFileSystem] = None
+        self.s3_client: Optional[boto3.client] = None
+
+        self.username = username
+        self.credentials = self._get_credentials()
+        self.project = project
+        self.s3_credentials = None
+        self.s3_bucket = None
+        self.export_workspace = None
+        self._set_s3_credentials(bucket=s3_bucket)
+        self._set_sql_credentials()
+        self._set_gdrive_credentials(gdrive_entry_point=gdrive_entry_point)
+        self._set_stac_credentials(stac_env=stac_env)
+
+
+    def _get_credentials(self):
+        """warper to get the credentials."""
+        return get_credentials(self.username)
+
+
+    def switch_s3_bucket(self, bucket: str) -> None:
+        """
+        Switches the current S3 bucket to the specified bucket name.
+
+        This method updates the credentials or settings related to the
+        new specified S3 bucket.
+
+        :param bucket: The name of the S3 bucket to switch to.
+        """
+        self._set_s3_credentials(bucket=bucket)
+
+    def _set_s3_credentials(self, bucket: str) -> None:
+        """
+        Sets the S3 credentials based on the specified bucket name and project. This method checks the validity
+        of the bucket against the predefined buckets and retrieves necessary credentials to
+        interact with the corresponding S3 service. It also reinitializes the S3 client if it is already
+        initialized to ensure it uses the new credentials.
+        This function is now also able to handle the case where we are working for different projects.
+        The naming in the vault should follow the following convention for non weed projects: S3-auth-<<project name>>.
+
+        :param bucket: The name of the S3 bucket to set credentials for. Must be part of the WEED project.
+        :raises Exception: If the specified bucket does not exist in the WEED project.
+        """
+
+        # check
+        if not bucket.lower() in BUCKETS.get(self.project, []):
+            raise Exception(f"Bucket '{bucket}' does not exist in the project '{self.project}'.")
+
+
+        if self.project == 'WEED':
+            s3_vito_vault = string_to_dict(self.credentials['S3-auth'])
+        else:
+            s3_vito_vault = string_to_dict(self.credentials[f'S3-auth-{self.project}'])
+
+        # based on bucket we set variables.
+        bucket = s3_vito_vault['buckets'][bucket.lower()]
+
+        self.s3_credentials = {
+            "AWS_ACCESS_KEY_ID": s3_vito_vault['AWS_ACCESS_KEY_ID'],
+            "AWS_SECRET_ACCESS_KEY": s3_vito_vault['AWS_SECRET_ACCESS_KEY'],
+            "s3_endpoint": s3_vito_vault['s3_endpoint'],
+            "bucket_name": bucket['bucket_name'],
+            "export_workspace": bucket['export_workspace']
+        }
+        self.s3_bucket = self.s3_credentials['bucket_name']
+        self.export_workspace = self.s3_credentials['export_workspace']
+
+        # re-init the s3_client if needed
+        if self.s3_client is not None:
+            self.s3_client.close()
+            self._init_boto3()
+
+
+    def _set_sql_credentials(self) -> None:
+        """
+        Sets the SQL credentials .
+        """
+
+
+        sql_vito_vault = string_to_dict(self.credentials['postGreSQL-auth'])
+
+        self.sql_credentials = {
+            "dbname": sql_vito_vault['dbname'],
+            "schema": sql_vito_vault['schema'],
+            "password": sql_vito_vault['password'],
+            "host": sql_vito_vault['host'],
+            "port": sql_vito_vault['port']
+        }
+
+
+    def _set_gdrive_credentials(self, gdrive_entry_point: str) -> None:
+        """
+                Sets the gdrive credentials. For consistency, the gdrive credentials are set to the same way as
+                sql_credentials and S3_credentials. However the implementation of the gdrive filesystem often requires
+                this to be set in a json iso an dict.
+        """
+
+        gdrive_vito_vault = string_to_dict(self.credentials['gdrive-access'])
+
+        self.gdrive_credentials = {
+            "type": gdrive_vito_vault['type'],
+            "project_id": gdrive_vito_vault['project_id'],
+            "private_key_id": gdrive_vito_vault['private_key_id'],
+            "private_key": gdrive_vito_vault['private_key'],
+            "client_email": gdrive_vito_vault['client_email'],
+            "client_id": gdrive_vito_vault['client_id'],
+            "auth_uri": gdrive_vito_vault['auth_uri'],
+            "token_uri": gdrive_vito_vault['token_uri'],
+            "auth_provider_x509_cert_url": gdrive_vito_vault['auth_provider_x509_cert_url'],
+            "universe_domain": gdrive_vito_vault['universe_domain']
+        }
+        self.gdrive_entry_point = gdrive_entry_point
+
+    def _set_stac_credentials(self, stac_env: str) -> None:
+        """Sets tje STAC credentials. There are two options based on the environment."""
+
+        if stac_env not in ['prod', 'dev']:
+            raise Exception(f'the specified environment {stac_env} does not exist in the WEED project. It should be prod or dev.')
+
+        STAC_vito_vault = string_to_dict(self.credentials[f'STAC-{stac_env}-auth'])
+
+        self.stac_credentials = {
+            "CLIENT_ID": STAC_vito_vault['CLIENT_ID'],
+            "CLIENT_SECRET": STAC_vito_vault['CLIENT_SECRET'],
+            "TOKEN_URL": STAC_vito_vault['TOKEN_URL'],
+            "catalog_url": STAC_vito_vault['catalog_url']
+
+        }
+
+
+
+def get_credentials(user :str ) -> Dict[str, str]:
+    """
+    Retrieves WEED access credentials from Terrascope VAULT using LDAP authentication.
+
+    This method prompts the user to enter their password for Terrascope VAULT, authenticates
+    with the VAULT using LDAP, and fetches credentials from the WEED KV storage path.
+
+    :return: credentials as a dictionary
+    """
+    password_prompt = 'Please enter your password for the Terrascope VAULT: '
+    service_account_password = getpass(prompt=password_prompt)
+
+    try:
+        client = hvac.Client(url='https://vault.vgt.vito.be')
+        client.auth.ldap.login(
+            username=user,
+            password=service_account_password,
+            mount_point='ldap'
+        )
+        secret_version_response = client.secrets.kv.v2.read_secret_version(mount_point='kv',
+                                                                           path='TAP/apps/WEED',
+                                                                           raise_on_deleted_version=True)
+        client.logout()
+    except:
+        raise Exception('Could not retrieve WEED credentials from Terrascope VAULT. '
+                        'Are you connected to the VITO VPN?')
+    return secret_version_response['data']['data']
+
 
 class ProgressPercentage:
     """

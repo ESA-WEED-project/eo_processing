@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TypedDict, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from eo_processing.utils.storage import WEED_S3_storage
+    from eo_processing.utils.storage import WEED_storage
 
 openEO_bbox_format = TypedDict('openEO_bbox_format', {'east': float,
                                                       'south': float,

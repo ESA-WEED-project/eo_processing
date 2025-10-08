@@ -1,18 +1,19 @@
 from __future__ import annotations
 
-from pydrive2.fs import GDriveFileSystem
-import hvac
-from getpass import getpass
-import tempfile
-from typing import Union, Dict, Tuple, List, Optional, TYPE_CHECKING
-import geopandas as gpd
-import os
 import boto3
 from botocore.exceptions import ClientError
-import time
 from eo_processing.utils.helper import string_to_dict
+from getpass import getpass
+import geopandas as gpd
 from hashlib import md5
+import hvac
+import os
+from pydrive2.fs import GDriveFileSystem
+from requests import auth, delete, post, put
+import tempfile
+import time
 from tqdm import tqdm
+from typing import Union, Dict, Tuple, List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import (s3_credentials_format, sql_credentials_format,
@@ -1119,6 +1120,106 @@ class stac_storage:
             raise ValueError('The provided stac credentials are not valid. Please check the documentation '
                              'for the correct format.')
 
+        def get_catalog_url(self):
+            '''
+            Function to get the catalog url from the environment variables.
+            '''
+            return self.stac_credentials.get('catalog_url')
+
+        def get_bearer_auth(self) -> BearerAuth:
+            """Obtain an OAuth2 client_credentials access token."""
+            data = {
+                "grant_type": "client_credentials",
+                "client_id": self.stac_credentials["client_id"],
+                "client_secret": self.stac_credentials["client_secret"],
+                "scope": "openid roles",
+            }
+            resp = post(token_url, data=data)
+            resp.raise_for_status()
+            token = resp.json()["access_token"]
+
+            return BearerAuth(token)
+
+        def upload_collection_to_catalog(self, collection, edit_flag=False):
+            """Add/edit collection to the catalogue."""
+            #get the auth
+            auth_token = self.get_bearer_auth()
+            #get catalog_url
+            catalog_url = self.get_catalog_url()
+
+            # load the collection from the created collection.  
+            coll = collection.to_dict()
+            if "links" in coll:
+                coll["links"] = []
+            coll.setdefault("_auth", {"read": ["anonymous"], "write": ["stac-admin-prod"]})
+            print(coll)
+            if edit_flag:
+                # update an existing collection
+                collection_url = f"{catalog_url}/collections/{collection.id}"
+                resp = put(collection_url, auth=auth_token, json=coll)
+            else:
+                # upload a new collection
+                collection_url = f"{catalog_url}/collections/"
+                resp = post(collection_url, auth=auth_token, json=coll)
+            if resp.status_code == 201:
+                coll_id = resp.json()["id"]
+                if edit_flag:
+                    print(f"Collection edited: {coll_id}")
+                else:
+                    print(f"Collection created: {coll_id}")
+                return coll_id
+            elif resp.status_code == 400:
+                raise RuntimeError("Collection validation failed")
+            else:
+                resp.raise_for_status()
+
+        # Add items
+        def upload_items_to_collection(self, collection, items_to_upload):
+            """
+            uploads new items to the collection.
+            """
+            #get the auth
+            auth_token = self.get_bearer_auth()
+            #get catalog_url
+            catalog_url = self.get_catalog_url()
+
+            # check if there are items that need to be uploaded only if update is False
+            if len(items_to_upload) == 0:
+                print("no items to upload")
+                return
+
+            print(
+                f"Found {len(items_to_upload)} items that need to be uploaded/edied"
+            )
+            # items url
+            items_url = f"{catalog_url}/collections/{collection.id}/items"
+
+            for [item_id, update_edit] in items_to_upload:
+                try:
+                    item = collection.get_item(item_id)
+                    item.clear_links()
+                except Exception as e:
+                    print(f"Failed to get {item_id} from collection: {e}")
+                    continue
+                if update_edit == "upload":
+                    resp = post(items_url, auth=auth_token, json=item.to_dict())
+                if update_edit == "edit":
+                    item_url = f"{items_url}/{item.id}"
+                    resp = put(item_url, auth=auth_token, json=item.to_dict())
+                if resp.ok:
+                    print(f"  ✓ {item_id} has been {update_edit}")
+                else:
+                    print(f"  ✗ {item_id} → {resp.status_code} {resp.text}")
+
+        def delete_collection(self, collection_id):
+            catalog_url = self.get_catalog_url()
+            auth_token = self.get_bearer_auth()
+            collection_url = f"{catalog_url}/collections/{collection_name}"
+            resp = delete(collection_url, auth=auth_token)
+            if resp.status_code == 204:
+                print(f"Collection {collection_url.rsplit('/')[-1]} deleted successfully")
+            else:
+                print(f"Failed to delete collection: HTTP {resp.status_code}\n{resp.text}")
 
 
 class ReadFaker:
@@ -1147,6 +1248,19 @@ class ReadFaker:
             return row_string
 
     read = readline
+
+class BearerAuth(auth.AuthBase):
+    """Attach a Bearer token to the Authorization header.
+    requests for authentication."""
+
+    def __init__(self, token: str):
+        self.token = token
+
+    def __call__(self, r):
+        r.headers["Authorization"] = f"Bearer {self.token}"
+        return r
+
+
 
 class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
     """

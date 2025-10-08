@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import storage_option_format
-    from eo_processing.utils.storage import WEED_S3_storage
+    from eo_processing.utils.storage import WEED_storage
 
 # ---------------------------------------------------
 # standard processing options

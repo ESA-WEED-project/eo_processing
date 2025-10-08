@@ -370,7 +370,7 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
 def generate_storage_options(workspace_export: bool = False,
                              S3_prefix: Optional[str] = None,
                              local_S3_needed: bool = False,
-                             storage: Optional[WEED_S3_storage] = None) -> storage_option_format:
+                             storage: Optional[WEED_storage] = None) -> storage_option_format:
     """
     Generates a dictionary of storage options based on provided parameters. This function is used to configure
     the storage settings for exporting results and handling S3 storage interactions.

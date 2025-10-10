@@ -7,9 +7,11 @@ import xarray as xr
 import numpy as np
 import json
 import shutil
+import pyarrow.parquet as pq
 from urllib.parse import urlparse
 from openeo.udf import inspect
 from openeo.metadata import CubeMetadata
+from ast import literal_eval
 from typing import Dict, List, Tuple, Union
 
 sys.path.append("onnx_deps")
@@ -24,7 +26,10 @@ def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
     """
     # Get the model metadata
     model_id = context.get("model_id")
-    _, output_band_names = get_model_metadata(model_id)
+    if model_id.startswith('http'):
+        _ , output_band_names = get_model_metadata_artifact(model_id)
+    else:
+        _ , output_band_names = get_model_metadata(model_id)
     # rename band labels
     return metadata.rename_labels(dimension="bands", target=output_band_names)
 
@@ -86,6 +91,128 @@ def get_model_metadata(modelID) -> Tuple[List[str], List[str]]:
         raise RuntimeError(r.text)
     return model_urls, output_band_names
 
+@functools.lru_cache(maxsize=1)
+def get_model_metadata_artifact(modelID: str) -> Tuple[List[str], List[str]]:
+    """
+    Retrieves and parses metadata for a given model from its associated parquet artifact.  
+    The metadata contains the list of model URLs and the model's output band names.  
+
+    The function ensures that both `model_urls` and `output_band_names` exist in the
+    metadata. If the metadata is missing, invalid, or cannot be read, an error is raised.
+
+    :param modelID: The unique identifier of the model whose metadata should be retrieved.
+    :return: A tuple containing:
+        - model_urls (List[str]): A list of URLs associated with the model.
+        - output_band_names (List[str]): A list of the model's output band names.
+
+    :raises RuntimeError: If the parquet metadata cannot be read or is missing.  
+    :raises ValueError: If either `model_urls` or `output_band_names` is missing from
+        the metadata.
+    """
+    # Download model ensemble_artifact
+    inspect(message=f"Downloading model file for {modelID}...")
+    model_path = download_file(modelID)
+
+    # Read metadata
+    try:
+        metadata = read_parquet_metadata(model_path)
+    except Exception as e:
+        raise RuntimeError(f"Failed to read parquet metadata for {modelID}: {e}")
+
+    if not metadata:
+        raise RuntimeError(f"No metadata found for model {modelID}")
+
+    # Extract model URLs and band names
+    model_urls = convert_to_list(metadata.get("model_urls", None))
+    output_band_names = convert_to_list(metadata.get("output_band_names", None))
+    if not output_band_names:
+      raise ValueError(f"output_band_names does not exist")
+    if not model_urls:
+      raise ValueError(f"model_urls does not exist")
+
+    inspect(message=f"Metadata for model {modelID} successfully extracted.")
+
+    return model_urls, output_band_names
+
+
+def read_parquet_metadata(path_parquet: str) -> dict:
+    """
+    Reads the key-value metadata from a Parquet file using pyarrow.
+
+    :param path_parquet: Path to the Parquet file.
+    :return: A dictionary containing metadata key-value pairs. 
+        Values that are JSON strings will be converted to dicts or lists.
+        Returns an empty dict if no metadata is found.
+    """
+    inspect(f"Reading metadata of {path_parquet} ...")
+    parquet_file = pq.ParquetFile(path_parquet)
+    metadata = parquet_file.metadata
+
+    dict_metadata = {}
+
+    if metadata is not None and metadata.metadata is not None:
+        for key, value in metadata.metadata.items():
+            try:
+                key_object = decode_object(key)
+                value_object = decode_object(value)
+                dict_metadata[key_object] = value_object
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to decode parquet metadata key/value ({key}, {value}): {e}"
+                )
+
+    return dict_metadata
+
+def decode_object(obj: bytes, encoding: str = "utf-8") -> object:
+    """
+    Decode a bytes object back into Python object.
+
+    - First decode from bytes to string
+    - Then attempt JSON parsing (for dicts/lists/numbers/bools/null)
+    - If JSON parsing fails, return as plain string
+    """
+    if not isinstance(obj, (bytes, bytearray)):
+        raise TypeError(f"decode_object expected bytes, got {type(obj)}")
+
+    text = obj.decode(encoding)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
+    
+def string_to_dict(string: str) -> Union[Dict, List]:
+    """
+    Converts a string representation of a dictionary back into a dictionary.
+
+    :param string: The string to convert.
+    :return: A dictionary object.
+    """
+    try:
+        # Attempt to load as JSON
+        return json.loads(string)
+    except json.JSONDecodeError:
+        # Fallback to evaluating as a Python literal
+        return literal_eval(string)
+
+def convert_to_list(input_value: Union[str, List[str]]) -> List[str]:
+    """
+    Parse a string representation of a list or a list object into a Python list object.
+
+    This function takes an input that can either be a string representing a list
+    or an already existing list object. If the input is a string, it utilizes
+    `string_to_dict` function to convert it into a Python list. If the input is already
+    a list, it simply returns the input without any modifications.
+
+    :param input_value: The input value to parse. It can be a string that represents
+        a list or a list object.
+    :return: A Python list object resulting from parsing the string or directly returning
+        the input list if the input is already of list type.
+    """
+    if not isinstance(input_value, list):
+        return string_to_dict(input_value)
+    else:
+        return input_value
 
 def is_onnx_file(file_path: str) -> bool:
     """
@@ -331,13 +458,16 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
         "model_list" key.
     :return: An `xr.DataArray` representing the processed output cube after successfully applying all models.
     """
-    # fill nan in cube and make sure cube is in right dtype for inference
-    cube = cube.fillna(0)
+    # Make sure the cube is in the right dtype for inference
+    # NaN values are defined by open EO as np.nan and will be ignored 
     cube = cube.astype("float32")
 
     # get the list of models to apply on the cube from context
     model_id = context.get("model_id")
-    model_urls, _ = get_model_metadata(model_id)
+    if model_id.startswith('http'):
+        model_urls, _ = get_model_metadata_artifact(model_id)
+    else:
+        model_urls, _ = get_model_metadata(model_id)
 
     # loop over the models and apply on input array
     output_cube_initialized = False

@@ -39,7 +39,7 @@ class S3_storage:
             - AWS_ACCESS_KEY_ID: S3 access key required for authentication.
             - AWS_SECRET_ACCESS_KEY: Secret key associated with the S3 access key.
             - s3_endpoint: Endpoint URL for accessing the S3 bucket.
-            - bucket_name: Name of the S3 bucket.
+            - bucket_name: Name of the S3 bucket. ['ecdc', 'model', 'extent', 'test', 'ecdc-stac', 'extent-stac']
             - export_workspace: Directory path where exported files will be saved of S3.
 
     :ivar s3_client: Initialized S3 client object created using the provided credentials.

@@ -19,6 +19,10 @@ VI_LIST = ['NDVI',
            'AVI',
            'CIRE',
            'NIRv',
+           'MBWI', #added for WET
+           'WI1', #added for WET ND0206
+           'NMDI',#added for WET
+           'TWI', #added for WET
            'NDMI',
            'NDWI',
            'BLFEI',

@@ -423,7 +423,7 @@ def generate_nonEO_feature_cube(
         # resample the cube to 10m and EPSG of corresponding 20x20km grid tile
         nonEO_feature_cube = nonEO_feature_cube.resample_spatial(projection=processing_options['target_crs'],
                                      resolution=processing_options['resolution'],
-                                     method=reprojection_method)
+                                     method=reprojection_method).filter_bbox(bbox)
         # drop the time dimension this only needs to be done for STAC
         if isSTAC:
             try:

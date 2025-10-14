@@ -13,40 +13,30 @@ from requests import auth, delete, post, put
 import tempfile
 import time
 from tqdm import tqdm
-from typing import Union, Dict, Tuple, List, Optional, TYPE_CHECKING
+from typing import Union, Dict, Tuple, List, TYPE_CHECKING, IO, Optional
+import psycopg
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import (s3_credentials_format, sql_credentials_format,
                                                    gdrive_credentials_format, stac_credentials_format)
+    import pystac
 
 BUCKETS = {'WEED': ['ecdc', 'model', 'extent', 'test', 'ecdc-stac', 'extent-stac'],
            'sonata':['sonata','sonata-stac'],
-        'obsgession':['obsgession','obsgession-stac']}
+           'obsgession':['obsgession','obsgession-stac']}
 STAC_CATS = ['dev','prod']
 
 class S3_storage:
     """
-    Manages interaction with S3 storage, including initialization, content retrieval, and file
-    operations.
+    Handles operations related to Amazon S3 storage, including initializing storage
+    credentials, configuring a Boto3 client, retrieving and managing S3 resources, and
+    facilitating transfers of objects between an S3 bucket and local directories.
 
-    The class provides a set of methods for accessing and working with data stored in S3-compatible
-    cloud storage. This includes initializing an S3 client, fetching content metadata, downloading
-    files, and building URLs. It uses Boto3 for communication with the S3 API and offers features
-    such as retrying downloads and filtering file types.
-
-    :ivar s3_credentials: Dictionary containing S3 access and storage information. Contains
-        the following keys:
-            - AWS_ACCESS_KEY_ID: S3 access key required for authentication.
-            - AWS_SECRET_ACCESS_KEY: Secret key associated with the S3 access key.
-            - s3_endpoint: Endpoint URL for accessing the S3 bucket.
-            - bucket_name: Name of the S3 bucket.
-            - export_workspace: Directory path where exported files will be saved of S3.
-
-    :ivar s3_client: Initialized S3 client object created using the provided credentials.
-        Defaults to None when credentials are not set.
-
-    :ivar s3_bucket: Name of the associated S3 bucket extracted from the credentials. Will
-        be `None` if no credentials are provided.
+    This class primarily focuses on interacting with an S3 bucket using Boto3, enabling
+    users to fetch stored content, download files, and manage credentials within a
+    controlled setup. The design supports error handling for misconfigured credentials
+    and retries for failed operations while remaining flexible through parameterized
+    inputs.
     """
     def __init__(self, s3_credentials: Optional[s3_credentials_format] = None):
         """
@@ -455,7 +445,7 @@ class S3_storage:
     def upload_directory_to_s3(self, local_dir_path: str, s3_prefix: str = '',
                                progress_bar: bool = False, etag_check: bool = False, exist_check: bool = False) -> List[str]:
         """
-        :param local_file_path: A string representing the local path of the directory to be uploaded.
+        :param local_dir_path: A string representing the local path of the directory to be uploaded.
             Must be a valid path to an existing file.
         :param s3_prefix: A string representing the prefix/directory on the S3 bucket where
             the files of the local directory should be uploaded folowwing the relative path. Defaults to an empty string.
@@ -641,36 +631,31 @@ class S3_storage:
 
         return False
 
-
 class SQL_storage:
     """
-    Manages interaction with PostSQL_database, including initialization, content retrieval, and content upload
-    operations.
+    Handles SQL database storage interaction.
 
-    The class provides a set of methods for accessing and working with data stored in PostGreSQL database.
-     This includes initializing an S3 client, fetching content metadata, downloading
-    files, and building URLs. It uses psycopg2 to interact with the database.
+    This class provides functionalities to initialize SQL storage credentials,
+    connect to the database, execute SQL queries, retrieve or update data, and
+    perform bulk inserts. The class ensures that all SQL operations are conducted
+    with proper connection management and error handling.
 
-    :ivar SQL_credentials: Dictionary containing SQL access and storage information. Contains
-        the following keys:
-            - user: The schema of the postgreSQL.
-            - dbname: The name of the database.
-            - password: password for accessing the PostGreSQL database.
-            - host: Url to access the database.
-            - port: Port to query the database.
-
+    Attributes:
+        sql_credentials: Dictionary containing SQL credentials required for
+                         database connection. If no credentials are provided,
+                         defaults to None, and initializes with placeholders.
+        hadoop: Boolean flag for determining usage of Hadoop host in database
+                connections. Defaults to False.
     """
     def __init__(self, sql_credentials: Optional[sql_credentials_format] = None):
         """
-        Initializes the configuration for sql storage credentials. If no credentials are provided,
-        a default set of empty values is used, along with a warning message. Validates the input
-        credentials if provided and raises an error for invalid formats.
+        Initializes an object with SQL credentials for database connection. If no credentials are
+        provided, default values are set without initializing the storage object. Validates the
+        given input against the expected SQL credentials format.
 
-        :param s3_credentials: Dictionary containing sql credentials with keys matching
-                               the `sql_credentials_format` type. If not provided, defaults
-                               to None.
-
-        :raises ValueError: If the provided sql credentials do not match the expected format.
+        :param sql_credentials: A dictionary containing SQL credentials with keys matching the
+            sql_credentials_format. If not provided or invalid, default values are used or an error
+            is raised.
         """
         from eo_processing.config.data_formats import sql_credentials_format
         if sql_credentials is None:
@@ -700,7 +685,17 @@ class SQL_storage:
         #at the moment we initialize with hadoop false. Not sure if it's need to have?
         self.hadoop = False
 
-    def create_connection(self):
+    def create_connection(self) -> psycopg.Connection:
+        """
+        Establishes a connection to a PostgreSQL database using the provided credentials. 
+        Supports conditional connection to Hadoop-specific host if specified.
+
+        :param self: The instance of the class containing the method. 
+
+        :raises psycopg.Error: If unable to establish a connection to the database.
+
+        :return: A connection object representing the database connection.
+        """
         try:
             # get connection to server
             print("** Establish connection to the database ...")
@@ -713,7 +708,7 @@ class SQL_storage:
                                    user=self.sql_credentials['schema'],
                                    password=self.sql_credentials['password'],
                                    host=host,
-                                   port=sql_credentials['port'])
+                                   port=self.sql_credentials['port'])
 
 
         except psycopg.Error as e:
@@ -724,10 +719,19 @@ class SQL_storage:
 
         return conn
 
+    def GenericQueryWithResult(self, sql_statement: str) -> List[tuple]:
+        """
+        Executes a given SQL statement on the database and returns the fetched results. 
 
+        The function establishes a connection to the database, executes the provided 
+        SQL statement using a cursor, and retrieves the resulting data. If an error occurs 
+        during execution, it handles the error by printing error codes/messages, performing 
+        rollback if possible, and then re-raises the error. Finally, it ensures the proper 
+        cleanup of database resources such as closing the cursor and connection.
 
-    def GenericQueryWithResult(self, ConfigSection, sql_statement):
-        """ A generic query which provides all results of the request as list"""
+        :param sql_statement: The SQL query string to be executed.
+        :return: A list of tuples containing the query result.
+        """
         conn = self.create_connection()
 
         # now we work in the database
@@ -756,8 +760,14 @@ class SQL_storage:
             if conn.closed == 0: conn.close()
         return (vResult)
 
-    def GenericQueryWithOUTResult(self, ConfigSection, sql_statement):
-        """ A generic query which is only executed"""
+    def GenericQueryWithOUTResult(self, sql_statement: str) -> None:
+        """
+        Executes a SQL statement on the database without returning a result. This method commits the
+        changes to the database if the execution is successful. In case of an error, it performs a rollback 
+        if possible and raises the encountered error.
+
+        :param sql_statement: The SQL statement to be executed.
+        """
         conn = self.create_connection()
 
         # now we work in the database
@@ -784,8 +794,21 @@ class SQL_storage:
             # close connection
             if conn.closed == 0: conn.close()
 
-    def BulkInsert(self, ConfigSection, vTable, data, lColumns):
-        """ A generic query which is only executed"""
+    def BulkInsert(self, vTable: str, data: IO, lColumns: List[str]) -> None:
+        """
+        Executes a bulk insert operation into the specified database table.
+
+        This method inserts data into a specified table in the database using a bulk
+        insert operation. It takes the table name, the data to be inserted, and the 
+        corresponding column names. Errors during the insert operation are handled 
+        by rolling back the transaction and providing error details.
+
+        :param vTable: The name of the database table where data will be inserted.
+        :param data: A file-like object (e.g., an open file) containing the data to
+            be inserted in a format acceptable by the database.
+        :param lColumns: A list of column names in the database table that corresponds
+            to the data being inserted.
+        """
         conn = self.create_connection()
 
         # now we work in the database
@@ -813,14 +836,21 @@ class SQL_storage:
             # close connection
             if conn.closed == 0: conn.close()
 
-    def QueryItems(self, ConfigSection, table, lcolumns):
-        """ Queries the tile workflow table in the postgreSQL database
-            and returns requested columns
+    def QueryItems(self, table: str, lcolumns: List[str]) -> List[tuple]:
+        """
+        Query items from a specified database table.
 
-            lcolumns = list of columns next to tile_id which have to be extracted
-            table = SQL table in schema to use for query
-            ConfigSection = HEADline for SQL server in Config ini
-            """
+        This method retrieves data from a PostgreSQL database table based on the specified
+        columns. It supports fetching data in batches using a server-side cursor to manage
+        large datasets efficiently. If an error occurs during the query process, it attempts
+        to rollback the database connection.
+
+        :param table: Name of the database table from which data will be queried.
+        :param lcolumns: List of column names to include in the query. Must contain at least one column.
+        :raises ValueError: If no columns are specified in the input list.
+        :raises psycopg.Error: If an error occurs during the execution of the database query.
+        :return: Retrieved data from the query as a list of tuples.
+        """
         # pre-check if columns are requested
         if len(lcolumns) == 0:
             print('No columns for the query are specified...')
@@ -872,17 +902,22 @@ class SQL_storage:
 
         return lresults
 
+    def StatusUpdateTiles(self, table: str, tileid: int, lcolumns: List[str], lmsg: List[str]) -> bool:
+        """
+        Updates specific columns in a particular database table for a given tile ID with new values.
 
-    def StatusUpdateTiles(self, ConfigSection, table, tileid, lcolumns, lmsg):
-        """ Function to set the final status
-            for several columns in the workflow tile table
+        The method executes an UPDATE SQL command to modify the entries in the specified table. Each given
+        column in `lcolumns` is updated with corresponding values from `lmsg` where the `tile_id` matches
+        the provided `tileid`. The operation ensures proper transaction handling, with commit/rollback
+        mechanisms in case of success or failure. Logs possible errors during execution and ensures
+        database connection cleanup.
 
-            tileid = tile (row) in table which has to be updated
-            lcolumns = list of columns which have to be updated
-            lmsg = values for the columns which have to be updated
-            table = SQL table in schema to use for query
-            ConfigSection = HEADline for SQL server in Config ini
-            """
+        :param table: The name of the database table to be updated.
+        :param tileid: The identifier of the tile for which data is to be updated.
+        :param lcolumns: A list of column names that need to be updated.
+        :param lmsg: A list of new values corresponding to the specified columns.
+        :return: True if the update operation completes successfully, otherwise False.
+        """
         # establish connection to data base
         # ini connection
         conn = self.create_connection()
@@ -924,37 +959,40 @@ class SQL_storage:
 
 class gdrive_storage:
     """
-    Manages interaction with gdrive, including initialization, content retrieval, and content upload
-    operations.
+    Handles operations with Google Drive storage, including initialization
+    using service account credentials, accessing files, and reading them into
+    GeoDataFrames. Provides methods for overviews and downloading files.
 
-    The class provides a set of methods for accessing and working with data stored on gdrive.
-
-    :ivar gdrive_crendentials: Dictionary containing gdrive access and storage information. Contains
-        the following keys:
-            - type: account type.
-            - project_id: The name of the project id.
-            - private_key_id:
-            - private_key:
-            - client_email:
-            - client_id
-            - auth_uri
-            - token_uri
-            - auth_provider_x509_cert_url
-            - universe_domain
-
-
+    This class is designed for interacting with a Google Drive file system
+    using a service account. It encapsulates functionalities such as
+    initializing credentials, accessing files, and filtering geospatial data.
+    Requirements for credentials and proper usage are validated during
+    initialization. Provides a convenient interface for accessing and managing
+    Google Drive resources.
     """
-    def __init__(self, gdrive_entry_point: str = "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu", gdrive_credentials: Optional[gdrive_credentials_format] = None):
+    def __init__(self, gdrive_entry_point: str = "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu", 
+                 gdrive_credentials: Optional[gdrive_credentials_format] = None):
         """
-        Initializes the configuration for sql storage credentials. If no credentials are provided,
-        a default set of empty values is used, along with a warning message. Validates the input
-        credentials if provided and raises an error for invalid formats.
+        Initializes a class instance with provided or default Google Drive credentials, and sets up 
+        the required parameters for accessing Google Drive storage. Validations are performed to ensure 
+        the provided credentials meet the expected format. If no credentials are provided, default 
+        values are used instead, and a warning is issued. Throws a ValueError when invalid credentials 
+        are passed.
 
-        :param s3_credentials: Dictionary containing sql credentials with keys matching
-                               the `gdrive_credentials_format` type. If not provided, defaults
-                               to None.
+        :param gdrive_entry_point: Entry point for the Google Drive system, defined as a string. 
+                                    Defaults to "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu".
+        :param gdrive_credentials: Optional dictionary containing Google Drive credentials. Should match 
+                                    the structure defined in gdrive_credentials_format.
 
-        :raises ValueError: If the provided sql credentials do not match the expected format.
+        :raises ValueError: If gdrive_credentials is provided and does not match the expected format.
+
+        :attribute gdrive_fs: Optional attribute that represents the Google Drive file system object, 
+                              initialized to None by default.
+        :attribute gdrive_credentials: Dictionary that stores the Google Drive credentials. If not 
+                                        provided, default placeholder values are used, with all 
+                                        keys being set to None.
+        :attribute gdrive_entry_point: Attribute storing the root entry point for accessing the 
+                                        Google Drive system.
         """
         from eo_processing.config.data_formats import gdrive_credentials_format
 
@@ -997,8 +1035,6 @@ class gdrive_storage:
                              'for the correct format.')
 
         self.gdrive_entry_point=gdrive_entry_point
-
-
 
     def _init_GDRIVE(self) -> None:
         """
@@ -1061,40 +1097,37 @@ class gdrive_storage:
             else:
                 return gpd.read_file(os.path.join(temp_dir, 'temp.gpkg'))
 
-
 class stac_storage:
     """
-    Manages interaction with gdrive, including initialization, content retrieval, and content upload
-    operations.
+    StacStorage class provides an interface to manage STAC collections and items in a catalog.
 
-    The class provides a set of methods for accessing and working with data stored on gdrive.
+    The class handles authentication, interacting with a STAC catalog, adding, editing, or deleting 
+    collections and items, and checking the validity of provided credentials. It ensures that operations 
+    on the catalog are properly authenticated and offers methods to simplify catalog interaction for users.
 
-    :ivar gdrive_crendentials: Dictionary containing gdrive access and storage information. Contains
-        the following keys:
-            - type: account type.
-            - project_id: The name of the project id.
-            - private_key_id:
-            - private_key:
+    Attributes:
+        stac_credentials (Optional[stac_credentials_format]): A dictionary containing the required credentials
+        to access the STAC catalog. This includes CLIENT_ID, CLIENT_SECRET, TOKEN_URL, and catalog_url.
 
-
-
+    Raises:
+        ValueError: Raised if the provided stac_credentials do not match the expected format.
     """
 
     def __init__(self,
-                 stac_credentials: Optional[stac_credentials_format] = None):
+                 stac_credentials: Optional[stac_credentials_format] = None) -> None:
         """
-        Initializes the configuration for sql storage credentials. If no credentials are provided,
-        a default set of empty values is used, along with a warning message. Validates the input
-        credentials if provided and raises an error for invalid formats.
+        Initializes an object with STAC (SpatioTemporal Asset Catalog) credentials. If no
+        credentials are provided, default empty values will be set, and the storage object
+        will not be initialized. If credentials are provided, their format is validated to
+        ensure compatibility.
 
-        :param stac_credentials: Dictionary containing sql credentials with keys matching
-                               the `stac_credentials_format` type. If not provided, defaults
-                               to None.
-
-        :raises ValueError: If the provided sql credentials do not match the expected format.
+        :param stac_credentials: Optional dictionary containing STAC credentials. The dictionary keys
+                                 must match the keys defined in `stac_credentials_format` annotation.
+                                 If not provided, default values with None will be assigned.
+        :raises ValueError: If the provided `stac_credentials` do not match the expected format
+                            defined in `stac_credentials_format`.
         """
         from eo_processing.config.data_formats import stac_credentials_format
-
 
         if stac_credentials is None:
             print('WARNING: no stac credentials were given or found in the environment variables. '
@@ -1120,123 +1153,189 @@ class stac_storage:
             raise ValueError('The provided stac credentials are not valid. Please check the documentation '
                              'for the correct format.')
 
-        def get_catalog_url(self):
-            '''
-            Function to get the catalog url from the environment variables.
-            '''
-            return self.stac_credentials.get('catalog_url')
+    def get_catalog_url(self) -> Optional[str]:
+        """
+        Returns the catalog URL from stored STAC credentials.
 
-        def get_bearer_auth(self) -> BearerAuth:
-            """Obtain an OAuth2 client_credentials access token."""
-            data = {
-                "grant_type": "client_credentials",
-                "client_id": self.stac_credentials["client_id"],
-                "client_secret": self.stac_credentials["client_secret"],
-                "scope": "openid roles",
-            }
-            resp = post(token_url, data=data)
-            resp.raise_for_status()
-            token = resp.json()["access_token"]
+        This function retrieves the 'catalog_url' key value from the
+        STAC credentials stored within the instance. The value returned
+        may be None if the key does not exist in the credentials dictionary.
 
-            return BearerAuth(token)
+        :return: The catalog URL as a string if present, or None.
+        :rtype: Optional[str]
+        """
+        return self.stac_credentials.get('catalog_url')
 
-        def upload_collection_to_catalog(self, collection, edit_flag=False):
-            """Add/edit collection to the catalogue."""
-            #get the auth
-            auth_token = self.get_bearer_auth()
-            #get catalog_url
-            catalog_url = self.get_catalog_url()
+    def get_bearer_auth(self) -> BearerAuth:
+        """
+        Returns an instance of BearerAuth with a token retrieved using client credentials.
 
-            # load the collection from the created collection.  
-            coll = collection.to_dict()
-            if "links" in coll:
-                coll["links"] = []
-            coll.setdefault("_auth", {"read": ["anonymous"], "write": ["stac-admin-prod"]})
-            print(coll)
+        This method communicates with a token service endpoint to request an
+        access token using the `client_credentials` grant type. The access
+        token is then encapsulated in a `BearerAuth` object and returned.
+
+        :param self: Instance of the class invoking this method.
+
+        :return: An instance of `BearerAuth` initialized with the retrieved access token.
+        """
+        data = {
+            "grant_type": "client_credentials",
+            "client_id": self.stac_credentials["client_id"],
+            "client_secret": self.stac_credentials["client_secret"],
+            "scope": "openid roles",
+        }
+        resp = post(self.stac_credentials["token_url"], data=data)
+        resp.raise_for_status()
+        token = resp.json()["access_token"]
+
+        return BearerAuth(token)
+
+    def upload_collection_to_catalog(self, collection: pystac.Collection, edit_flag: bool = False) -> str:
+        """
+        Uploads a STAC collection to a catalog. This method either creates a new collection or updates an
+        existing collection based on the provided `edit_flag`.
+
+        :param collection: The STAC collection to be uploaded, represented as a `pystac.Collection` object.
+        :param edit_flag: A boolean flag indicating whether to edit an existing collection (True) or create
+            a new one (False). Default is False.
+
+        :raises RuntimeError: If the collection validation fails (HTTP 400 response).
+        :raises requests.exceptions.RequestException: For any non-400 response errors during the HTTP request.
+
+        :return: The ID of the created or updated collection as a string.
+        """
+        #get the auth
+        auth_token = self.get_bearer_auth()
+        #get catalog_url
+        catalog_url = self.get_catalog_url()
+
+        # load the collection from the created collection.  
+        coll = collection.to_dict()
+        if "links" in coll:
+            coll["links"] = []
+        coll.setdefault("_auth", {"read": ["anonymous"], "write": ["stac-admin-prod"]})
+        print(coll)
+        if edit_flag:
+            # update an existing collection
+            collection_url = f"{catalog_url}/collections/{collection.id}"
+            resp = put(collection_url, auth=auth_token, json=coll)
+        else:
+            # upload a new collection
+            collection_url = f"{catalog_url}/collections/"
+            resp = post(collection_url, auth=auth_token, json=coll)
+        if resp.status_code == 201:
+            coll_id = resp.json()["id"]
             if edit_flag:
-                # update an existing collection
-                collection_url = f"{catalog_url}/collections/{collection.id}"
-                resp = put(collection_url, auth=auth_token, json=coll)
+                print(f"Collection edited: {coll_id}")
             else:
-                # upload a new collection
-                collection_url = f"{catalog_url}/collections/"
-                resp = post(collection_url, auth=auth_token, json=coll)
-            if resp.status_code == 201:
-                coll_id = resp.json()["id"]
-                if edit_flag:
-                    print(f"Collection edited: {coll_id}")
-                else:
-                    print(f"Collection created: {coll_id}")
-                return coll_id
-            elif resp.status_code == 400:
-                raise RuntimeError("Collection validation failed")
+                print(f"Collection created: {coll_id}")
+            return coll_id
+        elif resp.status_code == 400:
+            raise RuntimeError("Collection validation failed")
+        else:
+            resp.raise_for_status()
+
+    def upload_items_to_collection(self, collection: pystac.Collection,
+                                   items_to_upload: List[Tuple[str, str]]) -> None:
+        """
+        Uploads or edits items in a given collection using the provided list of item actions.
+
+        This method iterates through a list of items and their specified actions (upload or
+        edit) to process them accordingly. It fetches an authentication token and catalog URL,
+        manipulates the items in the collection, and sends the appropriate HTTP requests
+        to either upload or update the items on the remote server.
+
+        :param collection: The STAC Collection object where items need to be updated or
+            uploaded.
+        :param items_to_upload: A list of tuples where each tuple contains an item ID (str)
+            and the corresponding action ("upload" or "edit").
+        """
+        #get the auth
+        auth_token = self.get_bearer_auth()
+        #get catalog_url
+        catalog_url = self.get_catalog_url()
+
+        # check if there are items that need to be uploaded only if update is False
+        if len(items_to_upload) == 0:
+            print("no items to upload")
+            return
+
+        print(
+            f"Found {len(items_to_upload)} items that need to be uploaded/edied"
+        )
+        # items url
+        items_url = f"{catalog_url}/collections/{collection.id}/items"
+
+        for [item_id, update_edit] in items_to_upload:
+            try:
+                item = collection.get_item(item_id)
+                item.clear_links()
+            except Exception as e:
+                print(f"Failed to get {item_id} from collection: {e}")
+                continue
+            if update_edit == "upload":
+                resp = post(items_url, auth=auth_token, json=item.to_dict())
+            if update_edit == "edit":
+                item_url = f"{items_url}/{item.id}"
+                resp = put(item_url, auth=auth_token, json=item.to_dict())
+            if resp.ok:
+                print(f"  ✓ {item_id} has been {update_edit}")
             else:
-                resp.raise_for_status()
+                print(f"  ✗ {item_id} → {resp.status_code} {resp.text}")
 
-        # Add items
-        def upload_items_to_collection(self, collection, items_to_upload):
-            """
-            uploads new items to the collection.
-            """
-            #get the auth
-            auth_token = self.get_bearer_auth()
-            #get catalog_url
-            catalog_url = self.get_catalog_url()
+    def delete_collection(self, collection_name: str) -> None:
+        """
+        Deletes a specified collection from the catalog. This method constructs the   
+        URL for the collection, uses authentication to validate the request, and        
+        sends a delete request to remove the collection. If the deletion is successful,     
+        a confirmation message is printed. Otherwise, an error message with the                     
+        appropriate HTTP status code and error details is displayed.                         
 
-            # check if there are items that need to be uploaded only if update is False
-            if len(items_to_upload) == 0:
-                print("no items to upload")
-                return
-
-            print(
-                f"Found {len(items_to_upload)} items that need to be uploaded/edied"
-            )
-            # items url
-            items_url = f"{catalog_url}/collections/{collection.id}/items"
-
-            for [item_id, update_edit] in items_to_upload:
-                try:
-                    item = collection.get_item(item_id)
-                    item.clear_links()
-                except Exception as e:
-                    print(f"Failed to get {item_id} from collection: {e}")
-                    continue
-                if update_edit == "upload":
-                    resp = post(items_url, auth=auth_token, json=item.to_dict())
-                if update_edit == "edit":
-                    item_url = f"{items_url}/{item.id}"
-                    resp = put(item_url, auth=auth_token, json=item.to_dict())
-                if resp.ok:
-                    print(f"  ✓ {item_id} has been {update_edit}")
-                else:
-                    print(f"  ✗ {item_id} → {resp.status_code} {resp.text}")
-
-        def delete_collection(self, collection_id):
-            catalog_url = self.get_catalog_url()
-            auth_token = self.get_bearer_auth()
-            collection_url = f"{catalog_url}/collections/{collection_name}"
-            resp = delete(collection_url, auth=auth_token)
-            if resp.status_code == 204:
-                print(f"Collection {collection_url.rsplit('/')[-1]} deleted successfully")
-            else:
-                print(f"Failed to delete collection: HTTP {resp.status_code}\n{resp.text}")
-
+        :param collection_name: The name of the collection to delete.                     
+        """
+        catalog_url = self.get_catalog_url()
+        auth_token = self.get_bearer_auth()
+        collection_url = f"{catalog_url}/collections/{collection_name}"
+        resp = delete(collection_url, auth=auth_token)
+        if resp.status_code == 204:
+            print(f"Collection {collection_url.rsplit('/')[-1]} deleted successfully")
+        else:
+            print(f"Failed to delete collection: HTTP {resp.status_code}\n{resp.text}")
 
 class ReadFaker:
     """
-    This class translate the pandas data frame row wise into a file-like
-    object which can be used with the psycopg copy_from bulk inserting into postgresql tables.
-    The object follows the specifications of psycopg for the copy_from function!!!
-    This could be extended to include the index column optionally. Right now the index
-    is not inserted.
-    Note: all other columns from the input pandas df are used, so make sure to specify the columns
-    correctly in the copy_from call.
+    A class that mimics file reading behavior for data in tabular formats.
+
+    This class provides a way to iterate through tabular data row by row, mimicking
+    the behavior of reading lines from a file. The data is expected to support the
+    itertuples() method, typical of pandas DataFrame objects. Each row is returned
+    as a formatted string with tab-separated values.
+
+    Attributes:
+        iter: An iterator generated from the itertuples() method of the provided
+              data, representing the rows of the dataset.
+
+    Methods:
+        readline(size=None): Reads the next row of the data as a tab-separated
+                             string.
+        read(size=None): Alias for the readline method.
     """
 
     def __init__(self, data):
+        """
+        Initializes an iterator over the rows of a DataFrame.
+
+        This class constructor sets up an iterator based on the itertuples method of 
+        the provided DataFrame-like object. Each element in the iterator represents 
+        a row in the DataFrame. 
+        This foundation allows for efficient row-wise access and processing.
+
+        :param data: A DataFrame-like object or similar, containing tabular data. 
+                     This object must have an itertuples method.
+        """
         self.iter = data.itertuples()
 
-    def readline(self, size=None):
+    def readline(self, size: Optional[int] = None) -> str:
         try:
             # get all columns values in that row
             row_values = next(self.iter)[1:]  # element 0 is the index
@@ -1250,43 +1349,50 @@ class ReadFaker:
     read = readline
 
 class BearerAuth(auth.AuthBase):
-    """Attach a Bearer token to the Authorization header.
-    requests for authentication."""
+    """
+    Provides a custom authentication class for bearer token authentication.
+
+    This class is utilized to authenticate HTTP requests using a bearer token, 
+    which is typically used in APIs to authenticate requests securely. The token 
+    is passed in the Authorization header of each request.
+
+    Attributes:
+        token (str): The bearer token to include in the Authorization header.
+    """
 
     def __init__(self, token: str):
+        """
+        Represents a class initializer method that sets up the class with a token.
+
+        This method initializes the class by assigning the provided token to an instance
+        attribute for future use.
+
+        :param token: The token to be assigned to the class instance.
+        """
         self.token = token
 
     def __call__(self, r):
+        """
+        Modifies the request headers to include an Authorization token.
+
+        This callable object adjusts the headers of an HTTP request object to
+        include an Authorization header containing a Bearer token. It is useful
+        for applications or systems requiring token-based authentication.
+
+        :param r: The HTTP request object that will have its headers modified.
+        :return: The modified HTTP request object with the added Authorization header.
+        """
         r.headers["Authorization"] = f"Bearer {self.token}"
         return r
 
-
-
 class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
     """
-    Handles storage operations using both Google Drive, AWS S3/storage services and SQL_storage.
+    A unified storage class that integrates various storage backends including S3, Google Drive, SQL, and STAC.
 
-    This class provides a unified interface to manage files and data stored in the WEED
-    infrastructure. It integrates Google Drive and S3 functionalities using appropriate
-    APIs, allowing users to initialize settings, authenticate, browse, and interact with
-    these storages.
-
-    It fetches credentials securely from the Terrascope VAULT and enables seamless access
-    to storage operations like fetching files, reading data into geospatial dataframes, and
-    filtering data with bounding boxes.
-
-    Attributes:
-        username: Username for Terrascope VAULT authentication.
-        gdrive_entry_point: Entry point ID of the Google Drive folder.
-        s3_bucket: Name of the S3 bucket to be used.
-        gdrive_fs: Instance for handling Google Drive filesystem operations.
-        s3_client: AWS S3 client instance for interacting with S3 storage.
-        credentials: Dictionary containing fetched credentials for storages.
-        s3_credentials: Dictionary containing S3-specific credentials.
-        gdrive_credentials: Google Drive credentials fetched from the VAULT.
-        sql_credentials: Dictionary containing SQL-specific credentials.
-        stac_credentials: Dictionary containing STAC-specific credentials.
-        export_workspace: Path for data export associated with the S3 bucket.
+    The WEED_storage class enables seamless access and configuration for different storage services.
+    It manages credentials, configurations, and interactions needed for using these services. Designed for
+    flexibility, it supports multiple projects and environments efficiently by providing an interface to set
+    up, switch, and authenticate storage backends.
     """
     def __init__(self, username: str = 'buchhornm',
                  gdrive_entry_point: str = "1k27bitdRp41AtHq1xupyqwKaTLzrMUMu",
@@ -1304,7 +1410,7 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
         :param gdrive_entry_point: The entry point ID of the Google Drive folder.
         :param s3_bucket: The name of the S3 bucket to be used.
         :param stac_env: The environment name for the STAC catalog.
-        :param project: The name of the project.
+        :param project: The name of the project (e.g. WEED, SONATA, OBSGESSION).
         """
         #super().__init__()
         self.gdrive_fs: Optional[GDriveFileSystem] = None
@@ -1321,11 +1427,9 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
         self._set_gdrive_credentials(gdrive_entry_point=gdrive_entry_point)
         self._set_stac_credentials(stac_env=stac_env)
 
-
     def _get_credentials(self):
         """warper to get the credentials."""
         return get_credentials(self.username)
-
 
     def switch_s3_bucket(self, bucket: str) -> None:
         """
@@ -1355,7 +1459,6 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
         if not bucket.lower() in BUCKETS.get(self.project, []):
             raise Exception(f"Bucket '{bucket}' does not exist in the project '{self.project}'.")
 
-
         if self.project == 'WEED':
             s3_vito_vault = string_to_dict(self.credentials['S3-auth'])
         else:
@@ -1379,13 +1482,18 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
             self.s3_client.close()
             self._init_boto3()
 
-
     def _set_sql_credentials(self) -> None:
         """
-        Sets the SQL credentials .
+        Sets SQL credentials for the database connection.
+
+        This method extracts and sets the SQL credentials from
+        a structured string stored in the object's credentials attribute.
+        The parsed credentials are stored in the `sql_credentials` attribute
+        for later use in database-related operations.
+
+        :param self: Instance of the class containing `credentials` attribute and
+            where `sql_credentials` will be set.
         """
-
-
         sql_vito_vault = string_to_dict(self.credentials['postGreSQL-auth'])
 
         self.sql_credentials = {
@@ -1396,14 +1504,16 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
             "port": sql_vito_vault['port']
         }
 
-
     def _set_gdrive_credentials(self, gdrive_entry_point: str) -> None:
         """
-                Sets the gdrive credentials. For consistency, the gdrive credentials are set to the same way as
-                sql_credentials and S3_credentials. However the implementation of the gdrive filesystem often requires
-                this to be set in a json iso an dict.
-        """
+        Sets Google Drive API credentials and entry point based on provided parameters.
 
+        This method converts credentials stored as a string into a dictionary, then uses
+        specific values from it to construct a dictionary of Google Drive API credentials.
+        Additionally, it sets the entry point for accessing the Google Drive API.
+
+        :param gdrive_entry_point: The entry point URL for the Google Drive API.
+        """
         gdrive_vito_vault = string_to_dict(self.credentials['gdrive-access'])
 
         self.gdrive_credentials = {
@@ -1421,10 +1531,20 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
         self.gdrive_entry_point = gdrive_entry_point
 
     def _set_stac_credentials(self, stac_env: str) -> None:
-        """Sets tje STAC credentials. There are two options based on the environment."""
+        """
+        Sets the STAC credentials for the specified environment ('prod' or 'dev') by
+        retrieving the corresponding authentication information from the credentials
+        dictionary and formatting it. Raises an exception if the provided environment
+        does not exist.
 
+        :param stac_env: The environment for which STAC credentials should be set. Must be
+                         either 'prod' or 'dev'.
+        :raises Exception: Raised if the specified environment does not exist in the WEED
+                           project (not 'prod' or 'dev').
+        """
         if stac_env not in ['prod', 'dev']:
-            raise Exception(f'the specified environment {stac_env} does not exist in the WEED project. It should be prod or dev.')
+            raise Exception(f'the specified environment {stac_env} does not exist in the WEED project. '
+                            f'It should be prod or dev.')
 
         STAC_vito_vault = string_to_dict(self.credentials[f'STAC-{stac_env}-auth'])
 
@@ -1433,10 +1553,7 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
             "CLIENT_SECRET": STAC_vito_vault['CLIENT_SECRET'],
             "TOKEN_URL": STAC_vito_vault['TOKEN_URL'],
             "catalog_url": STAC_vito_vault['catalog_url']
-
         }
-
-
 
 def get_credentials(user :str ) -> Dict[str, str]:
     """

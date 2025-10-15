@@ -26,6 +26,8 @@ from typing import Optional, Mapping, Union, Dict, Tuple, TYPE_CHECKING, List
 import openeo
 import warnings
 from eo_processing.utils.helper import string_to_dict
+from eo_processing.utils.geoprocessing import create_feature_extraction_processing_grid, get_point_number
+from eo_processing.utils.mgrs import gridID_2_epsg
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import storage_option_format
@@ -767,113 +769,186 @@ def get_AOI_interactive(map_center: Tuple[float, float] = (51.22, 5.08), zoom: i
     else:
         print('this function is only available in a jupyter notebook')
 
-def create_job_dataframe(gdf: gpd.GeoDataFrame, year: int, file_name_base: str, processing_type: str,
-                         discriminator: Optional[str] = None, target_crs: Optional[int] = None, version: Optional[str] = None,
+def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_name_base: str, processing_type: str,
+                         discriminator: Optional[str] = None, target_crs: Optional[int] = None,
+                         version: Optional[str] = None,
                          model_ID: Optional[str] = None,
                          storage_options: Optional[storage_option_format] = None,
-                         organization_id : Optional[int] = None) -> gpd.GeoDataFrame:
+                         organization_id : Optional[int] = None, path_global_grid: Optional[str] = None,
+                         feature_bbox: Optional[Tuple[float, float, float, float]] = None) -> gpd.GeoDataFrame:
     """
-    Creates a new GeoDataFrame containing job-related configurations for processing geospatial data. The input
-    GeoDataFrame is copied and augmented with new columns based on the input parameters and processing type.
+    Creates a job dataframe for further processing or feature extraction.
 
-    The resulting GeoDataFrame is structured to include columns needed for subsequent geospatial data processing
-    tasks, such as file naming, bounding box information, projection details, date ranges, and additional
-    process-specific fields when applicable.
+    This function processes a GeoDataFrame or a list to produce a job dataframe
+    containing metadata and configuration details necessary for data processing
+    tasks. It supports both inference/post-processing and feature extraction modes.
+    Various attributes such as spatial reference system, time intervals, and file
+    prefixes are set depending on the input and processing type.
 
-    :param gdf: Input GeoDataFrame containing the geospatial data.
-    :param year: Year used for setting start and end dates, as well as constructing unique identifiers.
-    :param file_name_base: Base string utilized for generating file prefixes.
-    :param processing_type: Specifies the type of processing, e.g., 'feature' or 'eunis_habitat_probabilities'.
-    :param discriminator: Optional column name used for further distinguishing rows during file naming and job identification.
-    :param target_crs: Optional target CRS (Coordinate Reference System) EPSG code for reprojection. If not provided,
-                       inferred from existing data.
-    :param version: Optional string denoting the version identifier to append to the generated file prefix.
-    :param model_ID: Optional model ID; added to the output GeoDataFrame for the 'eunis_habitat_probabilities'
-                       processing type.
-    :param storage_options: Optional dictionary containing storage configuration parameters. Expected to contain a key
-                            'S3_prefix', which specifies the storage path prefix PLUS the export_workspace name for S3 export.
-    :param organization_id: Optional integer representing the organization ID; added to every row in the resulting GeoDataFrame.
+    :param gdf: Input GeoDataFrame or list representing geometries or point features.
+    :param year: Year for determining time intervals in the processing.
+    :param file_name_base: The base name for naming file outputs.
+    :param processing_type: String indicating the type of processing to be performed
+                            (e.g., "inference", "feature generation").
+    :param discriminator: Optional, string attribute to differentiate configurations.
+    :param target_crs: Optional, target spatial reference system EPSG code.
+    :param version: Optional, version string for the outputs.
+    :param model_ID: Optional, model identifier used in processing.
+    :param storage_options: Optional, dictionary-like structure containing storage
+                            configuration options such as S3 prefixes.
+    :param organization_id: Optional, organization ID to be associated with the jobs.
+    :param path_global_grid: Optional, path to the global grid file for feature
+                             extraction.
+    :param feature_bbox: Optional, tuple of coordinates defining the area of interest
+                         for feature extraction.
 
-    :return: A GeoDataFrame containing the input data along with additional columns tailored to the specified processing type.
+    :return: Processed GeoDataFrame containing job configurations for further data
+             operations.
     """
+    if isinstance(gdf, gpd.GeoDataFrame):
+        # we are preparing a inference or post-processing actions
+        columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date','export_workspace',
+                   's3_prefix', 'organization_id', 's2_tileid_list']
+        dtypes = {'name': 'string', 'tileID': 'string', 'target_epsg': 'UInt16',
+                  'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string', 's3_prefix': 'string',
+                  'geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16','s2_tileid_list':'string',
+                  'export_workspace':'string'}
 
-    columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date','export_workspace',
-               's3_prefix', 'organization_id', 's2_tileid_list']
-    dtypes = {'name': 'string', 'tileID': 'string', 'target_epsg': 'UInt16',
-              'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string', 's3_prefix': 'string',
-              'geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16','s2_tileid_list':'string',
-              'export_workspace':'string'}
+        job_df = gdf.copy()
 
-    job_df = gdf.copy()
+        # evaluate if tileID is given by 'name' or 'grid20id'
+        if 'grid20id' in job_df.columns:
+            tile_col = 'grid20id'
+        else:
+            tile_col = 'name'
 
-    # evaluate if tileID is given by 'name' or 'grid20id'
-    if 'grid20id' in job_df.columns:
-        tile_col = 'grid20id'
-    else:
-        tile_col = 'name'
+        if 's2_tileid_list' in job_df.columns:
+            #we know we need to split this string into list
+            job_df['s2_tileid_list'] = job_df.apply(lambda row : row['s2_tileid_list'].split(','), axis =1)
+        else :
+            job_df['s2_tileid_list'] = None
 
-    if 's2_tileid_list' in job_df.columns:
-        #we know we need to split this string into list
-        job_df['s2_tileid_list'] = job_df.apply(lambda row : row['s2_tileid_list'].split(','), axis =1)
-    else :
+        # the time context is given by start and end date
+        job_df['start_date'] = f'{year}-01-01T00:00:00Z'
+        job_df['end_date'] = f'{year}-12-31T23:59:59Z'
+
+        #organization ID is the same for all rows
+        job_df['organization_id'] = organization_id
+
+        # set the target epsg
+        if target_crs is None:
+            job_df['target_epsg'] = job_df.apply(lambda row: int(string_to_dict(row['bbox_dict'])['crs']), axis=1)
+        else:
+            job_df['target_epsg'] = target_crs
+
+        job_df['bbox'] = job_df['bbox_dict']
+
+        # set the s3_prefix which is needed for the path to S3 storage relative to bucket if we export
+        if storage_options:
+            job_df['s3_prefix'] = storage_options.get('S3_prefix', None)
+            if storage_options.get('WEED_storage',None):
+                job_df['export_workspace'] = storage_options['WEED_storage'].get_export_workspace()
+            else : job_df['export_workspace']=None
+        else:
+            job_df['s3_prefix'] = None
+            job_df['export_workspace'] = None
+
+        # a fix since the "name" column has to be unique
+        job_df['tileID'] = job_df[tile_col].copy()
+        if discriminator:
+            job_df['name'] = job_df[tile_col] + f'_{year}' + f'_' + job_df[discriminator]
+        else:
+            job_df['name'] = job_df[tile_col] + f'_{year}'
+
+        #get version
+        if version:
+            version = f'_{version}'
+        else: version = ''
+
+        if discriminator:
+            job_df['file_prefix'] = job_df.apply(lambda
+                                                     row: f'{file_name_base}_{processing_type}-cube_year{year}_{row['tileID']}_{row[discriminator]}{version}',
+                                                 axis=1)
+        else:
+            job_df['file_prefix'] = job_df.apply(
+                lambda row: f'{file_name_base}_{processing_type}-cube_year{year}_{row['tileID']}{version}', axis=1)
+
+        if 'proba' in processing_type.lower(): # probability genration in inference
+            # adding the model_urls and output_band_names (all the same for all tiles) for inference
+            job_df['model_ID'] = model_ID
+            #update dtypes dict
+            columns.extend(['model_ID'])
+            dtypes.update({'model_ID':'string'})
+        elif 'feature' in processing_type.lower(): # feature cube for point extraction or datacube generation
+            pass
+        else:
+            logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. "
+                           f"If needed, extended the function for specific options for processing_type: {processing_type}")
+
+        columns.append('geometry')
+        return job_df[columns].astype(dtypes)
+    elif isinstance(gdf, list):
+        # we are preparing a feature extraction
+
+        # check
+        if path_global_grid is None:
+            raise ValueError("path_global_grid must be provided")
+        if feature_bbox is None:
+            raise ValueError("feature_bbox must be provided")
+
+        columns = ['name', 'target_epsg', 'file_prefix', 'start_date', 'end_date', 'FeatureCollection']
+        dtypes = {'name': 'string', 'target_epsg': 'UInt16', 'file_prefix': 'string', 'start_date': 'string',
+                  'end_date': 'string', 'FeatureCollection': object, 'tileID': 'string', 's3_prefix': 'string',
+                  'geometry': 'geometry', 'organization_id':'UInt16','s2_tileid_list':'string',
+                  'export_workspace':'string'}
+
+        # create the rows with the data
+        rows = []
+        for job in gdf:
+            # set master parameters
+            start_date = f'{year}-01-01'
+            end_date = f'{year + 1}-01-01'
+            gridid = job.final_grouping.iloc[
+                0]  # all jobs have the same id (either grid100id, grid20id, or grid20stripid)
+            epsg = gridID_2_epsg(gridid)
+            file_prefix = f'{file_name_base}_{gridid}'
+
+            rows.append(
+                pd.Series(
+                    dict(zip(columns, [gridid, epsg, file_prefix, start_date, end_date,
+                                       job.reset_index()[['MGRSid10', 'geometry']].to_json()])),
+                )
+            )
+
+        df = pd.DataFrame(rows)
+
+        # add the number of points to handle in each 20x20km grid cell
+        df['n_points'] = df.apply(get_point_number, axis=1)
+
+        # now we convert the DataFrame to a GeoDataFrame and add the geometry column from final grouping
+        gdf_grid = create_feature_extraction_processing_grid(path_global_grid, feature_bbox)
+        # merge in the needed Polygons and convert to GeoDataFrame
+        job_df = pd.merge(df, gdf_grid[['tile_name', 'geometry']], left_on='name', right_on='tile_name',
+                          how='left')
+        # remove row which have no  polygon assigned due to fact that this grid is not in openEO processing extent
+        job_df = job_df.dropna(subset=["geometry"])
+        # convert to GeoPandas GeoDataFrame
+        job_df = gpd.GeoDataFrame(job_df, geometry='geometry')
+        job_df.reset_index(inplace=True)
+
+        # add missing columns or adapt to new format
+        job_df['start_date'] = pd.to_datetime(job_df['start_date'], format='%Y-%m-%d').dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+        job_df['end_date'] = (
+                    pd.to_datetime(job_df['end_date'], format='%Y-%m-%d') - pd.Timedelta(seconds=1)).dt.strftime(
+            '%Y-%m-%dT%H:%M:%SZ')
+        job_df['export_workspace'] = None
+        job_df['s3_prefix'] = None
+        job_df['organization_id'] = organization_id
         job_df['s2_tileid_list'] = None
 
-    # the time context is given by start and end date
-    job_df['start_date'] = f'{year}-01-01T00:00:00Z'
-    job_df['end_date'] = f'{year}-12-31T23:59:59Z'
+        job_df.rename(columns={'tile_name': 'tileID'}, inplace=True)
+        job_df['name'] = job_df['name'] + f'_{year}'
+        return job_df.astype(dtypes)
 
-    #organization ID is the same for all rows
-    job_df['organization_id'] = organization_id
-
-    # set the target epsg
-    if target_crs is None:
-        job_df['target_epsg'] = job_df.apply(lambda row: int(string_to_dict(row['bbox_dict'])['crs']), axis=1)
     else:
-        job_df['target_epsg'] = target_crs
-
-    job_df['bbox'] = job_df['bbox_dict']
-
-    # set the s3_prefix which is needed for the path to S3 storage relative to bucket if we export
-    if storage_options:
-        job_df['s3_prefix'] = storage_options.get('S3_prefix', None)
-        if storage_options.get('WEED_storage',None):
-            job_df['export_workspace'] = storage_options['WEED_storage'].get_export_workspace()
-        else : job_df['export_workspace']=None
-    else:
-        job_df['s3_prefix'] = None
-        job_df['export_workspace'] = None
-
-    # a fix since the "name" column has to be unique
-    job_df['tileID'] = job_df[tile_col].copy()
-    if discriminator:
-        job_df['name'] = job_df[tile_col] + f'_{year}' + f'_' + job_df[discriminator]
-    else:
-        job_df['name'] = job_df[tile_col] + f'_{year}'
-
-    #get version
-    if version:
-        version = f'_{version}'
-    else: version = ''
-
-    if discriminator:
-        job_df['file_prefix'] = job_df.apply(lambda
-                                                 row: f'{file_name_base}_{processing_type}-cube_year{year}_{row['tileID']}_{row[discriminator]}{version}',
-                                             axis=1)
-    else:
-        job_df['file_prefix'] = job_df.apply(
-            lambda row: f'{file_name_base}_{processing_type}-cube_year{year}_{row['tileID']}{version}', axis=1)
-
-    if 'proba' in processing_type.lower(): # probability genration in inference
-        # adding the model_urls and output_band_names (all the same for all tiles) for inference
-        job_df['model_ID'] = model_ID
-        #update dtypes dict
-        columns.extend(['model_ID'])
-        dtypes.update({'model_ID':'string'})
-    elif 'feature' in processing_type.lower(): # feature cube for point extraction or datacube generation
-        pass
-    else:
-        logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. "
-                       f"If needed, extended the function for specific options for processing_type: {processing_type}")
-
-    columns.append('geometry')
-    return job_df[columns].astype(dtypes)
+        raise ValueError(f"Unsupported input type {type(gdf)}")

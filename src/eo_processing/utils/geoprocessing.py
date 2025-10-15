@@ -7,6 +7,7 @@ from shapely.geometry import box
 from shapely.geometry import shape
 from shapely.ops import unary_union
 import geopandas as gpd
+import pandas as pd
 import numpy as np
 import geojson
 import json
@@ -406,7 +407,6 @@ def geoJson_2_BBOX(file_path: str, delete_file: bool = False,
     except Exception as e:
         print(f"An error occurred: {e}")
 
-
 def is_valid_geometry(geometry: dict) -> bool:
     """
     Checks if the given geometry is a valid GeoJSON geometry object.
@@ -438,7 +438,6 @@ def is_valid_geometry(geometry: dict) -> bool:
         "GeometryCollection"
     }
     return geometry["type"] in valid_geom_types
-
 
 def is_geojson(data: str | dict) -> bool:
     """
@@ -476,3 +475,70 @@ def is_geojson(data: str | dict) -> bool:
         return is_valid_geometry(data)
 
     return False
+
+def grid20_feature_extraction_job_splitter(geo_df: gpd.GeoDataFrame) -> list[gpd.GeoDataFrame]:
+    """
+    Splits a geospatial dataframe into smaller dataframes based on a grouping strategy optimized
+    for geographical 100x100km and 20x100km tiles.
+
+    The function processes the input GeoDataFrame by creating grouping identifiers based on
+    specific grid patterns (100x100km, 20x100km). It ensures no group exceeds a threshold number
+    of rows (256) by applying these identifiers hierarchically. The final result is a list of
+    GeoDataFrames, each corresponding to a unique grouping identifier.
+
+    param geo_df: The input GeoDataFrame containing a column `grid20id` which represents
+                  the 20x20km tiles, serving as a basis for grouping and extraction.
+    return: A list of GeoDataFrames, where each dataframe corresponds to a subset of the
+            input dataframe based on the applied grouping strategy.
+    """
+    #check:
+    if 'grid20id' not in geo_df.columns:
+        raise ValueError('grid20id column not found in input dataframe')
+
+    # create grid100id from the grid20id representing the 100x100km processing tile
+    geo_df['grid100id'] = geo_df.grid20id.str[:5]
+
+    # add a id to group by 20x100km strips (so 5 sub-units per 100x100km tile)
+    geo_df['grid20stripid'] = geo_df.grid20id.str[:6]
+
+    # create dataframes which have the count rows by applied grouping by the different ids
+    group_counts_100 = geo_df.groupby('grid100id').grid100id.transform('count')
+    group_counts_20strip = geo_df.groupby('grid20stripid').grid20stripid.transform('count')
+
+    # add the final grouping id to each row
+    geo_df['final_grouping'] = geo_df.apply(
+        lambda row:
+            row.grid100id if group_counts_100[row.name] < 256
+            else (row.grid20stripid if group_counts_20strip[row.name] < 256
+                  else row.grid20id),
+        axis=1
+    )
+
+    # split the jobs
+    return [geo_df[geo_df['final_grouping'] == tile_id] for tile_id in geo_df['final_grouping'].unique()]
+
+def create_feature_extraction_processing_grid(path_grid: str, bbox : tuple) -> gpd.GeoDataFrame:
+    # since the GeoPackage is huge we use a helper function
+    gdf_grid = gpd.read_file(path_grid, bbox=bbox)
+    gdf_grid['tile_name'] = gdf_grid.grid20id
+    # add the additional ids
+    gdf_grid['grid100id'] = gdf_grid.grid20id.str[:5]
+    gdf_grid['grid20stripid'] = gdf_grid.grid20id.str[:6]
+    # create the polygons for these ids
+    gdf_grid100 = gdf_grid.dissolve(by='grid100id').reset_index()
+    gdf_grid100['tile_name'] = gdf_grid100.grid100id
+    gdf_grid20strip = gdf_grid.dissolve(by='grid20stripid').reset_index()
+    gdf_grid20strip['tile_name'] = gdf_grid20strip.grid20stripid
+
+    # merge
+    gdf_grid_all = pd.concat([gdf_grid, gdf_grid100, gdf_grid20strip])
+
+    return gdf_grid_all
+
+
+def get_point_number(row: pd.Series) -> int:
+    """
+    :param row: A pandas Series object that contains a geometry field with a GeoJSON string.
+    :return: The number of features present in the GeoJSON geometry.
+    """
+    return len(geojson.loads(row.FeatureCollection)['features'])

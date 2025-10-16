@@ -887,6 +887,10 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
             dtypes.update({'model_ID':'string'})
         elif 'feature' in processing_type.lower(): # feature cube for point extraction or datacube generation
             pass
+        elif 'mece' in processing_type.lower():
+            # update dtypes dict
+            columns.extend(['file_url'])
+            dtypes.update({'file_url': 'string'})
         else:
             logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. "
                            f"If needed, extended the function for specific options for processing_type: {processing_type}")

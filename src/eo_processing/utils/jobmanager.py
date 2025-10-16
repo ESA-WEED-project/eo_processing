@@ -875,7 +875,13 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
 
         if 'proba' in processing_type.lower(): # probability genration in inference
             # adding the model_urls and output_band_names (all the same for all tiles) for inference
-            job_df['model_ID'] = model_ID
+            if not model_ID and 'model_ID' in job_df.columns:
+                pass
+            elif not model_ID and 'modelID' in job_df.columns:
+                job_df['model_ID'] = job_df['modelID']
+            else:
+                job_df['model_ID'] = model_ID
+
             #update dtypes dict
             columns.extend(['model_ID'])
             dtypes.update({'model_ID':'string'})

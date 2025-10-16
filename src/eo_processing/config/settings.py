@@ -41,45 +41,45 @@ S2_TILEID_LIST = None
 OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "8G",
-    "driver-cores": "2",
+    "driver-cores": 2,
     "executor-memory": "3G",
     "executor-memoryOverhead": "2G",
-    "executor-cores": "2",
-    "max-executors": "50",
+    "executor-cores": 2,
+    "max-executors": 50,
     "soft-errors": "true"
 }
 
 OPENEO_EXTRACT_CREO_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "2G",
-    "driver-cores": "1",
+    "driver-cores": 1,
     "executor-memory": "2000m",
     "executor-memoryOverhead": "3500m",
-    "executor-cores": "4",
+    "executor-cores": 4,
     "executor-request-cores": "400m",
-    "max-executors": "200"
+    "max-executors": 200
 }
 
 OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "8G",
     "driver-memoryOverhead": "5G",
-    "driver-cores": "1",
+    "driver-cores": 1,
     "executor-memory": "2000m",
     "executor-memoryOverhead": "256m",
     "python-memory": "2500m",
-    "executor-cores": "1",
-    "max-executors": "25",
+    "executor-cores": 1,
+    "max-executors": 25,
     "logging-threshold": "info"
 }
 
 OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "1000m",
     "driver-memoryOverhead": "1000m",
-    "driver-cores": "1",
+    "driver-cores": 1,
     "executor-memory": "1500m",
     "executor-memoryOverhead": "256m",
-    "executor-cores": "1",
-    "max-executors": "20",
+    "executor-cores": 1,
+    "max-executors": 20,
     "python-memory": "4000m",
     "logging-threshold": "info",
     "udf-dependency-archives": [
@@ -90,24 +90,24 @@ OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
 OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "2G",
     "driver-memoryOverhead": "1G",
-    "driver-cores": "1",
+    "driver-cores": 1,
     "executor-memory": "2000m",
     "executor-memoryOverhead": "256m",
     "python-memory": "2500m",
-    "executor-cores": "1",
-    "max-executors": "25",
+    "executor-cores": 1,
+    "max-executors": 25,
     "logging-threshold": "info"
 }
 
 OPENEO_CUBEEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "4G",
-    "driver-cores": "1",
+    "driver-cores": 1,
     "executor-memory": "2000m",
     "executor-memoryOverhead": "256m",
     "python-memory": "2500m",
-    "executor-cores": "1",
-    "max-executors": "20",
+    "executor-cores": 1,
+    "max-executors": 20,
     "logging-threshold": "info"
 }
 # ---------------------------------------------------

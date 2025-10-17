@@ -875,12 +875,33 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
 
         if 'proba' in processing_type.lower(): # probability genration in inference
             # adding the model_urls and output_band_names (all the same for all tiles) for inference
-            job_df['model_ID'] = model_ID
+            if not model_ID and 'model_ID' in job_df.columns:
+                pass
+            elif not model_ID and 'modelID' in job_df.columns:
+                job_df['model_ID'] = job_df['modelID']
+            else:
+                job_df['model_ID'] = model_ID
+
             #update dtypes dict
             columns.extend(['model_ID'])
             dtypes.update({'model_ID':'string'})
         elif 'feature' in processing_type.lower(): # feature cube for point extraction or datacube generation
             pass
+        elif 'mece' in processing_type.lower():
+            # adding the model_urls and output_band_names (all the same for all tiles) for inference
+            if not model_ID and 'model_ID' in job_df.columns:
+                pass
+            elif not model_ID and 'modelID' in job_df.columns:
+                job_df['model_ID'] = job_df['modelID']
+            else:
+                job_df['model_ID'] = model_ID
+
+            #update dtypes dict
+            columns.extend(['model_ID'])
+            dtypes.update({'model_ID':'string'})
+            # update dtypes dict
+            columns.extend(['file_url'])
+            dtypes.update({'file_url': 'string'})
         else:
             logger.warning(f"{processing_type} is assumed to be some kind of feature processing_type. "
                            f"If needed, extended the function for specific options for processing_type: {processing_type}")

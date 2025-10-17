@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from ast import literal_eval
+
 import boto3
 from botocore.exceptions import ClientError
 from eo_processing.utils.helper import string_to_dict
@@ -1385,6 +1387,114 @@ class BearerAuth(auth.AuthBase):
         r.headers["Authorization"] = f"Bearer {self.token}"
         return r
 
+class SONATA_storage(S3_storage, stac_storage):
+    """
+    Provides functionalities to manage storage using S3 and STAC storage systems.
+
+    The SONATA_storage class combines and leverages features of S3_storage and
+    stac_storage to manage storage and authentication for the SONATA project.
+    It allows operations like switching S3 bucket context and setting
+    credentials for S3 and STAC environments.
+
+    Attributes:
+        s3_client: Optional[boto3.client]
+            The client for interacting with S3 storage, initialized as None until
+            configured.
+        credentials: dict
+            The credentials parsed and loaded from the provided credential file.
+        s3_credentials: dict
+            The credentials specific to access S3 storage.
+        s3_bucket: str
+            The name of the current S3 bucket in use.
+        export_workspace: str
+            The export workspace path associated with the current S3 bucket.
+    """
+    def __init__(self, file_path: str = '~/.sonata_credentials',
+                 s3_bucket: str = 'sonata'):
+        """
+        Initializes the class instance with provided file path and S3 bucket, setting up
+        credentials and configurations for interaction with S3 and STAC services.
+
+        :param file_path: Path to the file containing credentials. Default is
+            '~/.sonata_credentials'.
+        :param s3_bucket: Name of the S3 bucket to initialize with. Default is 'sonata'.
+        """
+        self.s3_client: Optional[boto3.client] = None
+        self.credentials = read_credential_file(file_path)
+        self.s3_credentials = None
+        self.s3_bucket = None
+        self.export_workspace = None
+        self._set_s3_credentials(bucket=s3_bucket)
+        self._set_stac_credentials()
+
+    def switch_s3_bucket(self, bucket: str) -> None:
+        """
+        Switches the current S3 bucket to the specified bucket name.
+
+        This method updates the credentials or settings related to the
+        new specified S3 bucket.
+
+        :param bucket: The name of the S3 bucket to switch to.
+        """
+        self._set_s3_credentials(bucket=bucket)
+
+    def _set_s3_credentials(self, bucket: str) -> None:
+        """
+        Sets S3 credentials based on the specified bucket.
+
+        This method validates if the provided bucket exists in the predefined list
+        and initializes S3 credentials based on the bucket's configuration from a
+        fake credential vault. Additionally, it initializes or reinitializes
+        the S3 client if needed.
+
+        :param bucket: The name of the S3 bucket to be validated and used.
+        """
+        # check
+        if not bucket.lower() in BUCKETS.get('sonata', []):
+            raise Exception(f"Bucket '{bucket}' does not exist in the project SONATA.")
+
+        fake_vault = self.credentials[f'S3-auth-sonata']
+
+        # based on bucket we set variables.
+        bucket = fake_vault['buckets'][bucket.lower()]
+
+        self.s3_credentials = {
+            "AWS_ACCESS_KEY_ID": fake_vault['AWS_ACCESS_KEY_ID'],
+            "AWS_SECRET_ACCESS_KEY": fake_vault['AWS_SECRET_ACCESS_KEY'],
+            "s3_endpoint": fake_vault['s3_endpoint'],
+            "bucket_name": bucket['bucket_name'],
+            "export_workspace": bucket['export_workspace']
+        }
+        self.s3_bucket = self.s3_credentials['bucket_name']
+        self.export_workspace = self.s3_credentials['export_workspace']
+
+        # re-init the s3_client if needed
+        if self.s3_client is not None:
+            self.s3_client.close()
+            self._init_boto3()
+
+    def _set_stac_credentials(self) -> None:
+        """
+        Sets the STAC credentials using the provided credentials data. The method
+        retrieves required authentication details and assigns them to the internal
+        stac_credentials attribute for further use in accessing STAC services.
+
+        This method does not take any input arguments and does not return a value.
+        It strictly operates on the instance's state.
+
+        :param self: Instance of the class.
+
+        :return: None
+        """
+        STAC_fake_vault = self.credentials[f'STAC-prod-auth']
+
+        self.stac_credentials = {
+            "CLIENT_ID": STAC_fake_vault['CLIENT_ID'],
+            "CLIENT_SECRET": STAC_fake_vault['CLIENT_SECRET'],
+            "TOKEN_URL": STAC_fake_vault['TOKEN_URL'],
+            "catalog_url": STAC_fake_vault['catalog_url']
+        }
+
 class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
     """
     A unified storage class that integrates various storage backends including S3, Google Drive, SQL, and STAC.
@@ -1583,6 +1693,21 @@ def get_credentials(user :str ) -> Dict[str, str]:
                         'Are you connected to the VITO VPN?')
     return secret_version_response['data']['data']
 
+def read_credential_file(file_path: str = '~/.sonata_credentials') -> Dict[str, str]:
+    # check if file exists
+    if not os.path.exists(file_path):
+        file_path = os.path.expanduser(file_path)
+        if not os.path.exists(file_path):
+            raise Exception(f"The specified credential file '{file_path}' does not exist.")
+
+    # read file & strip all whitespaces and linebreaks and \n
+    with open(file_path, 'r') as file_handle:
+        file_string = file_handle.read()
+        file_string = file_string.strip()
+    # remove all possible \n
+    file_string = file_string.replace('\n', '')
+
+    return string_to_dict(file_string)
 
 class ProgressPercentage:
     """

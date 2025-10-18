@@ -96,6 +96,12 @@ def catalogue_check_S2(start: str, end: str, bbox: openEO_bbox_format) -> None:
     if nbr_files < MIN_VALUE_S2*percentage*temp_extent_days:
         raise ValueError(f'not enough S2 images. Found {nbr_files} images.')
 
+mece_sequence = [[[9], [15], [21], [27], [34], [40], [49], [54], [57], [62], [69], [73], [82]],
+                 [[86], [89], [93], [99], [102], [110], [113], [117], [122], [126], [130], [135], [138]],
+                 [[142], [146], [150], [155], [31], [162], [158], [171], [175], [179], [183], [186], [190]],
+                 [[194], [198], [201], [205], [208], [214], [218], [222], [226], [230], [233], [237], [240]]]
+mece_shape = [(26,2), (0,19)]
+
 def count_amount_of_files(sentinel: str, latlon_box: geojson.Feature, start: str, end: str) -> int | None:
     """
     Counts the number of files available for a given satellite, within a specified

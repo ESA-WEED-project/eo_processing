@@ -1,4 +1,8 @@
-# eo_processing repository
+<p align="center">
+  <img alt="Logo" src="https://github.com/user-attachments/assets/ef022260-aecc-4758-af16-d0eae160ae25" style="width:50%; height:auto;" />
+</p>
+
+# eo_processing
 repro for EO data processing in openEO
 
 ## WEED: Python development environment

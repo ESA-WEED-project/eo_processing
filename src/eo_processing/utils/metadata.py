@@ -50,7 +50,7 @@ def get_base_metadata(project: str = 'WEED') -> Dict[str, str]:
     else:
         file_metadata = {}
 
-    return file_metadata
+    return metadata_checker(file_metadata)
 
 def metadata_checker(meta_dict: dict = {}, text=test_text):
     """

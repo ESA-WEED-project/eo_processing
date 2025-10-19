@@ -16,5 +16,5 @@ pydrive2[fsspec]>=1.21.1
 hvac>=2.3.0
 boto3>=1.36.16
 skl2onnx==1.19.1
-psycopg>=3.2.10
+psycopg[binary,pool]>=3.2.10
 folium>=0.17.0

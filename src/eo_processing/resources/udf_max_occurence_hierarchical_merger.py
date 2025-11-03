@@ -70,9 +70,7 @@ def _merge_hierarchical(cube: xr.DataArray, df_high_prob) -> xr.DataArray:
 
             # get the Level 1 habitat code from the level 2 data
             lsub = np.unique(aImprint).tolist()
-            lsub = [x for x in lsub if x not in nodata]
-            if nodata in lsub: lsub.remove(nodata)
-            if np.nan in lsub: lsub.remove(np.nan)
+            lsub = [x for x in lsub if x != nodata and not np.isnan(x)]
             lsub = [*set([int(np.floor(x / 10000) * 10000) for x in lsub])]
 
             if len(lsub) != 1:
@@ -97,9 +95,7 @@ def _merge_hierarchical(cube: xr.DataArray, df_high_prob) -> xr.DataArray:
 
             # get the Level 2 habitat code from the level 3 data
             lsub = np.unique(aImprint).tolist()
-            lsub = [x for x in lsub if x not in nodata]
-            if nodata in lsub: lsub.remove(nodata)
-            if np.nan in lsub: lsub.remove(np.nan)
+            lsub = [x for x in lsub if x != nodata and not np.isnan(x)]
             lsub = [*set([int(np.floor(x / 100) * 100) for x in lsub])]
 
             if len(lsub) != 1:

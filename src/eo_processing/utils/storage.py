@@ -1451,8 +1451,8 @@ class SONATA_storage(S3_storage, stac_storage):
         :param bucket: The name of the S3 bucket to be validated and used.
         """
         # check
-        if not bucket.lower() in BUCKETS.get('sonata', []):
-            raise Exception(f"Bucket '{bucket}' does not exist in the project SONATA.")
+        if not bucket.lower() in BUCKETS.get(self.s3_project.split('-')[-1], []):
+            raise Exception(f"Bucket '{bucket}' does not exist in the project {self.s3_project.split('-')[-1]}.")
 
         fake_vault: dict = self.credentials[self.s3_project]
 

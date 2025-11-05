@@ -1410,7 +1410,7 @@ class SONATA_storage(S3_storage, stac_storage):
             The export workspace path associated with the current S3 bucket.
     """
     def __init__(self, file_path: str = '~/.sonata_credentials',
-                 s3_bucket: str = 'sonata'):
+                 s3_bucket: str = 'sonata', s3_project: str = 'S3-auth-sonata'):
         """
         Initializes the class instance with provided file path and S3 bucket, setting up
         credentials and configurations for interaction with S3 and STAC services.
@@ -1420,7 +1420,8 @@ class SONATA_storage(S3_storage, stac_storage):
         :param s3_bucket: Name of the S3 bucket to initialize with. Default is 'sonata'.
         """
         self.s3_client: Optional[boto3.client] = None
-        self.credentials = read_credential_file(file_path)
+        self.credentials: dict = read_credential_file(file_path)
+        self.s3_project = s3_project
         self.s3_credentials = None
         self.s3_bucket = None
         self.export_workspace = None
@@ -1453,7 +1454,7 @@ class SONATA_storage(S3_storage, stac_storage):
         if not bucket.lower() in BUCKETS.get('sonata', []):
             raise Exception(f"Bucket '{bucket}' does not exist in the project SONATA.")
 
-        fake_vault = self.credentials[f'S3-auth-sonata']
+        fake_vault: dict = self.credentials[self.s3_project]
 
         # based on bucket we set variables.
         bucket = fake_vault['buckets'][bucket.lower()]

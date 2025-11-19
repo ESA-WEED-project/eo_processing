@@ -43,5 +43,7 @@ stac_credentials_format = TypedDict('stac_credentials_format',  {"CLIENT_ID": st
                                                     "TOKEN_URL": str,
                                                     "catalog_url": str
                                                 })
-
+mlflow_credentials_format = TypedDict('mlflow_credentials_format', {'url': str,
+                                                            'user': str,
+                                                            'pass': str})
                                    

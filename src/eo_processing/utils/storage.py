@@ -2,6 +2,14 @@ from __future__ import annotations
 
 from ast import literal_eval
 
+from dotenv import load_dotenv, find_dotenv, set_key
+DOTENV = find_dotenv()
+if os.path.exists(DOTENV) and DOTENV:
+    load_dotenv(DOTENV)
+    print("Loaded .env file")
+else:
+    print(".env file not found — skipping.")
+
 import boto3
 from botocore.exceptions import ClientError
 from eo_processing.utils.helper import string_to_dict
@@ -20,7 +28,8 @@ import psycopg
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import (s3_credentials_format, sql_credentials_format,
-                                                   gdrive_credentials_format, stac_credentials_format)
+                                                   gdrive_credentials_format, stac_credentials_format,
+                                                   mlflow_credentials_format)
     import pystac
 
 BUCKETS = {'WEED': ['ecdc', 'model', 'extent', 'test', 'ecdc-stac', 'extent-stac'],
@@ -632,6 +641,61 @@ class S3_storage:
                     return True
 
         return False
+    
+class MLFlow_storage:
+    """
+    Handles operations related to ML Flow storage, including initializing storage
+    credentials, configuring environ variables for accessing ML Flow
+
+    This class primarily focuses on interacting with the  ML Flow through environment variables.
+    """
+    def __init__(self, mflow_credentials: Optional[mlflow_credentials_format] = None):
+        """
+        Initializes the configuration for ML Flow storage credentials. If no credentials are provided,
+        a default set of empty values is used, along with a warning message. Validates the input
+        credentials if provided and raises an error for invalid formats.
+
+        :param mlflow_credentials: Dictionary containing ML Flow credentials with keys matching
+                               the `mlflow_credentials_format` type. If not provided, defaults
+                               to None and an uninitialized storage object will be created.
+
+        :raises ValueError: If the provided ML FLow credentials do not match the expected format.
+        """
+        from eo_processing.config.data_formats import mlflow_credentials_format
+        if mflow_credentials is None and not DOTENV:
+            print('WARNING: no ML FLow credentials were given or found in the environment variables. '
+                  'The storage object is not initialized.')
+            self.mflow_credentials = {
+                "MLFLOW_TRACKING_USERNAME": None,
+                "MLFLOW_TRACKING_PASSWORD": None,
+                "MLFLOW_TRACKING_URI": None,
+            }
+        elif ((isinstance(mflow_credentials, dict))
+              and (set(mflow_credentials.keys()) == set(mlflow_credentials_format.__annotations__.keys()))):
+            self.mflow_credentials = {
+                "MLFLOW_TRACKING_USERNAME": mflow_credentials['MLFLOW_TRACKING_URI'],
+                "MLFLOW_TRACKING_PASSWORD": mflow_credentials['MLFLOW_TRACKING_PASSWORD'],
+                "MLFLOW_TRACKING_URI": mflow_credentials['MLFLOW_TRACKING_URI'],
+            }
+        elif (not((isinstance(mflow_credentials, dict))
+              and (set(mflow_credentials.keys()) == set(mlflow_credentials_format.__annotations__.keys())))
+              ) and DOTENV:
+            self.mflow_credentials = {
+                "MLFLOW_TRACKING_URI": os.getenv("MLFLOW_TRACKING_URI"),
+                "MLFLOW_TRACKING_USERNAME": os.getenv("MLFLOW_TRACKING_USERNAME"),
+                "MLFLOW_TRACKING_PASSWORD": os.getenv("MLFLOW_TRACKING_PASSWORD"),
+            }
+        else:
+            raise ValueError('The provided ML Flow credentials are not valid. Please check the documentation '
+                             'for the correct format.')
+        
+        # Set or overwrite environment variables
+        for key, value in self.mflow_credentials.items():
+            if value is None:
+                continue
+            os.environ[key] = value
+            if os.path.exists(DOTENV):
+                set_key(DOTENV, key, value)
 
 class SQL_storage:
     """
@@ -1496,7 +1560,7 @@ class SONATA_storage(S3_storage, stac_storage):
             "catalog_url": STAC_fake_vault['catalog_url']
         }
 
-class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
+class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage, MLFlow_storage):
     """
     A unified storage class that integrates various storage backends including S3, Google Drive, SQL, and STAC.
 
@@ -1613,6 +1677,26 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage):
             "password": sql_vito_vault['password'],
             "host": sql_vito_vault['host'],
             "port": sql_vito_vault['port']
+        }
+
+    def _set_mlflow_credentials(self) -> None:
+        """
+        Sets ML Flow credentials for the database connection.
+
+        This method extracts and sets the ML Flow credentials from
+        a structured string stored in the object's credentials attribute.
+        The parsed credentials are stored in the `mlflow_credentials` attribute
+        for later use in database-related operations.
+
+        :param self: Instance of the class containing `credentials` attribute and
+            where `mlflow_credentials` will be set.
+        """
+        sql_vito_vault = string_to_dict(self.credentials["MLflow-auth"])
+
+        self.mflow_credentials = {
+            "MLFLOW_TRACKING_USERNAME": sql_vito_vault['user'],
+            "MLFLOW_TRACKING_PASSWORD": sql_vito_vault['pass'],
+            "MLFLOW_TRACKING_URI": sql_vito_vault['url'],
         }
 
     def _set_gdrive_credentials(self, gdrive_entry_point: str) -> None:

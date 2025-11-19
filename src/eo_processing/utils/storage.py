@@ -6,9 +6,6 @@ from dotenv import load_dotenv, find_dotenv, set_key
 DOTENV = find_dotenv()
 if os.path.exists(DOTENV) and DOTENV:
     load_dotenv(DOTENV)
-    print("Loaded .env file")
-else:
-    print(".env file not found — skipping.")
 
 import boto3
 from botocore.exceptions import ClientError

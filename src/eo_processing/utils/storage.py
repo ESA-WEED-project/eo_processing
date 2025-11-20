@@ -1684,12 +1684,12 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage, MLFlow
         :param self: Instance of the class containing `credentials` attribute and
             where `mlflow_credentials` will be set.
         """
-        sql_vito_vault = string_to_dict(self.credentials["MLflow-auth"])
+        mlflow_vito_vault = string_to_dict(self.credentials["MLflow-auth"])
 
         self.mflow_credentials = {
-            "MLFLOW_TRACKING_USERNAME": sql_vito_vault['user'],
-            "MLFLOW_TRACKING_PASSWORD": sql_vito_vault['pass'],
-            "MLFLOW_TRACKING_URI": sql_vito_vault['url'],
+            "MLFLOW_TRACKING_USERNAME": mlflow_vito_vault['user'],
+            "MLFLOW_TRACKING_PASSWORD": mlflow_vito_vault['pass'],
+            "MLFLOW_TRACKING_URI": mlflow_vito_vault['url'],
         }
 
         set_dotenv_vars_from_dict(self.mflow_credentials)

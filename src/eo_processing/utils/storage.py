@@ -1,11 +1,8 @@
 from __future__ import annotations
-import os
-from ast import literal_eval
 
+import os
 import boto3
 from botocore.exceptions import ClientError
-from eo_processing.utils.dotenv_utils import set_dotenv_vars_from_dict, DOTENV
-from eo_processing.utils.helper import string_to_dict
 from getpass import getpass
 import geopandas as gpd
 from hashlib import md5
@@ -15,8 +12,11 @@ from requests import auth, delete, post, put
 import tempfile
 import time
 from tqdm import tqdm
-from typing import Union, Dict, Tuple, List, TYPE_CHECKING, IO, Optional
 import psycopg
+from dotenv import load_dotenv, find_dotenv, set_key
+from typing import Union, Dict, Tuple, List, TYPE_CHECKING, IO, Optional
+
+from eo_processing.utils.helper import string_to_dict
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import (s3_credentials_format, sql_credentials_format,
@@ -24,6 +24,12 @@ if TYPE_CHECKING:
                                                    mlflow_credentials_format)
     import pystac
 
+# setting for the .env file to set the environmental variables for MLFlow
+DOTENV = find_dotenv()
+if os.path.exists(DOTENV) and DOTENV:
+    load_dotenv(DOTENV)
+
+# CONSTANTS for existing S3 buckets and available STAC.api's
 BUCKETS = {'WEED': ['ecdc', 'model', 'extent', 'test', 'ecdc-stac', 'extent-stac'],
            'sonata':['sonata','sonata-stac'],
            'obsgession':['obsgession','obsgession-stac']}
@@ -675,18 +681,26 @@ class MLFlow_storage:
                 "MLFLOW_TRACKING_PASSWORD": mflow_credentials['MLFLOW_TRACKING_PASSWORD'],
                 "MLFLOW_TRACKING_URI": mflow_credentials['MLFLOW_TRACKING_URI'],
             }
-        elif (not((isinstance(mflow_credentials, dict))
-              and (set(mflow_credentials.keys()) == set(mlflow_credentials_format.__annotations__.keys())))
-              ) and DOTENV:
-            self.mflow_credentials = {
-                "MLFLOW_TRACKING_URI": os.getenv("MLFLOW_TRACKING_URI"),
-                "MLFLOW_TRACKING_USERNAME": os.getenv("MLFLOW_TRACKING_USERNAME"),
-                "MLFLOW_TRACKING_PASSWORD": os.getenv("MLFLOW_TRACKING_PASSWORD"),
-            }
         else:
             raise ValueError('The provided ML Flow credentials are not valid. Please check the documentation '
                              'for the correct format.')
-        
+
+        # set MLFlow credentials if needed
+        self.set_dotenv_vars_from_dict(self.mflow_credentials)
+
+    def set_dotenv_vars_from_dict(self, var_dict: dict):
+        """
+        Adds or Updates a key/value from a dictionary to the given .env environment variables.
+
+        :param var_dict: Mapping of env var names to values.
+        """
+        for key, value in var_dict.items():
+            if value is None:
+                continue
+            os.environ[key] = value
+
+            if os.path.exists(DOTENV):
+                set_key(DOTENV, key, value)
 
 class SQL_storage:
     """
@@ -1692,7 +1706,7 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage, MLFlow
             "MLFLOW_TRACKING_URI": mlflow_vito_vault['url'],
         }
 
-        set_dotenv_vars_from_dict(self.mflow_credentials)
+        self.set_dotenv_vars_from_dict(self.mflow_credentials)
 
     def _set_gdrive_credentials(self, gdrive_entry_point: str) -> None:
         """

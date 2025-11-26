@@ -46,7 +46,7 @@ def catalogue_check_S1(orbit_direction: str, start: str, end: str, bbox: openEO_
                f"OData.CSC.Intersects(area=geography'SRID=4326;{latlon_box}') and ContentDate/Start gt "
                f"{start} and ContentDate/Start lt {end} and "
                f"Attributes/OData.CSC.StringAttribute/any(att:att/Name eq 'orbitDirection' and "
-               f"att/OData.CSC.StringAttribute/Value eq '{orbit_direction}')&$top={100}")
+               f"att/OData.CSC.StringAttribute/Value eq '{orbit_direction}')&$top={1000}")
         results = requests.get(url)
         json_data = json.loads(results.text)
 
@@ -126,7 +126,7 @@ def count_amount_of_files(sentinel: str, latlon_box: geojson.Feature, start: str
 
     url=  (f"https://datahub.creodias.eu/odata/v1/Products?$filter=Collection/Name eq '{satelite}' and "
            f"OData.CSC.Intersects(area=geography'SRID=4326;{latlon_box}') and ContentDate/Start "
-           f"gt {start} and ContentDate/Start lt {end}&$top={100}")
+           f"gt {start} and ContentDate/Start lt {end}&$top={1000}")
     results = requests.get(url)
     json_data = json.loads(results.text)
     return len(json_data["value"])

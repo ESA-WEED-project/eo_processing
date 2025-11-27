@@ -182,6 +182,7 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
             collections=['sentinel-1-grd'],
             bbox=list(latlon_box.bounds),
             datetime=f"{start}/{end}",
+            fields=["id", "properties.datetime"],
             query={"sat:orbit_state": {"eq": f"{orbit_direction.lower()}"},
                    #"sar:polarizations": {"eq": "VV&VH"},
                    },
@@ -189,11 +190,13 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
 
         # get the dates of all found matches
         results = []
-        for item in search.items():
-            results.append(item.datetime.date())
+        for item in search.items_as_dicts():
+            results.append(item['properties']['datetime'])
 
         # count the number of unique dates on which we have observations (resolved tile overlap)
         df = pd.DataFrame(results, columns=['date'])
+        df['date'] = pd.to_datetime(df['date'])
+        df['date'] = df['date'].apply(lambda x: x.date())
         nbr_files = df['date'].nunique()
 
         if nbr_files < MIN_VALUE_S1*percentage*temp_extent_days:
@@ -206,16 +209,19 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
         collections=['sentinel-1-grd'],
         bbox=list(latlon_box.bounds),
         datetime=f"{start}/{end}",
+        fields=["id", "properties.datetime"],
         #query={"sar:polarizations": {"eq": "VV&VH"} },
     )
 
     # get the dates of all found matches
     results = []
-    for item in search.items():
-        results.append(item.datetime.date())
+    for item in search.items_as_dicts():
+        results.append(item['properties']['datetime'])
 
     # count the number of unique dates on which we have observations (resolved tile overlap)
     df = pd.DataFrame(results, columns=['date'])
+    df['date'] = pd.to_datetime(df['date'])
+    df['date'] = df['date'].apply(lambda x: x.date())
     nbr_files = df['date'].nunique()
 
     if nbr_files < MIN_VALUE_S1*percentage*temp_extent_days:
@@ -266,16 +272,19 @@ def catalog_check_CDSE_S2(start: str, end: str, bbox: openEO_bbox_format) -> Non
         collections=['sentinel-2-l2a'],
         bbox=list(latlon_box.bounds),
         datetime=f"{start}/{end}",
+        fields=["id", "properties.datetime"],
         #query={"eo:cloud_cover": {"lt": 95}},
     )
 
     # get the dates of all found matches
     results = []
-    for item in search.items():
-        results.append(item.datetime.date())
+    for item in search.items_as_dicts():
+        results.append(item['properties']['datetime'])
 
     # count the number of unique dates on which we have observations (resolved tile overlap)
     df = pd.DataFrame(results, columns=['date'])
+    df['date'] = pd.to_datetime(df['date'])
+    df['date'] = df['date'].apply(lambda x: x.date())
     nbr_files = df['date'].nunique()
 
     # run the test

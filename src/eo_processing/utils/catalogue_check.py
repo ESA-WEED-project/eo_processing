@@ -230,7 +230,7 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
 
     return None
 
-def catalog_check_CDSE_S2(start: str, end: str, bbox: openEO_bbox_format) -> None:
+def catalogue_check_CDSE_S2(start: str, end: str, bbox: openEO_bbox_format) -> None:
     """
     Checks the availability of Sentinel-2 images from the Copernicus Data Space Ecosystem STAC
     API within a specified temporal and spatial extent. Validates whether the minimum required

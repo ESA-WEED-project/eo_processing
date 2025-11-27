@@ -4,7 +4,7 @@ from openeo.rest.datacube import DataCube
 
 from eo_processing.openeo.masking import scl_mask_erode_dilate
 from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2,
-                                                 catalogue_check_CDSE_S1, catalog_check_CDSE_S2)
+                                                 catalogue_check_CDSE_S1, catalogue_check_CDSE_S2)
 from eo_processing.config.settings import S2_BANDS
 import openeo
 from typing import Optional, Dict, Union, List, TYPE_CHECKING
@@ -196,7 +196,7 @@ def extract_S2_datacube(
     # we have to check if enough data is available on creo platform
     if catalogue_check:
         if processing_options.get("provider", "").lower() == "cdse":
-            catalog_check_CDSE_S2(start, end, bbox)
+            catalogue_check_CDSE_S2(start, end, bbox)
         else:
             catalogue_check_S2(start, end, bbox)
 

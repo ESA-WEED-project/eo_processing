@@ -3,7 +3,8 @@ from openeo.processes import array_create, if_, is_nodata, power, array_contains
 from openeo.rest.datacube import DataCube
 
 from eo_processing.openeo.masking import scl_mask_erode_dilate
-from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2)
+from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2,
+                                                 catalogue_check_CDSE_S1, catalog_check_CDSE_S2)
 from eo_processing.config.settings import S2_BANDS
 import openeo
 from typing import Optional, Dict, Union, List, TYPE_CHECKING
@@ -83,7 +84,10 @@ def extract_S1_datacube(
 
     # we have to check if enough data is available on creo platform
     if catalogue_check:
-        orbit_direction = catalogue_check_S1(orbit_direction, start, end, bbox)
+        if processing_options.get("provider", "").lower() == "cdse":
+            orbit_direction = catalogue_check_CDSE_S1(orbit_direction, start, end, bbox)
+        else:
+            orbit_direction = catalogue_check_S1(orbit_direction, start, end, bbox)
 
     # convert the orbit direction parameter into openEO property
     if orbit_direction is not None:
@@ -191,12 +195,13 @@ def extract_S2_datacube(
 
     # we have to check if enough data is available on creo platform
     if catalogue_check:
-        # S2URL creo only accepts request in EPSG:4326
-        catalogue_check_S2(start, end, bbox)
+        if processing_options.get("provider", "").lower() == "cdse":
+            catalog_check_CDSE_S2(start, end, bbox)
+        else:
+            catalogue_check_S2(start, end, bbox)
 
     #create filter for S2 tiles to limit amount of overlapping S2 input data
     properties = None
-
     if s2_tileid_list:
         if len(s2_tileid_list) == 1:
             properties= {"tileId": lambda tile_id: tile_id==s2_tileid_list[0]}
@@ -228,9 +233,6 @@ def extract_S2_datacube(
             max_cloud_cover=95,
             properties=properties
         )
-        # to avoid sub-pixel shift error we have to resample SCL mask if requested and not just trust mask process
-        if target_crs is not None:
-            sub_collection = sub_collection.resample_spatial(projection=target_crs, resolution=target_res)
 
         scl_dilated_mask = sub_collection.process(
             "to_scl_dilation_mask",
@@ -242,6 +244,11 @@ def extract_S2_datacube(
             mask2_values=[3, 8, 9, 10, 11],
             erosion_kernel_size=3
         ).rename_labels("bands", ["S2-L2A-SCL_DILATED_MASK"])
+
+        # to avoid sub-pixel shift error we have to resample SCL mask if requested and not just trust mask process
+        if target_crs is not None:
+            scl_dilated_mask = scl_dilated_mask.resample_spatial(projection=target_crs, resolution=target_res)
+
         bands = bands.mask(scl_dilated_mask) # masks are automatically resampled/warped
     elif masking == 'satio':
         # Apply satio-based mask
@@ -250,6 +257,7 @@ def extract_S2_datacube(
             bbox,
             scl_layer_band=S2_collection + ':SCL',
             target_crs=target_crs)
+
         bands = bands.mask(mask) # masks are automatically resampled/warped
 
     # time aggregation if wished

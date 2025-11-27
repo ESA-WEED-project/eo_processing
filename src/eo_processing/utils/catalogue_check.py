@@ -5,6 +5,7 @@ import pandas as pd
 from eo_processing.utils.geoprocessing import reproj_bbox_to_ll
 import geojson
 from typing import TYPE_CHECKING
+import pystac_client
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import openEO_bbox_format
@@ -46,7 +47,7 @@ def catalogue_check_S1(orbit_direction: str, start: str, end: str, bbox: openEO_
                f"OData.CSC.Intersects(area=geography'SRID=4326;{latlon_box}') and ContentDate/Start gt "
                f"{start} and ContentDate/Start lt {end} and "
                f"Attributes/OData.CSC.StringAttribute/any(att:att/Name eq 'orbitDirection' and "
-               f"att/OData.CSC.StringAttribute/Value eq '{orbit_direction}')&$top={1000}")
+               f"att/OData.CSC.StringAttribute/Value eq '{orbit_direction}')&$top={100}")
         results = requests.get(url)
         json_data = json.loads(results.text)
 
@@ -126,7 +127,157 @@ def count_amount_of_files(sentinel: str, latlon_box: geojson.Feature, start: str
 
     url=  (f"https://datahub.creodias.eu/odata/v1/Products?$filter=Collection/Name eq '{satelite}' and "
            f"OData.CSC.Intersects(area=geography'SRID=4326;{latlon_box}') and ContentDate/Start "
-           f"gt {start} and ContentDate/Start lt {end}&$top={1000}")
+           f"gt {start} and ContentDate/Start lt {end}&$top={100}")
     results = requests.get(url)
     json_data = json.loads(results.text)
     return len(json_data["value"])
+
+def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: openEO_bbox_format) -> str | None:
+    """
+    Executes a query to the Copernicus Data Space Ecosystem (CDSE) Sentinel-1 catalogue
+    to verify the availability of Sentinel-1 imagery over a specified temporal extent
+    and spatial bounding box. The function evaluates whether sufficient Sentinel-1
+    images exist based on certain thresholds and optionally filters by orbit direction.
+
+    :param orbit_direction: Direction of the orbit for filtering results. Can be
+        'ASCENDING', 'DESCENDING', or None for both. If provided, it must be one of these values.
+    :param start: Start date of the query temporal extent in ISO 8601 format
+        (YYYY-MM-DD). Time will default to "T00:00:00.00Z" if not specified.
+    :param end: End date of the query temporal extent in ISO 8601 format
+        (YYYY-MM-DD). Time will default to "T00:00:00.00Z" if not specified.
+    :param bbox: Spatial bounding box for the query in openEO_bbox_format. Used to
+        define the region of interest.
+
+    :return: The orbit direction if sufficient Sentinel-1 images are available for
+        the specified orbit, else None.
+    """
+    #quickfix on dates that are in date format
+    if not 'Z' in start:
+        start = start + "T00:00:00.00Z"
+    if not 'Z' in end:
+        end = end + "T00:00:00.00Z"
+
+    # set the minimum number of S1 images with two satellites
+    MIN_VALUE_S1 = 1./12.
+    # the percentage of observations we want to have at least
+    percentage = 0.8
+    # convert the openEO bbox format to a shapely Polygon
+    latlon_box = reproj_bbox_to_ll(bbox)
+    # number of days in the temporal extent
+    temp_extent_days = (pd.to_datetime(end)-pd.to_datetime(start)).days
+
+    # run the PySTAC-client search
+    # Connect to the Copernicus Data Space Ecosystem STAC API
+    #catalog_url = "https://catalogue.dataspace.copernicus.eu/stac"
+    catalog_url = "https://stac.dataspace.copernicus.eu/v1/"
+    client = pystac_client.Client.open(catalog_url)
+
+    # if we have an orbit_direction given we have to test that first
+    if orbit_direction is not None:
+        if orbit_direction not in ['ASCENDING', 'DESCENDING']:
+            raise ValueError(
+                f'`orbit_direction` value `{orbit_direction}` not recognized.')
+
+        search = client.search(
+            collections=['sentinel-1-grd'],
+            bbox=list(latlon_box.bounds),
+            datetime=f"{start}/{end}",
+            query={"sat:orbit_state": {"eq": f"{orbit_direction.lower()}"},
+                   #"sar:polarizations": {"eq": "VV&VH"},
+                   },
+        )
+
+        # get the dates of all found matches
+        results = []
+        for item in search.items():
+            results.append(item.datetime.date())
+
+        # count the number of unique dates on which we have observations (resolved tile overlap)
+        df = pd.DataFrame(results, columns=['date'])
+        nbr_files = df['date'].nunique()
+
+        if nbr_files < MIN_VALUE_S1*percentage*temp_extent_days:
+            print(f'Not enough S1 images with orbit {orbit_direction}. \n' + \
+                  f'Found {nbr_files} images.')
+        else: return orbit_direction
+    #use both orbits -> check with both directions.
+
+    search = client.search(
+        collections=['sentinel-1-grd'],
+        bbox=list(latlon_box.bounds),
+        datetime=f"{start}/{end}",
+        #query={"sar:polarizations": {"eq": "VV&VH"} },
+    )
+
+    # get the dates of all found matches
+    results = []
+    for item in search.items():
+        results.append(item.datetime.date())
+
+    # count the number of unique dates on which we have observations (resolved tile overlap)
+    df = pd.DataFrame(results, columns=['date'])
+    nbr_files = df['date'].nunique()
+
+    if nbr_files < MIN_VALUE_S1*percentage*temp_extent_days:
+        raise ValueError(f'not enough S1 without orbit direction selection. \n'+ \
+                         f'Found {nbr_files} images.')
+
+    return None
+
+def catalog_check_CDSE_S2(start: str, end: str, bbox: openEO_bbox_format) -> None:
+    """
+    Checks the availability of Sentinel-2 images from the Copernicus Data Space Ecosystem STAC
+    API within a specified temporal and spatial extent. Validates whether the minimum required
+    observation density is met based on temporal extent duration and predefined thresholds.
+
+    :param start: The start date of the temporal extent in ISO 8601 format (e.g., "YYYY-MM-DD").
+    :param end: The end date of the temporal extent in ISO 8601 format (e.g., "YYYY-MM-DD").
+    :param bbox: A bounding box defining the spatial extent in openEO_bbox_format.
+
+    :raises ValueError: If the number of Sentinel-2 images found does not meet the minimum
+        required observation density for the specified bounding box and temporal extent.
+    """
+    #quickfix on dates that are in date format
+    if not 'Z' in start:
+        start = start + "T00:00:00.00Z"
+    if not 'Z' in end:
+        end = end + "T00:00:00.00Z"
+
+    # set the minimum number of S2 images with two satellites (5 daily observation)
+    MIN_VALUE_S2 = 1./5.
+    #in 2017 S2B started in june/july so than only S2A sattelite
+    if pd.to_datetime(start).year == '2017':
+        MIN_VALUE_S2 = 1./10.
+
+    # the percentage of observations we want to have at least
+    percentage = 0.8
+    # convert the openEO bbox format to a shapely Polygon
+    latlon_box = reproj_bbox_to_ll(bbox)
+    # number of days in the temporal extent
+    temp_extent_days = (pd.to_datetime(end)-pd.to_datetime(start)).days
+
+    # run the PySTAC-client search
+    # Connect to the Copernicus Data Space Ecosystem STAC API
+    #catalog_url = "https://catalogue.dataspace.copernicus.eu/stac"
+    catalog_url = "https://stac.dataspace.copernicus.eu/v1/"
+    client = pystac_client.Client.open(catalog_url)
+
+    search = client.search(
+        collections=['sentinel-2-l2a'],
+        bbox=list(latlon_box.bounds),
+        datetime=f"{start}/{end}",
+        #query={"eo:cloud_cover": {"lt": 95}},
+    )
+
+    # get the dates of all found matches
+    results = []
+    for item in search.items():
+        results.append(item.datetime.date())
+
+    # count the number of unique dates on which we have observations (resolved tile overlap)
+    df = pd.DataFrame(results, columns=['date'])
+    nbr_files = df['date'].nunique()
+
+    # run the test
+    if nbr_files < MIN_VALUE_S2*percentage*temp_extent_days:
+        raise ValueError(f'not enough S2 images. Found {nbr_files} images.')

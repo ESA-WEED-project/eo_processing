@@ -1753,7 +1753,10 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage, MLFlow
             raise Exception(f'the specified environment {stac_env} does not exist in the WEED project. '
                             f'It should be prod or dev.')
 
-        STAC_vito_vault = string_to_dict(self.credentials[f'STAC-{stac_env}-auth'])
+        if self.project == 'WEED':
+            STAC_vito_vault = string_to_dict(self.credentials[f'STAC-{stac_env}-auth'])
+        else:
+            STAC_vito_vault = string_to_dict(self.credentials[f'STAC-{stac_env}-auth-{self.project}'])
 
         self.stac_credentials = {
             "CLIENT_ID": STAC_vito_vault['CLIENT_ID'],

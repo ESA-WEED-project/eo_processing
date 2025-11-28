@@ -45,7 +45,6 @@ ts_interval: str = 'dekad'
 S2_temporal_reducer : str = 'median'
         temporal reducer for the S2 data cube in the temporal binning process.
         possible reducer ('median', 'mean', 'max', 'min', 'first', 'last', 'product', 'sd', 'sum', 'variance')
-        
 
 S2_BANDS: list = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
         which reflectance bands to process of Sentinel-2. Note: requested VI's with reflectance bands not listed 
@@ -55,7 +54,7 @@ s2_tileid_list: list = None
         if provided, this list contains tileIDs (eg ['31UFS']) which are used to limit the S2 data load to 
         these tileIDs. This list can be None, multiple tiles or one tile with or without a wildcard (*).
 
-apply_cloud_mask: str = 'mask_scl_dilation'
+SLC_masking_algo: str = 'mask_scl_dilation'
         Masking method for Sentinel-2 optical data ('satio', 'mask_scl_dilation')
 
 s1_orbitdirection: str = 'DESCENDING'

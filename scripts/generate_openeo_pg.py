@@ -12,13 +12,13 @@ connection = openeo.connect("openeo.dataspace.copernicus.eu").authenticate_oidc(
 
 # Define the spatial and temporal extent for the tests
 spatial_extent = {
-    'east': 5.5,
-    'south': 49.5,
-    'west': 4.5,
-    'north': 50.5,
-    'crs': 'EPSG:4326'
+    'east': 4880000,
+    'south': 2898000,
+    'west': 4878000,
+    'north': 2900000,
+    'crs': 'EPSG:3035'
 }
-temporal_extent = ["2021-01-01", "2021-12-31"]
+temporal_extent = ["2021-01-01", "2022-01-01"]
 
 # Directory to save the process graphs
 output_directory = "resources/unit-tests"

@@ -128,6 +128,8 @@ def extract_S1_datacube(
     # warp and/or resample if needed
     if target_crs is not None:
         bands = bands.resample_spatial(projection=target_crs, resolution=target_res)
+    else:
+        bands = bands.resample_spatial(resolution=target_res)
 
     # time aggregation if wished
     if ts_interval is not None:
@@ -229,6 +231,8 @@ def extract_S2_datacube(
     # warp and/or resample if needed
     if target_crs is not None:
         bands = bands.resample_spatial(projection=target_crs, resolution=target_res)
+    else:
+        bands = bands.resample_spatial(resolution=target_res)
 
     # apply cloud masking
     if masking == 'mask_scl_dilation':
@@ -241,8 +245,11 @@ def extract_S2_datacube(
             max_cloud_cover=95,
             properties=properties
         )
-
-        sub_collection = sub_collection.resample_spatial(resolution=10.)
+        # resample to 10m (needed for the correct kernels)
+        if target_crs is not None:
+            sub_collection = sub_collection.resample_spatial(resolution=10., projection=target_crs)
+        else:
+            sub_collection = sub_collection.resample_spatial(resolution=10.)
 
         scl_dilated_mask = sub_collection.process(
             "to_scl_dilation_mask",
@@ -258,6 +265,8 @@ def extract_S2_datacube(
         # to avoid sub-pixel shift error we have to resample SCL mask if requested and not just trust mask process
         if target_crs is not None:
             scl_dilated_mask = scl_dilated_mask.resample_spatial(projection=target_crs, resolution=target_res)
+        else:
+            scl_dilated_mask = scl_dilated_mask.resample_spatial(resolution=target_res)
 
         if apply_mask:
             bands = bands.mask(scl_dilated_mask) # here I do not trust the automatic resampling of the mask

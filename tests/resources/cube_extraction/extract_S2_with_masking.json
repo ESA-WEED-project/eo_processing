@@ -1,160 +1,172 @@
 {
-    "process_graph": {
-        "loadcollection1": {
-            "process_id": "load_collection",
-            "arguments": {
-                "bands": [
-                    "B02",
-                    "B03",
-                    "B04",
-                    "B05",
-                    "B06",
-                    "B07",
-                    "B08",
-                    "B8A",
-                    "B11",
-                    "B12"
-                ],
-                "id": "SENTINEL2_L2A",
-                "properties": {
-                    "eo:cloud_cover": {
-                        "process_graph": {
-                            "lte1": {
-                                "process_id": "lte",
-                                "arguments": {
-                                    "x": {
-                                        "from_parameter": "value"
-                                    },
-                                    "y": 95
-                                },
-                                "result": true
-                            }
-                        }
-                    }
+  "process_graph": {
+    "loadcollection1": {
+      "process_id": "load_collection",
+      "arguments": {
+        "bands": [
+          "B02",
+          "B03",
+          "B04",
+          "B05",
+          "B06",
+          "B07",
+          "B08",
+          "B8A",
+          "B11",
+          "B12"
+        ],
+        "id": "SENTINEL2_L2A",
+        "properties": {
+          "eo:cloud_cover": {
+            "process_graph": {
+              "lte1": {
+                "process_id": "lte",
+                "arguments": {
+                  "x": {
+                    "from_parameter": "value"
+                  },
+                  "y": 95
                 },
-                "spatial_extent": {
-                    "east": 4880000,
-                    "south": 2898000,
-                    "west": 4878000,
-                    "north": 2900000,
-                    "crs": "EPSG:3035"
-                },
-                "temporal_extent": [
-                    "2021-01-01",
-                    "2022-01-01"
-                ]
+                "result": true
+              }
             }
+          }
         },
-        "loadcollection2": {
-            "process_id": "load_collection",
-            "arguments": {
-                "bands": [
-                    "SCL"
-                ],
-                "id": "SENTINEL2_L2A",
-                "properties": {
-                    "eo:cloud_cover": {
-                        "process_graph": {
-                            "lte2": {
-                                "process_id": "lte",
-                                "arguments": {
-                                    "x": {
-                                        "from_parameter": "value"
-                                    },
-                                    "y": 95
-                                },
-                                "result": true
-                            }
-                        }
-                    }
+        "spatial_extent": {
+          "east": 5.5,
+          "south": 49.5,
+          "west": 4.5,
+          "north": 50.5,
+          "crs": "EPSG:4326"
+        },
+        "temporal_extent": [
+          "2021-01-01",
+          "2021-12-31"
+        ]
+      }
+    },
+    "loadcollection2": {
+      "process_id": "load_collection",
+      "arguments": {
+        "bands": [
+          "SCL"
+        ],
+        "id": "SENTINEL2_L2A",
+        "properties": {
+          "eo:cloud_cover": {
+            "process_graph": {
+              "lte2": {
+                "process_id": "lte",
+                "arguments": {
+                  "x": {
+                    "from_parameter": "value"
+                  },
+                  "y": 95
                 },
-                "spatial_extent": {
-                    "east": 4880000,
-                    "south": 2898000,
-                    "west": 4878000,
-                    "north": 2900000,
-                    "crs": "EPSG:3035"
-                },
-                "temporal_extent": [
-                    "2021-01-01",
-                    "2022-01-01"
-                ]
+                "result": true
+              }
             }
+          }
         },
-        "toscldilationmask1": {
-            "process_id": "to_scl_dilation_mask",
-            "arguments": {
-                "data": {
-                    "from_node": "loadcollection2"
-                },
-                "erosion_kernel_size": 3,
-                "kernel1_size": 17,
-                "kernel2_size": 77,
-                "mask1_values": [
-                    2,
-                    4,
-                    5,
-                    6,
-                    7
-                ],
-                "mask2_values": [
-                    3,
-                    8,
-                    9,
-                    10,
-                    11
-                ],
-                "scl_band_name": "SCL"
-            }
+        "spatial_extent": {
+          "east": 5.5,
+          "south": 49.5,
+          "west": 4.5,
+          "north": 50.5,
+          "crs": "EPSG:4326"
         },
-        "renamelabels1": {
-            "process_id": "rename_labels",
-            "arguments": {
-                "data": {
-                    "from_node": "toscldilationmask1"
-                },
-                "dimension": "bands",
-                "target": [
-                    "S2-CLOUD-MASK"
-                ]
-            }
+        "temporal_extent": [
+          "2021-01-01",
+          "2021-12-31"
+        ]
+      }
+    },
+    "resamplespatial1": {
+      "process_id": "resample_spatial",
+      "arguments": {
+        "align": "upper-left",
+        "data": {
+          "from_node": "loadcollection2"
         },
-        "mask1": {
-            "process_id": "mask",
-            "arguments": {
-                "data": {
-                    "from_node": "loadcollection1"
-                },
-                "mask": {
-                    "from_node": "renamelabels1"
-                }
-            }
+        "method": "near",
+        "projection": null,
+        "resolution": 10.0
+      }
+    },
+    "toscldilationmask1": {
+      "process_id": "to_scl_dilation_mask",
+      "arguments": {
+        "data": {
+          "from_node": "resamplespatial1"
         },
-        "apply1": {
-            "process_id": "apply",
-            "arguments": {
-                "data": {
-                    "from_node": "mask1"
-                },
-                "process": {
-                    "process_graph": {
-                        "linearscalerange1": {
-                            "process_id": "linear_scale_range",
-                            "arguments": {
-                                "inputMax": 65534,
-                                "inputMin": 0,
-                                "outputMax": 65534,
-                                "outputMin": 0,
-                                "x": {
-                                    "from_parameter": "x"
-                                }
-                            },
-                            "result": true
-                        }
-                    }
-                }
-            },
-            "result": true
+        "erosion_kernel_size": 3,
+        "kernel1_size": 17,
+        "kernel2_size": 77,
+        "mask1_values": [
+          2,
+          4,
+          5,
+          6,
+          7
+        ],
+        "mask2_values": [
+          3,
+          8,
+          9,
+          10,
+          11
+        ],
+        "scl_band_name": "SCL"
+      }
+    },
+    "renamelabels1": {
+      "process_id": "rename_labels",
+      "arguments": {
+        "data": {
+          "from_node": "toscldilationmask1"
+        },
+        "dimension": "bands",
+        "target": [
+          "S2-CLOUD-MASK"
+        ]
+      }
+    },
+    "mask1": {
+      "process_id": "mask",
+      "arguments": {
+        "data": {
+          "from_node": "loadcollection1"
+        },
+        "mask": {
+          "from_node": "renamelabels1"
         }
+      }
+    },
+    "apply1": {
+      "process_id": "apply",
+      "arguments": {
+        "data": {
+          "from_node": "mask1"
+        },
+        "process": {
+          "process_graph": {
+            "linearscalerange1": {
+              "process_id": "linear_scale_range",
+              "arguments": {
+                "inputMax": 65534,
+                "inputMin": 0,
+                "outputMax": 65534,
+                "outputMin": 0,
+                "x": {
+                  "from_parameter": "x"
+                }
+              },
+              "result": true
+            }
+          }
+        }
+      },
+      "result": true
     }
+  }
 }

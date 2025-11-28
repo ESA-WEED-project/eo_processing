@@ -21,7 +21,7 @@ spatial_extent = {
 temporal_extent = ["2021-01-01", "2021-12-31"]
 
 # Directory to save the process graphs
-output_directory = "resources"
+output_directory = "resources/unit-tests"
 os.makedirs(output_directory, exist_ok=True)
 
 #%%

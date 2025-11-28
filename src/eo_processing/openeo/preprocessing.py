@@ -68,6 +68,9 @@ def extract_S1_datacube(
     else:
         catalogue_check = False
 
+    if processing_options.get('skip_check_S1', False):
+        catalogue_check = False
+
     isCreo = "creo" in processing_options.get("provider", "").lower()
     orbit_direction = processing_options.get('s1_orbitdirection', None)
     target_crs = processing_options.get("target_crs", None)
@@ -181,13 +184,18 @@ def extract_S2_datacube(
     else:
         catalogue_check = False
 
+    if processing_options.get('skip_check_S2', False):
+        catalogue_check = False
+
     target_crs = processing_options.get("target_crs", None)
     target_res = processing_options.get("resolution", 10.)
     S2_bands = processing_options.get("S2_bands", S2_BANDS)
     ts_interval = processing_options.get("ts_interval", None)
     ts_interpolation = processing_options.get("time_interpolation", False)
     masking = processing_options.get("SLC_masking_algo", None)
+    apply_mask = processing_options.get("apply_cloud_mask", True)
     s2_tileid_list = processing_options.get("s2_tileid_list", None)
+    ts_reducer = processing_options.get("S2_temporal_reducer", "median")
 
     # check if the masking parameter is valid
     if masking not in ['satio', 'mask_scl_dilation', None]:
@@ -245,13 +253,16 @@ def extract_S2_datacube(
             mask1_values=[2, 4, 5, 6, 7],
             mask2_values=[3, 8, 9, 10, 11],
             erosion_kernel_size=3
-        ).rename_labels("bands", ["S2-L2A-SCL_DILATED_MASK"])
+        ).rename_labels("bands", ["S2-CLOUD-MASK"])
 
         # to avoid sub-pixel shift error we have to resample SCL mask if requested and not just trust mask process
         if target_crs is not None:
             scl_dilated_mask = scl_dilated_mask.resample_spatial(projection=target_crs, resolution=target_res)
 
-        bands = bands.mask(scl_dilated_mask) # masks are automatically resampled/warped
+        if apply_mask:
+            bands = bands.mask(scl_dilated_mask) # here I do not trust the automatic resampling of the mask
+        else:
+            bands = bands.merge_cubes(scl_dilated_mask)
     elif masking == 'satio':
         # Apply satio-based mask
         mask = scl_mask_erode_dilate(
@@ -260,11 +271,14 @@ def extract_S2_datacube(
             scl_layer_band=S2_collection + ':SCL',
             target_crs=target_crs)
 
-        bands = bands.mask(mask) # masks are automatically resampled/warped
+        if apply_mask:
+            bands = bands.mask(mask) # masks are automatically resampled/warped
+        else:
+            bands = bands.merge_cubes(mask)
 
     # time aggregation if wished
     if ts_interval is not None:
-        bands = bands.aggregate_temporal_period(period=ts_interval,  reducer="median")
+        bands = bands.aggregate_temporal_period(period=ts_interval,  reducer=ts_reducer)
 
     # Linearly interpolate missing values if wished
     if ts_interpolation:

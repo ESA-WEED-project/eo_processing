@@ -40,7 +40,12 @@ time_interpolation: bool = False
         if missing timesteps in the S1 & S2 temporal profiles are interpolated (per pixel)
         
 ts_interval: str = 'dekad'
-        temporal binning (see openEO documentation for possible aggregators)
+        temporal binning ('day', 'week', 'dekad', 'month', 'season', 'year', None)
+
+S2_temporal_reducer : str = 'median'
+        temporal reducer for the S2 data cube in the temporal binning process.
+        possible reducer ('median', 'mean', 'max', 'min', 'first', 'last', 'product', 'sd', 'sum', 'variance')
+        
 
 S2_BANDS: list = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
         which reflectance bands to process of Sentinel-2. Note: requested VI's with reflectance bands not listed 
@@ -50,7 +55,7 @@ s2_tileid_list: list = None
         if provided, this list contains tileIDs (eg ['31UFS']) which are used to limit the S2 data load to 
         these tileIDs. This list can be None, multiple tiles or one tile with or without a wildcard (*).
 
-SLC_masking_algo: str = 'mask_scl_dilation'
+apply_cloud_mask: str = 'mask_scl_dilation'
         Masking method for Sentinel-2 optical data ('satio', 'mask_scl_dilation')
 
 s1_orbitdirection: str = 'DESCENDING'
@@ -71,7 +76,20 @@ radar_vi_list: list = ['VHVVD','VHVVR','RVI']
         possible VIs)
 
 append : bool = True
-        if the VI's are appended to the reflectance/radar time series cube OR replace them           
+        if the VI's are appended to the reflectance/radar time series cube OR replace them
+
+skip_check_S1 : bool = False
+        if True, the S1 data is not checked for missing timesteps (e.g. due to gaps in the orbit)
+        (-> this can lead to errors in the VI calculation)
+
+skip_check_S2 : bool = False
+        if True, the S2 data is not checked for missing timesteps (e.g. due to gaps in the orbit)
+        (-> this can lead to errors in the VI calculation)
+
+apply_cloud_mask : bool = True
+        if True, the Sentinel-2 data is masked for clouds (based on Sentinel-2 QA band). 
+        If False, no masking is applied but the mask band is still created and added to the cube.
+        Note: no effect when 'mask_scl_dilation' parameter is set to None.     
 ```
 ## explanation on settings for inference pipeline
 - the inference pipeline currently applies ML models stored in the ONNX format on a given datacube

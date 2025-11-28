@@ -115,7 +115,7 @@
                 },
                 "dimension": "bands",
                 "target": [
-                    "S2-L2A-SCL_DILATED_MASK"
+                    "S2-CLOUD-MASK"
                 ]
             }
         },

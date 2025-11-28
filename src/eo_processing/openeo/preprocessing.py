@@ -234,12 +234,14 @@ def extract_S2_datacube(
             properties=properties
         )
 
+        sub_collection = sub_collection.resample_spatial(resolution=10.)
+
         scl_dilated_mask = sub_collection.process(
             "to_scl_dilation_mask",
             data=sub_collection,
             scl_band_name="SCL",
-            kernel1_size=17,  # 17px dilation on a 20m layer
-            kernel2_size=77,  # 77px dilation on a 20m layer
+            kernel1_size=17,  # 17px dilation on a 10m layer
+            kernel2_size=77,  # 77px dilation on a 10m layer
             mask1_values=[2, 4, 5, 6, 7],
             mask2_values=[3, 8, 9, 10, 11],
             erosion_kernel_size=3

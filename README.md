@@ -34,13 +34,15 @@ target_crs: int = 3035
         EPSG code for output product (e.g. 3035 for LAEA projection).
 
 resolution: float = 10.
-        spatial resolution of the output data cube in unit of the target_crs
+        spatial resolution of the output data cube in unit of the target_crs. 
+        If set to None, the native resolution of the input data is used.
 
 time_interpolation: bool = False
         if missing timesteps in the S1 & S2 temporal profiles are interpolated (per pixel)
         
 ts_interval: str = 'dekad'
         temporal binning ('day', 'week', 'dekad', 'month', 'season', 'year', None)
+        Note: if set to None, the temporal aggregation is skipped and the raw time series data is returned.
 
 S2_temporal_reducer : str = 'median'
         temporal reducer for the S2 data cube in the temporal binning process.
@@ -55,10 +57,12 @@ s2_tileid_list: list = None
         these tileIDs. This list can be None, multiple tiles or one tile with or without a wildcard (*).
 
 SLC_masking_algo: str = 'mask_scl_dilation'
-        Masking method for Sentinel-2 optical data ('satio', 'mask_scl_dilation')
+        Masking method for Sentinel-2 optical data ('satio', 'mask_scl_dilation', None)
+        Note: if set to None, no masking is applied and the S2 L2A data is used as is.
 
 s1_orbitdirection: str = 'DESCENDING'
         This setting ['ASCENDING', 'DESCENDING'] allows to limit the Sentinel-1 cube to only one orbit direction.
+        If set to None, all orbit directions are used.
 
 S2_scaling: list = [0, 10000, 0, 1.0]
         input / scaled value range of the Sentinel-2 datacube. needed to calculate VIs.

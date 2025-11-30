@@ -76,6 +76,7 @@ def extract_S1_datacube(
     target_crs = processing_options.get("target_crs", None)
     target_res = processing_options.get("resolution", 10.)
     ts_interval = processing_options.get("ts_interval", None)
+    ts_reducer = processing_options.get("S1_temporal_reducer", "mean")
     ts_interpolation = processing_options.get("time_interpolation", False)
     if ("creo" in processing_options.get("provider", "").lower()) or \
             (processing_options.get("provider", "").lower() == "terrascope") or \
@@ -133,7 +134,7 @@ def extract_S1_datacube(
 
     # time aggregation if wished
     if ts_interval is not None:
-        bands = bands.aggregate_temporal_period(period=ts_interval, reducer="mean")
+        bands = bands.aggregate_temporal_period(period=ts_interval, reducer=ts_reducer)
 
     # Linearly interpolate missing values if wished
     if ts_interpolation:
@@ -193,11 +194,11 @@ def extract_S2_datacube(
     target_res = processing_options.get("resolution", 10.)
     S2_bands = processing_options.get("S2_bands", S2_BANDS)
     ts_interval = processing_options.get("ts_interval", None)
+    ts_reducer = processing_options.get("S2_temporal_reducer", "median")
     ts_interpolation = processing_options.get("time_interpolation", False)
     masking = processing_options.get("SLC_masking_algo", None)
     apply_mask = processing_options.get("apply_cloud_mask", True)
     s2_tileid_list = processing_options.get("s2_tileid_list", None)
-    ts_reducer = processing_options.get("S2_temporal_reducer", "median")
 
     # check if the masking parameter is valid
     if masking not in ['satio', 'mask_scl_dilation', None]:

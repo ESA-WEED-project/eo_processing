@@ -13,6 +13,7 @@ TARGET_RESOLUTION: float = 10.
 TIME_INTERPOLATION: bool = False
 TS_INTERVAL: str = 'dekad'
 S2_TEMPORAL_REDUCER: str = 'median'
+S1_TEMPORAL_REDUCER: str = 'mean'
 MASKING_ALGO: str = 'mask_scl_dilation'
 APPLY_CLOUD_MASK: bool = True
 S2_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
@@ -253,6 +254,7 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
             "time_interpolation": TIME_INTERPOLATION,
             "ts_interval": TS_INTERVAL,
             "S2_temporal_reducer": S2_TEMPORAL_REDUCER,
+            "S1_temporal_reducer": S1_TEMPORAL_REDUCER,
             "SLC_masking_algo": MASKING_ALGO,
             "S2_bands": S2_BANDS,   # we have to create a copy of the constant list
             "s2_tileid_list": S2_TILEID_LIST,
@@ -269,6 +271,7 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
             "time_interpolation": TIME_INTERPOLATION,
             "ts_interval": TS_INTERVAL,
             "S2_temporal_reducer": S2_TEMPORAL_REDUCER,
+            "S1_temporal_reducer": S1_TEMPORAL_REDUCER,
             "SLC_masking_algo": MASKING_ALGO,
             "S2_bands": S2_BANDS,
             "s2_tileid_list": S2_TILEID_LIST,
@@ -288,7 +291,7 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
 def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTION, target_crs: int = TARGET_CRS,
                          resolution: int | float = TARGET_RESOLUTION, ts_interpolation: bool = TIME_INTERPOLATION,
                          ts_interval: str = TS_INTERVAL, S2_temporal_reducer: str = S2_TEMPORAL_REDUCER,
-                         slc_masking: str = MASKING_ALGO,
+                         S1_temporal_reducer: str = S1_TEMPORAL_REDUCER, slc_masking: str = MASKING_ALGO,
                          S2_bands: List[str] = S2_BANDS, s2_tileid_list: Optional[List[str]] = S2_TILEID_LIST,
                          skip_check_S1: bool = SKIP_CHECK_S1, skip_check_S2: bool = SKIP_CHECK_S2,
                          apply_cloud_mask: bool = APPLY_CLOUD_MASK,
@@ -296,36 +299,54 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
                          S2_scaling: List[int | float] = S2_SCALING, S1_db_rescale: bool = True,
                          append: bool = True) -> Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]:
     """
-    Generates advanced processing options based on the provided parameters.
+    Generates advanced processing options for use in remote sensing data analysis.
 
-    This function validates input parameters and constructs a dictionary of advanced options
-    for processing satellite data. It enforces constraints and specific requirements for each
-    parameter value and returns the aggregated options.
+    This function validates the provided parameters for correctness and returns a
+    dictionary containing processing options for both optical and radar remote sensing
+    data. The function ensures detailed configuration of processing parameters, such
+    as temporal reducers, masking algorithms, scaling, interpolation, and cloud masking.
+    All parameters are validated for their appropriate types and acceptable values.
 
-    :param provider: Data provider identifier.
-    :param s1_orbitdirection: Sentinel-1 orbit direction. Must be 'ASCENDING', 'DESCENDING', or None.
-    :param target_crs: Target Coordinate Reference System (CRS) as an integer identifier.
-    :param resolution: Target spatial resolution for processing, specified as an integer or float.
-    :param ts_interpolation: Boolean indicating whether time series interpolation is applied.
-    :param ts_interval: Time interval for time series aggregation. Should be one of 'day', 'week',
-                        'dekad', 'month', 'season', 'year', or None.
-    :param S2_temporal_reducer: Method for temporal reduction in Sentinel-2 data. Should be one of
-                                'median', 'mean', 'max', 'min', 'first', 'last', 'product', 'sd',
-                                'sum', or 'variance'.
-    :param slc_masking: Sentinel-2 Level-2A cloud masking algorithm. Can be 'mask_scl_dilation',
-                        'satio', or None.
-    :param S2_bands: List of Sentinel-2 reflectance bands to include in processing.
-    :param s2_tileid_list: Optional list of Sentinel-2 tile IDs for processing. Can be None.
-    :param skip_check_S1: Boolean flag to skip validation checks on Sentinel-1 input data.
-    :param skip_check_S2: Boolean flag to skip validation checks on Sentinel-2 input data.
-    :param apply_cloud_mask: Boolean flag to apply a cloud masking algorithm to Sentinel-2 data.
-    :param optical_vi_list: List of vegetation indices from optical data to calculate.
-    :param radar_vi_list: List of vegetation indices from radar data to calculate.
-    :param S2_scaling: List of scaling factors to apply to Sentinel-2 bands during processing.
-    :param S1_db_rescale: Boolean flag to enable or disable dB rescaling of Sentinel-1 data.
-    :param append: Boolean flag to allow appending results to an existing data structure.
+    :param provider: The data provider (e.g., 'Sentinel', 'Landsat').
+    :param s1_orbitdirection: The orbit direction for Sentinel-1 data, must be 'ASCENDING',
+                              'DESCENDING', or None.
+    :param target_crs: The target Coordinate Reference System (CRS) as an integer value.
+    :param resolution: The spatial resolution for processing, can be an integer or float.
+    :param ts_interpolation: Whether to enable time series interpolation, must be a boolean.
+    :param ts_interval: The time series interval, must be one of 'day', 'week', 'dekad',
+                        'month', 'season', 'year', or None.
+    :param S2_temporal_reducer: The temporal reducer for Sentinel-2 data, must be one
+                                of 'median', 'mean', 'max', 'min', 'first', 'last',
+                                'product', 'sd', 'sum', or 'variance'.
+    :param S1_temporal_reducer: The temporal reducer for Sentinel-1 data, must be one
+                                of 'median', 'mean', 'max', 'min', 'first', 'last',
+                                'product', 'sd', 'sum', or 'variance'.
+    :param slc_masking: The algorithm for SLC (Scan Line Corrector) masking, must be
+                        'mask_scl_dilation', 'satio', or None.
+    :param S2_bands: A list of Sentinel-2 reflectance bands to be included in the
+                     processing.
+    :param s2_tileid_list: An optional list of Sentinel-2 tile IDs to restrict the
+                           processing, or None.
+    :param skip_check_S1: Whether to skip validation checks for Sentinel-1 data,
+                          must be a boolean.
+    :param skip_check_S2: Whether to skip validation checks for Sentinel-2 data,
+                          must be a boolean.
+    :param apply_cloud_mask: Whether to apply cloud masking or to add as own band, must be a boolean. Not used if
+                              slc_masking is set to None.
+    :param optical_vi_list: A list of optical vegetation indices to include in the
+                            processing.
+    :param radar_vi_list: A list of radar vegetation indices to include in the
+                          processing.
+    :param S2_scaling: A list of scaling factors for Sentinel-2 bands, can contain
+                       integers or floats. Will be used for VI generation only.
+    :param S1_db_rescale: Whether to rescale Sentinel-1 data to decibel (DB) scale before VI generation,
+                          must be a boolean.
+    :param append: Whether to append the S1/S2 VI's to the reference bands or to replace them, must be a boolean.
 
-    :return: Dictionary containing advanced processing options with validated parameters.
+    :raises ValueError: If any parameter is of invalid type or contains invalid value.
+
+    :return: A dictionary containing the advanced processing options where
+             keys are parameter names and values are the provided or default values.
     """
 
     if s1_orbitdirection not in ['ASCENDING', 'DESCENDING', None]:
@@ -343,6 +364,9 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
 
     if S2_temporal_reducer not in ['median', 'mean', 'max', 'min', 'first', 'last', 'product', 'sd', 'sum', 'variance']:
         raise ValueError(f'parameter for S2_temporal_reducer: {S2_temporal_reducer} is not valid.')
+
+    if S1_temporal_reducer not in ['median', 'mean', 'max', 'min', 'first', 'last', 'product', 'sd', 'sum', 'variance']:
+        raise ValueError(f'parameter for S2_temporal_reducer: {S1_temporal_reducer} is not valid.')
 
     if type(ts_interpolation) != bool:
         raise ValueError(f'parameter for ts_interpolation must be an boolean.')
@@ -388,6 +412,7 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
         "time_interpolation": ts_interpolation,
         "ts_interval": ts_interval,
         "S2_temporal_reducer": S2_temporal_reducer,
+        "S1_temporal_reducer": S1_temporal_reducer,
         "SLC_masking_algo": slc_masking,
         "S2_bands": S2_bands,
         "s2_tileid_list": s2_tileid_list,

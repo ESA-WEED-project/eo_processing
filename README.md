@@ -44,6 +44,10 @@ ts_interval: str = 'dekad'
         temporal binning ('day', 'week', 'dekad', 'month', 'season', 'year', None)
         Note: if set to None, the temporal aggregation is skipped and the raw time series data is returned.
 
+S1_temporal_reducer : str = 'mean'
+        temporal reducer for the S1 data cube in the temporal binning process.
+        possible reducer ('median', 'mean', 'max', 'min', 'first', 'last', 'product', 'sd', 'sum', 'variance')
+
 S2_temporal_reducer : str = 'median'
         temporal reducer for the S2 data cube in the temporal binning process.
         possible reducer ('median', 'mean', 'max', 'min', 'first', 'last', 'product', 'sd', 'sum', 'variance')

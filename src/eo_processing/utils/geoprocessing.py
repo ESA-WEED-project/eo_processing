@@ -85,6 +85,35 @@ def laea100km_id_to_extent(laea_id: str) -> openEO_bbox_format:
         'crs': 'EPSG:3035'
     }
 
+def laea50km_id_to_extent(laea_id: str) -> openEO_bbox_format:
+    """
+    Determines the bounding box extent for a given LAEA 50km grid cell identifier.
+
+    This function calculates the bounding box in the LAEA (Lambert Azimuthal Equal-Area)
+    projection system for a grid cell specified by its identifier. The identifier is expected
+    to follow the pattern 'E<w>X<N<y>' where `<w>` and `<y>` are integers representing the
+    coordinates of the lower-left corner of the grid cell, in 50km intervals.
+
+    Expected CRS (coordinate reference system) for the bounding box is 'EPSG:3035'. The result
+    is returned as a dictionary compatible with the openEO bounding box format.
+
+    :param laea_id: Identifier for a 50km LAEA grid cell, in the format 'E<w>X<N<y>'.
+    :return: A dictionary representing the bounding box of the grid cell in the specified CRS.
+    """
+    assert laea_id[0] == 'E'
+    assert 'N' in laea_id
+    parts = laea_id.lstrip('E').split('N')
+    west = int(parts[0]) * 10000
+    south = int(parts[1]) * 10000
+    # we now have lower-left corner
+    return {
+        'east': west + 50000,
+        'south': south,
+        'west': west,
+        'north': south + 50000,
+        'crs': 'EPSG:3035'
+    }
+
 def AOI_tiler(AOI: Union[gpd.GeoDataFrame, openEO_bbox_format, geojson.GeoJSON, Polygon, PathLike[str]],
               tiling_grid: Union[str, PathLike[str], gpd.GeoDataFrame] = 'global',
               merge_columns: Optional[list] = None,
@@ -154,9 +183,12 @@ def AOI_tiler(AOI: Union[gpd.GeoDataFrame, openEO_bbox_format, geojson.GeoJSON, 
         tiling_grid_gdf = tiling_grid.copy()
         tiling_grid_gdf = tiling_grid_gdf.to_crs('EPSG:4326')
         tiling_grid_gdf = tiling_grid_gdf[tiling_grid_gdf.geometry.intersects(bbox_polygon)]
-    elif (isinstance(tiling_grid, str)) and (tiling_grid in ['EU', 'global', 'EU100']):
+    elif (isinstance(tiling_grid, str)) and (tiling_grid in ['EU', 'global', 'EU100', 'EU50']):
         if tiling_grid == 'EU':
             grid_path = importlib_resources.files(eo_processing.resources).joinpath('LAEA-20km_add-info.gpkg')
+            tiling_grid_gdf = gpd.read_file(os.path.normpath(grid_path), bbox=total_bbox)
+        elif tiling_grid == 'EU50':
+            grid_path = importlib_resources.files(eo_processing.resources).joinpath('LAEA-50km_add-info.gpkg')
             tiling_grid_gdf = gpd.read_file(os.path.normpath(grid_path), bbox=total_bbox)
         elif tiling_grid == 'EU100':
             grid_path = importlib_resources.files(eo_processing.resources).joinpath('LAEA-100km_add-info.gpkg')

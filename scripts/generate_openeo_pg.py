@@ -57,8 +57,8 @@ def generate_process_graphs(function, scenarios, connection, bbox, start, end, o
 ts_test_scenarios = [
     
     # Sentinel-2 Only, Basic
-    ("ts_datacube_extraction_S1.json", {"S1_collection": None}),
-    
+    ("ts_datacube_extraction_S2.json", {"S1_collection": None}),
+
     # Combined Sentinel-1 and Sentinel-2
     ("ts_datacube_extraction_combined.json", {}),
     

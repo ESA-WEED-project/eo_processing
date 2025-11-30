@@ -262,14 +262,8 @@ def extract_S2_datacube(
             erosion_kernel_size=3
         ).rename_labels("bands", ["S2-CLOUD-MASK"])
 
-        # to avoid sub-pixel shift error we have to resample SCL mask if requested and not just trust mask process
-        if target_crs is not None:
-            scl_dilated_mask = scl_dilated_mask.resample_spatial(projection=target_crs, resolution=target_res)
-        else:
-            scl_dilated_mask = scl_dilated_mask.resample_spatial(resolution=target_res)
-
         if apply_mask:
-            bands = bands.mask(scl_dilated_mask) # here I do not trust the automatic resampling of the mask
+            bands = bands.mask(scl_dilated_mask) # here I do trust the automatic resampling of the mask
         else:
             bands = bands.merge_cubes(scl_dilated_mask)
     elif masking == 'satio':

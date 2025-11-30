@@ -1,54 +1,67 @@
 from eo_processing import __version__ as eo_processing_version
-from typing import Dict
+from typing import Dict, Optional
 from eo_processing.resources import test_text
 from datetime import datetime, timezone
 from openeo import __version__ as openEO_version
 import numpy as np
 import random
+import openeo
+try:
+    from habitat_mapping import __version__ as habitat_mapping_version
+except:
+    habitat_mapping_version = 'not_available'
 
-def get_base_metadata(project: str = 'WEED') -> Dict[str, str]:
+def get_base_metadata(project: str = 'WEED', connection:Optional[openeo.Connection] = None) -> Dict[str, str]:
     """
-    Prepares metadata for openEO DataCubes saved as GeoTiff.
+    Generates and returns a dictionary of base metadata details for a specified project.
 
-    This function generates metadata as a dictionary containing tags and
-    their values. Depending on the input project name, it populates the
-    metadata with specific details, such as copyright information, platform
-    used, references, and producer details.
-
-    :param project: A string specifying the name of the project for which
-        metadata needs generation. Defaults to 'WEED'.
-    :return: A dictionary where keys are metadata tags and values are their
-        respective details, populated for the specified project.
+    :param project: The name of the project whose metadata is to be generated.
+        Valid project names include 'WEED', 'OBSGESSION', and 'SONATA'.
+        Defaults to 'WEED'.
+    :param connection: An optional openEO connection object.
+    :return: A dictionary containing metadata details specific to the project.
     """
-    if project == 'WEED':
-        file_metadata = {
-            "copyright": "WEED project 2024 / Contains modified Copernicus Sentinel data processed by WEED consortium",
-            "creation_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "processing_platform": f"openEO platform - client version: {openEO_version}",
-            "PROCESSING_SOFTWARE": f"eo_processing, version {eo_processing_version}",
-            "references": "https://esa-worldecosystems.org/",
-            "producer": "VITO NV"
-        }
-    elif project == 'OBSGESSION':
-        file_metadata = {
-            "copyright": "OBSGESSION project 2025 / Contains modified Copernicus Sentinel data processed by VITO",
-            "creation_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "processing_platform": f"openEO platform - client version: {openEO_version}",
-            "PROCESSING_SOFTWARE": f"eo_processing, version {eo_processing_version}",
-            "references": "https://obsgession.eu/",
-            "producer": "VITO NV"
-        }
-    elif project == 'SONATA':
-        file_metadata = {
-            "copyright": "SONATA project 2025 / Contains modified Copernicus Sentinel data processed by VITO",
-            "creation_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "processing_platform": f"openEO platform - client version: {openEO_version}",
-            "PROCESSING_SOFTWARE": f"eo_processing, version {eo_processing_version}",
-            "references": "https://sonata-nbs.com/",
-            "producer": "VITO NV",
-        }
+    if connection:
+        openEO_version_details = str(connection.version_info())
     else:
-        file_metadata = {}
+        openEO_version_details = f"{{'client': {openEO_version}}}"
+
+    file_metadata = {
+        "copyright": "VITO NV / NCA team",
+        "creation_time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "processing_platform": f"openEO platform, {openEO_version_details}",
+        "EO_PROCESSING_SOFTWARE": f"eo_processing, version {eo_processing_version}",
+        "producer": "VITO NV"
+    }
+
+    if project == 'WEED':
+        file_metadata.update({
+            "copyright": "WEED project 2024 / Contains modified Copernicus Sentinel data processed by WEED consortium",
+            "HABITAT_MAPPING_SOFTWARE": f"HASH, version {habitat_mapping_version}",
+            "references": "https://esa-worldecosystems.org/",
+        })
+    elif project == 'OBSGESSION':
+        file_metadata.update({
+            "copyright": "OBSGESSION project 2025 / Contains modified Copernicus Sentinel data processed by VITO",
+            "references": "https://obsgession.eu/",
+        })
+    elif project == 'SONATA':
+        try:
+            from sonata import __version__ as sonata_version
+            file_metadata.update({
+                "copyright": "SONATA project 2025 / Contains modified Copernicus Sentinel data processed by VITO",
+                "HABITAT_MAPPING_SOFTWARE": f"HASH (SONATA variant), version {sonata_version}",
+                "references": "https://sonata-nbs.com/",
+            })
+        except:
+            sonata_version = habitat_mapping_version
+            file_metadata.update({
+                "copyright": "SONATA project 2025 / Contains modified Copernicus Sentinel data processed by VITO",
+                "HABITAT_MAPPING_SOFTWARE": f"HASH, version {sonata_version}",
+                "references": "https://sonata-nbs.com/",
+            })
+    else:
+        pass
 
     return metadata_checker(file_metadata)
 

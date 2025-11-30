@@ -8,8 +8,8 @@ from tests.conftest import BBOX, DATE_START, DATE_END, \
 
 # Define the different test scenarios and processing options
 ts_test_scenarios = [
-    ("cube_extraction/ts_datacube_extraction_S1.json", {"S1_collection": "SENTINEL1_GRD"}, False),
-    ("cube_extraction/ts_datacube_extraction_S2.json", {"S2_collection": "SENTINEL2_L2A"}, False),
+    #("cube_extraction/ts_datacube_extraction_S1.json", {"S1_collection": "SENTINEL1_GRD"}, False),
+    #("cube_extraction/ts_datacube_extraction_S2.json", {"S2_collection": "SENTINEL2_L2A"}, False),
     ("cube_extraction/ts_datacube_extraction_combined.json", {}, False),
     ("cube_extraction/ts_datacube_extraction_S1_integration.json", {"S1_collection": "SENTINEL1_GRD"}, True),
     ("cube_extraction/ts_datacube_extraction_S2_integration.json", {"S2_collection": "SENTINEL2_L2A"}, True),

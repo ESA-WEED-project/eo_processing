@@ -3,7 +3,8 @@ from openeo.processes import array_create, if_, is_nodata, power, array_contains
 from openeo.rest.datacube import DataCube
 
 from eo_processing.openeo.masking import scl_mask_erode_dilate
-from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2)
+from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2,
+                                                 catalogue_check_CDSE_S1, catalogue_check_CDSE_S2)
 from eo_processing.config.settings import S2_BANDS
 import openeo
 from typing import Optional, Dict, Union, List, TYPE_CHECKING
@@ -67,11 +68,15 @@ def extract_S1_datacube(
     else:
         catalogue_check = False
 
+    if processing_options.get('skip_check_S1', False):
+        catalogue_check = False
+
     isCreo = "creo" in processing_options.get("provider", "").lower()
     orbit_direction = processing_options.get('s1_orbitdirection', None)
     target_crs = processing_options.get("target_crs", None)
     target_res = processing_options.get("resolution", 10.)
     ts_interval = processing_options.get("ts_interval", None)
+    ts_reducer = processing_options.get("S1_temporal_reducer", "mean")
     ts_interpolation = processing_options.get("time_interpolation", False)
     if ("creo" in processing_options.get("provider", "").lower()) or \
             (processing_options.get("provider", "").lower() == "terrascope") or \
@@ -83,7 +88,10 @@ def extract_S1_datacube(
 
     # we have to check if enough data is available on creo platform
     if catalogue_check:
-        orbit_direction = catalogue_check_S1(orbit_direction, start, end, bbox)
+        if processing_options.get("provider", "").lower() == "cdse":
+            orbit_direction = catalogue_check_CDSE_S1(orbit_direction, start, end, bbox)
+        else:
+            orbit_direction = catalogue_check_S1(orbit_direction, start, end, bbox)
 
     # convert the orbit direction parameter into openEO property
     if orbit_direction is not None:
@@ -121,10 +129,12 @@ def extract_S1_datacube(
     # warp and/or resample if needed
     if target_crs is not None:
         bands = bands.resample_spatial(projection=target_crs, resolution=target_res)
+    else:
+        bands = bands.resample_spatial(resolution=target_res)
 
     # time aggregation if wished
     if ts_interval is not None:
-        bands = bands.aggregate_temporal_period(period=ts_interval, reducer="mean")
+        bands = bands.aggregate_temporal_period(period=ts_interval, reducer=ts_reducer)
 
     # Linearly interpolate missing values if wished
     if ts_interpolation:
@@ -177,12 +187,17 @@ def extract_S2_datacube(
     else:
         catalogue_check = False
 
+    if processing_options.get('skip_check_S2', False):
+        catalogue_check = False
+
     target_crs = processing_options.get("target_crs", None)
     target_res = processing_options.get("resolution", 10.)
     S2_bands = processing_options.get("S2_bands", S2_BANDS)
     ts_interval = processing_options.get("ts_interval", None)
+    ts_reducer = processing_options.get("S2_temporal_reducer", "median")
     ts_interpolation = processing_options.get("time_interpolation", False)
     masking = processing_options.get("SLC_masking_algo", None)
+    apply_mask = processing_options.get("apply_cloud_mask", True)
     s2_tileid_list = processing_options.get("s2_tileid_list", None)
 
     # check if the masking parameter is valid
@@ -191,12 +206,13 @@ def extract_S2_datacube(
 
     # we have to check if enough data is available on creo platform
     if catalogue_check:
-        # S2URL creo only accepts request in EPSG:4326
-        catalogue_check_S2(start, end, bbox)
+        if processing_options.get("provider", "").lower() == "cdse":
+            catalogue_check_CDSE_S2(start, end, bbox)
+        else:
+            catalogue_check_S2(start, end, bbox)
 
     #create filter for S2 tiles to limit amount of overlapping S2 input data
     properties = None
-
     if s2_tileid_list:
         if len(s2_tileid_list) == 1:
             properties= {"tileId": lambda tile_id: tile_id==s2_tileid_list[0]}
@@ -216,6 +232,8 @@ def extract_S2_datacube(
     # warp and/or resample if needed
     if target_crs is not None:
         bands = bands.resample_spatial(projection=target_crs, resolution=target_res)
+    else:
+        bands = bands.resample_spatial(resolution=target_res)
 
     # apply cloud masking
     if masking == 'mask_scl_dilation':
@@ -228,21 +246,27 @@ def extract_S2_datacube(
             max_cloud_cover=95,
             properties=properties
         )
-        # to avoid sub-pixel shift error we have to resample SCL mask if requested and not just trust mask process
+        # resample to 10m (needed for the correct kernels)
         if target_crs is not None:
-            sub_collection = sub_collection.resample_spatial(projection=target_crs, resolution=target_res)
+            sub_collection = sub_collection.resample_spatial(resolution=10., projection=target_crs)
+        else:
+            sub_collection = sub_collection.resample_spatial(resolution=10.)
 
         scl_dilated_mask = sub_collection.process(
             "to_scl_dilation_mask",
             data=sub_collection,
             scl_band_name="SCL",
-            kernel1_size=17,  # 17px dilation on a 20m layer
-            kernel2_size=77,  # 77px dilation on a 20m layer
+            kernel1_size=17,  # 17px dilation on a 10m layer
+            kernel2_size=77,  # 77px dilation on a 10m layer
             mask1_values=[2, 4, 5, 6, 7],
             mask2_values=[3, 8, 9, 10, 11],
             erosion_kernel_size=3
-        ).rename_labels("bands", ["S2-L2A-SCL_DILATED_MASK"])
-        bands = bands.mask(scl_dilated_mask) # masks are automatically resampled/warped
+        ).rename_labels("bands", ["S2-CLOUD-MASK"])
+
+        if apply_mask:
+            bands = bands.mask(scl_dilated_mask) # here I do trust the automatic resampling of the mask
+        else:
+            bands = bands.merge_cubes(scl_dilated_mask)
     elif masking == 'satio':
         # Apply satio-based mask
         mask = scl_mask_erode_dilate(
@@ -250,11 +274,15 @@ def extract_S2_datacube(
             bbox,
             scl_layer_band=S2_collection + ':SCL',
             target_crs=target_crs)
-        bands = bands.mask(mask) # masks are automatically resampled/warped
+
+        if apply_mask:
+            bands = bands.mask(mask) # masks are automatically resampled/warped
+        else:
+            bands = bands.merge_cubes(mask)
 
     # time aggregation if wished
     if ts_interval is not None:
-        bands = bands.aggregate_temporal_period(period=ts_interval,  reducer="median")
+        bands = bands.aggregate_temporal_period(period=ts_interval,  reducer=ts_reducer)
 
     # Linearly interpolate missing values if wished
     if ts_interpolation:

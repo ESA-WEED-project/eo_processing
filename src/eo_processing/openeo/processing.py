@@ -252,7 +252,10 @@ def calculate_features_cube(input_data: DataCube) -> DataCube:
     # remove some bands which make no sense :)
     # mainly from S2REP --> sd, sum, iqr
     bands_keep = [band for band in features_cube.metadata.band_names if
-                  band not in ['S2REP_sd', 'S2REP_sum', 'S2REP_iqr', 'VV_sum', 'VH_sum', 'VHVVD_sum']]
+                  band not in ['S2REP_sd', 'S2REP_sum', 'S2REP_iqr', 'VV_sum', 'VH_sum', 'VHVVD_sum',
+                               'S2-CLOUD-MASK_p2', 'S2-CLOUD-MASK_p25', 'S2-CLOUD-MASK_median', 'S2-CLOUD-MASK_p75',
+                               'S2-CLOUD-MASK_p98', 'S2-CLOUD-MASK_mean', 'S2-CLOUD-MASK_sd', 'S2-CLOUD-MASK_sum',
+                               'S2-CLOUD-MASK_iqr']]
 
     features_cube = features_cube.filter_bands(bands=bands_keep)
 

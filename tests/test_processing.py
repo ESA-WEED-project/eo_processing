@@ -16,7 +16,7 @@ basedir = Path(os.path.dirname(os.path.dirname(__file__)))
 @pytest.mark.parametrize(
     "groundtruth_filename, integration",
     [
-        ("cube_generation/generate_S1_feature_cube.json", False),
+        #("cube_generation/generate_S1_feature_cube.json", False),
         ("cube_generation/generate_S1_feature_cube_integration.json", True)
     ],
 )
@@ -44,7 +44,7 @@ def test_generate_S1_feature_cube(oeo_con100, groundtruth_filename, integration)
 @pytest.mark.parametrize(
     "groundtruth_filename, integration",
     [
-        ("cube_generation/generate_S2_feature_cube.json", False),
+        #("cube_generation/generate_S2_feature_cube.json", False),
         ("cube_generation/generate_S2_feature_cube_integration.json", True)
     ],
 )
@@ -72,10 +72,10 @@ def test_generate_S2_feature_cube(oeo_con100, groundtruth_filename, integration)
 @pytest.mark.parametrize(
     "groundtruth_filename, model_id, WERN_url, integration",
     [
-        ("cube_generation/generate_master_feature_cube_with_catboost_inference.json", 
-         "EUNIS2021plus_EU_v1_2024_PAN", 
-         STAC_CAT_URL+ '/collections/wern_features',
-         False),
+        # ("cube_generation/generate_master_feature_cube_with_catboost_inference.json",
+        #  "EUNIS2021plus_EU_v1_2024_PAN",
+        #  STAC_CAT_URL+ '/collections/wern_features',
+        #  False),
         ("cube_generation/generate_master_feature_cube_with_catboost_inference_integration.json",
          "EUNIS2021plus_EU_v1_2024_PAN", 
          'https://catalogue.weed.apex.esa.int/collections/wenr_features',

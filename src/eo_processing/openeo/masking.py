@@ -89,4 +89,4 @@ def scl_mask_erode_dilate(session: openeo.Connection, bbox: openEO_bbox_format,
     # by small non-zero oscillations after applying convolution
     dilate_cube = (dilate_cube > 0.1)
 
-    return dilate_cube
+    return dilate_cube.rename_labels("bands", ["S2-CLOUD-MASK"])

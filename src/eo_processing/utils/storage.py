@@ -373,8 +373,9 @@ class S3_storage:
                 print('File already exists. Skipping download.')
                 if etag_check:
                     if not self.evaluate_etag(local_file_path, s3_object_key):
-                        raise Exception('The downloaded file does not match the ETag of the S3 object.')
-
+                        print('Warning. The file was already downloaded BUT the file does not match the '
+                              'ETag of the S3 object. Either the download file was altered locally or '
+                              'the file on S3 was updated.')
                 return local_file_path
         # download file
         try:
@@ -430,7 +431,9 @@ class S3_storage:
                 print(f"File with key {s3_object_key} already exists. Skipping upload.")
                 if etag_check:
                     if not self.evaluate_etag(local_file_path, s3_object_key):
-                        raise Exception('The uploaded file does not match the MDF5 of the local file.')
+                        print('Warning. The file was already uploaded BUT the file does not match the '
+                              'ETag of the S3 object. Either the upload file was altered locally or '
+                              'the file on S3 was updated.')
                 return s3_object_key
         # upload file
         try:
@@ -1750,7 +1753,10 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage, MLFlow
             raise Exception(f'the specified environment {stac_env} does not exist in the WEED project. '
                             f'It should be prod or dev.')
 
-        STAC_vito_vault = string_to_dict(self.credentials[f'STAC-{stac_env}-auth'])
+        if self.project == 'WEED':
+            STAC_vito_vault = string_to_dict(self.credentials[f'STAC-{stac_env}-auth'])
+        else:
+            STAC_vito_vault = string_to_dict(self.credentials[f'STAC-{stac_env}-auth-{self.project}'])
 
         self.stac_credentials = {
             "CLIENT_ID": STAC_vito_vault['CLIENT_ID'],

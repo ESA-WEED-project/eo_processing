@@ -19,3 +19,4 @@ skl2onnx==1.19.1
 psycopg[binary,pool]>=3.2.10
 folium>=0.17.0
 python-dotenv>=1.2.1
+pystac-client>=0.9.0

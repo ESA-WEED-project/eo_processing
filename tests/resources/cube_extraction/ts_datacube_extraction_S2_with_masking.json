@@ -45,6 +45,18 @@
         ]
       }
     },
+    "resamplespatial1": {
+      "process_id": "resample_spatial",
+      "arguments": {
+        "align": "upper-left",
+        "data": {
+          "from_node": "loadcollection1"
+        },
+        "method": "near",
+        "projection": null,
+        "resolution": 10.0
+      }
+    },
     "loadcollection2": {
       "process_id": "load_collection",
       "arguments": {
@@ -81,11 +93,23 @@
         ]
       }
     },
+    "resamplespatial2": {
+      "process_id": "resample_spatial",
+      "arguments": {
+        "align": "upper-left",
+        "data": {
+          "from_node": "loadcollection2"
+        },
+        "method": "near",
+        "projection": null,
+        "resolution": 10.0
+      }
+    },
     "toscldilationmask1": {
       "process_id": "to_scl_dilation_mask",
       "arguments": {
         "data": {
-          "from_node": "loadcollection2"
+          "from_node": "resamplespatial2"
         },
         "erosion_kernel_size": 3,
         "kernel1_size": 17,
@@ -115,7 +139,7 @@
         },
         "dimension": "bands",
         "target": [
-          "S2-L2A-SCL_DILATED_MASK"
+          "S2-CLOUD-MASK"
         ]
       }
     },
@@ -123,7 +147,7 @@
       "process_id": "mask",
       "arguments": {
         "data": {
-          "from_node": "loadcollection1"
+          "from_node": "resamplespatial1"
         },
         "mask": {
           "from_node": "renamelabels1"
@@ -214,11 +238,23 @@
         }
       }
     },
+    "resamplespatial3": {
+      "process_id": "resample_spatial",
+      "arguments": {
+        "align": "upper-left",
+        "data": {
+          "from_node": "sarbackscatter1"
+        },
+        "method": "near",
+        "projection": null,
+        "resolution": 10.0
+      }
+    },
     "applydimension1": {
       "process_id": "apply_dimension",
       "arguments": {
         "data": {
-          "from_node": "sarbackscatter1"
+          "from_node": "resamplespatial3"
         },
         "dimension": "bands",
         "process": {

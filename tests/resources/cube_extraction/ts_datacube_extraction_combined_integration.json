@@ -49,11 +49,23 @@
         ]
       }
     },
+    "resamplespatial1": {
+      "process_id": "resample_spatial",
+      "arguments": {
+        "align": "upper-left",
+        "data": {
+          "from_node": "loadcollection1"
+        },
+        "method": "near",
+        "projection": null,
+        "resolution": 10.0
+      }
+    },
     "apply1": {
       "process_id": "apply",
       "arguments": {
         "data": {
-          "from_node": "loadcollection1"
+          "from_node": "resamplespatial1"
         },
         "process": {
           "process_graph": {
@@ -133,11 +145,23 @@
         }
       }
     },
+    "resamplespatial2": {
+      "process_id": "resample_spatial",
+      "arguments": {
+        "align": "upper-left",
+        "data": {
+          "from_node": "sarbackscatter1"
+        },
+        "method": "near",
+        "projection": null,
+        "resolution": 10.0
+      }
+    },
     "applydimension1": {
       "process_id": "apply_dimension",
       "arguments": {
         "data": {
-          "from_node": "sarbackscatter1"
+          "from_node": "resamplespatial2"
         },
         "dimension": "bands",
         "process": {

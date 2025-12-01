@@ -2048,7 +2048,7 @@
     "loadstac1": {
       "process_id": "load_stac",
       "arguments": {
-        "url": "https://catalogue.weed.apex.esa.int/collections/wenr_features"
+        "url": "https://catalogue.weed.apex.esa.int/collections/wer_features"
       }
     },
     "resamplespatial4": {

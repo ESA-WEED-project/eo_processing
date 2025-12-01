@@ -78,7 +78,7 @@ def test_generate_S2_feature_cube(oeo_con100, groundtruth_filename, integration)
         False),
         ("cube_generation/generate_master_feature_cube_with_catboost_inference_integration.json",
          "EUNIS2021plus_EU_v1_2024_PAN", 
-         'https://catalogue.weed.apex.esa.int/collections/wenr_features',
+         'https://catalogue.weed.apex.esa.int/collections/wern_features',
          True)
     ],
 )

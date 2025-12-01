@@ -53,24 +53,27 @@
           "from_node": "loadcollection1"
         },
         "method": "near",
-        "projection": "EPSG:3857",
-        "resolution": 20.0
+        "projection": null,
+        "resolution": 10.0
       }
     },
-    "aggregatetemporalperiod1": {
-      "process_id": "aggregate_temporal_period",
+    "apply1": {
+      "process_id": "apply",
       "arguments": {
         "data": {
           "from_node": "resamplespatial1"
         },
-        "period": "P1M",
-        "reducer": {
+        "process": {
           "process_graph": {
-            "median1": {
-              "process_id": "median",
+            "linearscalerange1": {
+              "process_id": "linear_scale_range",
               "arguments": {
-                "data": {
-                  "from_parameter": "data"
+                "inputMax": 65534,
+                "inputMin": 0,
+                "outputMax": 65534,
+                "outputMin": 0,
+                "x": {
+                  "from_parameter": "x"
                 }
               },
               "result": true
@@ -79,15 +82,15 @@
         }
       }
     },
-    "apply1": {
+    "apply2": {
       "process_id": "apply",
       "arguments": {
         "data": {
-          "from_node": "aggregatetemporalperiod1"
+          "from_node": "apply1"
         },
         "process": {
           "process_graph": {
-            "linearscalerange1": {
+            "linearscalerange2": {
               "process_id": "linear_scale_range",
               "arguments": {
                 "inputMax": 65534,

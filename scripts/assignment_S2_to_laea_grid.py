@@ -3,7 +3,7 @@
 import geopandas as gpd
 import pandas as pd
 from shapely.ops import unary_union
-from extentmapping.utils.mgrs import LL_2_MGRSid
+from eo_processing.utils.mgrs import LL_2_MGRSid
 import itertools
 
 
@@ -113,7 +113,7 @@ def create_wildcard_tileid_from_quadruplematch(tiles):
 
 
 # load the files
-gdf_laea = gpd.read_file(r"C:\Users\BUCHHORM\Downloads\LAEA_20km_tiling_grid_EU_high_res_EPSG3035.gpkg")
+gdf_laea = gpd.read_file(r"C:\Users\BUCHHORM\Downloads\LAEA_50km_tiling_grid_EU_high_res_EPSG3035.gpkg")
 gdf_s2 = gpd.read_file(r"C:\Users\buchhorm\Downloads\Sentinel2_tiling_grid_EU_high_res_EPSG3035_optimized.gpkg")
 
 
@@ -641,4 +641,4 @@ if gdf_laea.shape[0] != df_result.shape[0]:
 gdf_result = gdf_laea.merge(df_result, how='left', left_on='tile_id', right_on='laea_tileid')
 
 #write out
-gdf_result.to_file(r'C:\Users\buchhorm\Downloads\LAEA_20km_tiling_grid_S2info.gpkg')
+gdf_result.to_file(r'C:\Users\buchhorm\Downloads\LAEA_50km_tiling_grid_S2info_new.gpkg')

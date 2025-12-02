@@ -198,6 +198,7 @@ def extract_S2_datacube(
     ts_interpolation = processing_options.get("time_interpolation", False)
     masking = processing_options.get("SLC_masking_algo", None)
     apply_mask = processing_options.get("apply_cloud_mask", True)
+    max_cloud_max = processing_options.get("S2_max_cloud_cover", 95.)
     s2_tileid_list = processing_options.get("s2_tileid_list", None)
 
     # check if the masking parameter is valid
@@ -225,7 +226,7 @@ def extract_S2_datacube(
         bands=S2_bands,
         spatial_extent=bbox,
         temporal_extent=[start, end],
-        max_cloud_cover=95,
+        max_cloud_cover=max_cloud_max,
         properties=properties
     )
 

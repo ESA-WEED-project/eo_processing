@@ -27,21 +27,19 @@ Available `processing_options`
 
 ```
 provider: str = None
-        Sets the expected backend where the workflow should run ['terrascope', 'creodias'].
-        This setting in turn has impact on several downstream backend-specific settings.
+        Sets the expected backend where the workflow should run ['terrascope', 'creodias', 'cdse', 'cdse-staging'].
+        This setting activates certain checks and flags for processing on the backend.
 
 target_crs: int = 3035
         EPSG code for output product (e.g. 3035 for LAEA projection).
+        If set to None, the native crs of the input data is used.
 
 resolution: float = 10.
         spatial resolution of the output data cube in unit of the target_crs. 
         If set to None, the native resolution of the input data is used.
-
-time_interpolation: bool = False
-        if missing timesteps in the S1 & S2 temporal profiles are interpolated (per pixel)
         
 ts_interval: str = 'dekad'
-        temporal binning ('day', 'week', 'dekad', 'month', 'season', 'year', None)
+        temporal binning ('day', 'week', 'dekad', 'month', 'season', 'year', None) for S1/S2.
         Note: if set to None, the temporal aggregation is skipped and the raw time series data is returned.
 
 S1_temporal_reducer : str = 'mean'
@@ -51,6 +49,25 @@ S1_temporal_reducer : str = 'mean'
 S2_temporal_reducer : str = 'median'
         temporal reducer for the S2 data cube in the temporal binning process.
         possible reducer ('median', 'mean', 'max', 'min', 'first', 'last', 'product', 'sd', 'sum', 'variance')
+
+time_interpolation: bool = False
+        if missing timesteps in the S1 & S2 temporal profiles are interpolated (per pixel)
+
+skip_check_S1 : bool = False
+        if True, the S1 data is not checked for missing timesteps (e.g. due to gaps in the orbit)
+        (-> this can lead to errors in the VI calculation)
+
+s1_orbitdirection: str = 'DESCENDING'
+        This setting ['ASCENDING', 'DESCENDING'] allows to limit the Sentinel-1 cube to only one orbit direction.
+        If set to None, all orbit directions are used.
+
+skip_check_S2 : bool = False
+        if True, the S2 data is not checked for missing timesteps (e.g. due to gaps in the orbit)
+        (-> this can lead to errors in the VI calculation)
+
+S2_max_cloud_cover: int = 95
+        Maximum allowable cloud cover percentage for Sentinel-2 data. Acceptable values are integers
+        between 0 and 100.
 
 S2_BANDS: list = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
         which reflectance bands to process of Sentinel-2. Note: requested VI's with reflectance bands not listed 
@@ -64,9 +81,13 @@ SLC_masking_algo: str = 'mask_scl_dilation'
         Masking method for Sentinel-2 optical data ('satio', 'mask_scl_dilation', None)
         Note: if set to None, no masking is applied and the S2 L2A data is used as is.
 
-s1_orbitdirection: str = 'DESCENDING'
-        This setting ['ASCENDING', 'DESCENDING'] allows to limit the Sentinel-1 cube to only one orbit direction.
-        If set to None, all orbit directions are used.
+apply_cloud_mask : bool = True
+        if True, the Sentinel-2 data is masked for clouds (based on Sentinel-2 QA band). 
+        If False, no masking is applied but the mask band is still created and added to the cube.
+        Note: no effect when 'mask_scl_dilation' parameter is set to None.     
+
+append : bool = True
+        if the VI's are appended to the reflectance/radar time series cube OR replace them
 
 S2_scaling: list = [0, 10000, 0, 1.0]
         input / scaled value range of the Sentinel-2 datacube. needed to calculate VIs.
@@ -81,22 +102,6 @@ optical_vi_list: list = ['NDVI','AVI','CIRE','NIRv','NDMI','NDWI','BLFEI','MNDWI
 radar_vi_list: list = ['VHVVD','VHVVR','RVI']
         list of VI's to be generated on the time series datacube of Sentinel-1 (see Spectral Awesome package for all 
         possible VIs)
-
-append : bool = True
-        if the VI's are appended to the reflectance/radar time series cube OR replace them
-
-skip_check_S1 : bool = False
-        if True, the S1 data is not checked for missing timesteps (e.g. due to gaps in the orbit)
-        (-> this can lead to errors in the VI calculation)
-
-skip_check_S2 : bool = False
-        if True, the S2 data is not checked for missing timesteps (e.g. due to gaps in the orbit)
-        (-> this can lead to errors in the VI calculation)
-
-apply_cloud_mask : bool = True
-        if True, the Sentinel-2 data is masked for clouds (based on Sentinel-2 QA band). 
-        If False, no masking is applied but the mask band is still created and added to the cube.
-        Note: no effect when 'mask_scl_dilation' parameter is set to None.     
 ```
 ## explanation on settings for inference pipeline
 - the inference pipeline currently applies ML models stored in the ONNX format on a given datacube

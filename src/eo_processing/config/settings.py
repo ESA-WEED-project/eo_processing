@@ -45,6 +45,7 @@ SKIP_CHECK_S2: bool = False
 # Planet Processing options
 PLANET_MASKING_ALGO = str = 'mask_udm_dilation'
 PLANET_BANDS = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08"] # Same for UDM2 and Spectral bands
+PLANET_RESOLUTION = 3.0
 PLANET_VI_LIST = ['NDVI',
            'AVI',
            'CIRE',

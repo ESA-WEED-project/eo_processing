@@ -1,4 +1,5 @@
 from __future__ import annotations
+import openeo
 from openeo.processes import array_create, if_, is_nodata, power, array_contains
 from openeo.rest.datacube import DataCube
 
@@ -6,9 +7,8 @@ from eo_processing.openeo.masking import scl_mask_erode_dilate, classify_udm2, u
 from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2,
                                                  catalogue_check_CDSE_S1, catalogue_check_CDSE_S2)
 from eo_processing.config.settings import S2_BANDS, PLANET_BANDS
-import openeo
-from typing import Optional, Dict, Union, List, TYPE_CHECKING
 
+from typing import Optional, Dict, Union, List, TYPE_CHECKING
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import openEO_bbox_format
 
@@ -72,12 +72,12 @@ def extract_S1_datacube(
         catalogue_check = False
 
     isCreo = "creo" in processing_options.get("provider", "").lower()
-    orbit_direction = processing_options.get('s1_orbitdirection', None)
-    target_crs = processing_options.get("target_crs", None)
-    target_res = processing_options.get("resolution", 10.)
-    ts_interval = processing_options.get("ts_interval", None)
-    ts_reducer = processing_options.get("S1_temporal_reducer", "mean")
-    ts_interpolation = processing_options.get("time_interpolation", False)
+    orbit_direction: Optional[str] = processing_options.get('s1_orbitdirection', None)
+    target_crs: Optional[str] = processing_options.get("target_crs", None)
+    target_res: float = processing_options.get("resolution", 10.)
+    ts_interval: Optional[str] = processing_options.get("ts_interval", None)
+    ts_reducer: str = processing_options.get("S1_temporal_reducer", "mean")
+    ts_interpolation: bool = processing_options.get("time_interpolation", False)
     if ("creo" in processing_options.get("provider", "").lower()) or \
             (processing_options.get("provider", "").lower() == "terrascope") or \
             (processing_options.get("provider", "").lower() == "development") or \
@@ -112,7 +112,6 @@ def extract_S1_datacube(
     # compute backscatter if starting from raw GRD, otherwise assume preprocessed backscatter
     check_flag = False
     if S1_collection == "SENTINEL1_GRD":
-
         bands = bands.sar_backscatter(
             coefficient='sigma0-ellipsoid',
             local_incidence_angle=False,
@@ -190,16 +189,16 @@ def extract_S2_datacube(
     if processing_options.get('skip_check_S2', False):
         catalogue_check = False
 
-    target_crs = processing_options.get("target_crs", None)
-    target_res = processing_options.get("resolution", 10.)
-    S2_bands = processing_options.get("S2_bands", S2_BANDS)
-    ts_interval = processing_options.get("ts_interval", None)
-    ts_reducer = processing_options.get("S2_temporal_reducer", "median")
-    ts_interpolation = processing_options.get("time_interpolation", False)
-    masking = processing_options.get("SLC_masking_algo", None)
-    apply_mask = processing_options.get("apply_cloud_mask", True)
-    max_cloud_max = processing_options.get("S2_max_cloud_cover", 95.)
-    s2_tileid_list = processing_options.get("s2_tileid_list", None)
+    target_crs: Optional[str] = processing_options.get("target_crs", None)
+    target_res: float = processing_options.get("resolution", 10.)
+    S2_bands: List[str] = processing_options.get("S2_bands", S2_BANDS)
+    ts_interval: Optional[str] = processing_options.get("ts_interval", None)
+    ts_reducer: str = processing_options.get("S2_temporal_reducer", "median")
+    ts_interpolation: bool = processing_options.get("time_interpolation", False)
+    masking: Optional[str] = processing_options.get("SLC_masking_algo", None)
+    apply_mask: bool = processing_options.get("apply_cloud_mask", True)
+    max_cloud_max: int = processing_options.get("S2_max_cloud_cover", 95.)
+    s2_tileid_list: Optional[List[str]] = processing_options.get("s2_tileid_list", None)
 
     # check if the masking parameter is valid
     if masking not in ['satio', 'mask_scl_dilation', None]:
@@ -294,7 +293,6 @@ def extract_S2_datacube(
 
     return bands
 
-
 def extract_planet_datacube( 
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
@@ -310,12 +308,12 @@ def extract_planet_datacube(
     :return: DataCube
     """
     # evaluate additional processing_options
-    target_crs = processing_options.get("target_crs", None)
-    target_res = processing_options.get("resolution", 3.)
-    bands = processing_options.get("planet_bands", PLANET_BANDS)
-    ts_interval = processing_options.get("ts_interval", None)
-    ts_interpolation = processing_options.get("time_interpolation", False)
-    masking = processing_options.get("UDM_masking_algo", None)
+    target_crs: Optional[str] = processing_options.get("target_crs", None)
+    target_res: float = processing_options.get("resolution", 3.)
+    p_bands: List[str] = processing_options.get("planet_bands", PLANET_BANDS)
+    ts_interval: Optional[str] = processing_options.get("ts_interval", None)
+    ts_interpolation: bool = processing_options.get("time_interpolation", False)
+    masking: Optional[str] = processing_options.get("UDM_masking_algo", None)
 
     # check if the masking parameter is valid
     if masking not in ['satio','mask_udm_dilation', None]:
@@ -329,12 +327,13 @@ def extract_planet_datacube(
     """
 
     # request the needed datacube
-    planetscope_url = processing_options.get("planet_stac_url", None),
+    planetscope_url: Optional[str] = processing_options.get("planet_stac_url", None)
     if not planetscope_url:
         raise ValueError ('No known stac url given for PlanetScope data')
+
     bands = connection.load_stac(
         url=planetscope_url,
-        bands=bands,
+        bands=p_bands,
         spatial_extent=bbox,
         temporal_extent=[start, end],
         properties=None
@@ -348,21 +347,24 @@ def extract_planet_datacube(
 
     # apply cloud masking
     if masking:
-        udm2_url = processing_options.get("udm_stac_url", None)
+        udm2_url: Optional[str] = processing_options.get("udm_stac_url", None)
         if not udm2_url:
             raise ValueError ('No known stac url given for UDM 2')
+
     if masking == 'mask_udm_dilation':
         # we have to load the SCL mask as an extra cube to get it correctly working
         sub_collection = connection.load_stac(
             url=udm2_url,
-            bands=bands,
+            bands=p_bands,
             spatial_extent=bbox,
             temporal_extent=[start, end],
             properties=None
         )
-        # to avoid sub-pixel shift error we have to resample SCL mask if requested and not just trust mask process
+        # resample to 3m (needed for the correct kernels)
         if target_crs is not None:
-            sub_collection=sub_collection.resample_spatial(projection=target_crs, resolution=target_res)
+            sub_collection = sub_collection.resample_spatial(resolution=3., projection=target_crs)
+        else:
+            sub_collection = sub_collection.resample_spatial(resolution=3.)
 
         # reclassify UDM binary bands to classes
         udm_classes=sub_collection.apply_dimension(
@@ -372,12 +374,6 @@ def extract_planet_datacube(
             target=["UDM2"],
             dimension="bands"
         )
-        
-        # resample to 3m (needed for the correct kernels)
-        if target_crs is not None:
-            sub_collection = sub_collection.resample_spatial(resolution=3., projection=target_crs)
-        else:
-            sub_collection = sub_collection.resample_spatial(resolution=3.)
 
         # Perform dilation
         udm_dilated_mask = sub_collection.process(

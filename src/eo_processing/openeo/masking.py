@@ -26,10 +26,9 @@ def convolve(img: DataCube, radius: int) -> DataCube:
     img = img.apply_kernel(kernel)
     return img
 
-
 def classify_udm2(udm_array):
     """
-    Classifies a pixel based on 6 UDM flags according to priority rules.
+    Classifies a pixel based on 6 UDM flags in PlanetScope data according to priority rules.
 
     :param udm_array: list or array of 6 integers
         Each element is a flag indicating a specific condition, arranged in this order:
@@ -68,8 +67,6 @@ def classify_udm2(udm_array):
                         if_(cloud_shadow == 1, 4,
                             if_(snow == 1, 3,
                                 if_(confident == 0, 2, 1))))))
-
-
 
 def scl_mask_erode_dilate(
         session: openeo.Connection,
@@ -141,29 +138,27 @@ def scl_mask_erode_dilate(
 
     return dilate_cube.rename_labels("bands", ["S2-CLOUD-MASK"])
 
-
 def udm2_mask_erode_dilate(
         stac_url: str, 
         session: openeo.Connection, 
-        bbox: dict,
+        bbox: openEO_bbox_format,
         temporal_extent: List[str],
         erode_r: int = 3, 
         dilate_r: int = 21, 
         target_crs: Union[int, None] = None) -> DataCube:
     """
-    Generates a binary valid data mask from PlanetScope UDM2.1 8-band GeoTIFFs.
-    The mask is built by selecting pixels marked as clear and free from clouds, shadows, haze, and snow.
+    Applies erosion and dilation on a valid pixel mask extracted from UDM2 (Unusable Data Mask) bands.
+    The process involves interpreting STAC items, resampling, identifying valid pixels through bitwise
+    operations, and applying morphological operations to refine the mask.
 
-    Morphological erosion and dilation are applied to remove edge noise and smooth the mask.
-
-    :param session: OpenEO connection.
-    :param bbox: Spatial extent dictionary.
-    :param udm21_collection: Collection ID for UDM2.1 (8-band) GeoTIFF.
-    :param erode_r: Radius for erosion.
-    :param dilate_r: Radius for dilation.
-    :param target_crs: Optional target CRS for processing.
-
-    :return: A DataCube with the final refined binary mask.
+    :param stac_url: URL of the STAC item to process.
+    :param session: An established openEO connection used to access and process satellite imagery data.
+    :param bbox: Dictionary defining the spatial extent with keys such as 'west', 'south', 'east', and 'north'.
+    :param temporal_extent: List with start and end datetime strings defining the temporal range to query data.
+    :param erode_r: Radius for erosion operation. Default value is 3.
+    :param dilate_r: Radius for dilation operation. Default value is 21.
+    :param target_crs: Target coordinate reference system for resampling spatial data. Default is None.
+    :return: A binary DataCube object representing the final usable pixel mask.
     """
 
     bands = ["B01", "B02", "B03", "B04", "B05", "B06", "B07"]

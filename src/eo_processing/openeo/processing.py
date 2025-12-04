@@ -29,12 +29,12 @@ def optical_indices(
         vi_list = processing_options.get("optical_vi_list", VI_LIST)
         input_scaling = processing_options.get("S2_scaling", S2_SCALING)
         append = processing_options.get("append", True)
-        platform = None
+        platform = 'Sentinel-2A'
     elif collection == 'PlanetScope':
         vi_list = processing_options.get("optical_vi_list", PLANET_VI_LIST)
         input_scaling = processing_options.get("S2_scaling", PLANET_SCALING)
         append = processing_options.get("append", True)
-        platform = collection
+        platform = 'PlanetScope'
     else:
         raise ValueError ('No Valid collection given')
 
@@ -43,9 +43,9 @@ def optical_indices(
 
     # calculate VI's
     if append:
-        vi_cube = append_indices(datacube=input_cube, indices=vi_list, platform=None)
+        vi_cube = append_indices(datacube=input_cube, indices=vi_list, platform=platform)
     else:
-        vi_cube = compute_indices(datacube=input_cube, indices=vi_list, append=False, platform=None)
+        vi_cube = compute_indices(datacube=input_cube, indices=vi_list, append=False, platform=platform)
 
     # TODO: convert the datacube back to int16 - using the output scaling functionality tested in one
     #  of the example notebooks

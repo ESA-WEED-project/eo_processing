@@ -15,9 +15,9 @@ and make sure the eo_processing is integrated via edible install
 
 ## explanation on settings for S1/S2 processing pipelines
 By default, all required settings are automatically loaded for a chosen `provider` (`terrascope`, `creodias`, `cdse`). All default settings are set in `src/eo_processing/config/settings.py`. Settings are comprised of:
-- `collection_options` set the standard EO data collections for processing
-- `processing_options` that steer the methodological workflow for EO time series data extraction, VI generation & feature generation (temporal aggregation)
-- `job_options` that steer the OpenEO job that runs the workflow
+- `collection_options` set the standard EO data collections for processing. Available for Sentinel 1 & 2, manual for PlanetScope.
+- `processing_options` that steer the methodological workflow for EO time series data extraction, VI generation & feature generation (temporal aggregation). Available for Sentinel (1 & 2) & PlanetScope.
+- `job_options` that steer the OpenEO job that runs the workflow. Available for Sentinel 1 & 2, manual for PlanetScope.
 
 how to best define the `processing_options` in a call
 - use pre-defined settings for `raw_extraction` (generation of raw reflectance/sigma naught time series cubes), `vi_generation` (time series cubes of the VI [plus raw data if requested]) or `feature_generation` via the task key-word in the `get_standard_processing_options` call
@@ -81,6 +81,10 @@ SLC_masking_algo: str = 'mask_scl_dilation'
         Masking method for Sentinel-2 optical data ('satio', 'mask_scl_dilation', None)
         Note: if set to None, no masking is applied and the S2 L2A data is used as is.
 
+UDM_masking_algo: str = 'mask_udm_dilation'
+        Masking method for PlanetScope optical data ('satio', 'mask_udm_dilation', None)
+        Note: if set to None, no masking is applied and the PlanetScope data is used as is.
+
 apply_cloud_mask : bool = True
         if True, the Sentinel-2 data is masked for clouds (based on Sentinel-2 QA band). 
         If False, no masking is applied but the mask band is still created and added to the cube.
@@ -97,6 +101,10 @@ S1_db_rescale: bool = True
 
 optical_vi_list: list = ['NDVI','AVI','CIRE','NIRv','NDMI','NDWI','BLFEI','MNDWI','NDVIMNDWI','S2WI','S2REP','IRECI']
         list of VI's to be generated on the time series datacube of Sentinel-2 (see Spectral Awesome package for all 
+        possible VIs)
+
+planet_vi_list:  list = ['NDVI','AVI','CIRE','NIRv','NDWI']
+        list of VI's to be generated on the time series datacube of PlanetScope (see Spectral Awesome package for all 
         possible VIs)
         
 radar_vi_list: list = ['VHVVD','VHVVR','RVI']

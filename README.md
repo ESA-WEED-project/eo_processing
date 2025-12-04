@@ -73,6 +73,10 @@ S2_BANDS: list = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11",
         which reflectance bands to process of Sentinel-2. Note: requested VI's with reflectance bands not listed 
         will be not calculated & can lead to error message. 
 
+PLANET_BANDS: list = ["B02", "B03", "B04", "B05", "B06", "B07", "B08""]
+        which reflectance bands to process of PlanetScope. Note: requested VI's with reflectance bands not listed 
+        will be not calculated & can lead to error message. 
+
 s2_tileid_list: list = None
         if provided, this list contains tileIDs (eg ['31UFS']) which are used to limit the S2 data load to 
         these tileIDs. This list can be None, multiple tiles or one tile with or without a wildcard (*).
@@ -86,7 +90,7 @@ UDM_masking_algo: str = 'mask_udm_dilation'
         Note: if set to None, no masking is applied and the PlanetScope data is used as is.
 
 apply_cloud_mask : bool = True
-        if True, the Sentinel-2 data is masked for clouds (based on Sentinel-2 QA band). 
+        if True, the Sentinel-2 or PlanetScope data is masked for clouds (based on Sentinel-2 QA band). 
         If False, no masking is applied but the mask band is still created and added to the cube.
         Note: no effect when 'mask_scl_dilation' parameter is set to None.     
 
@@ -95,6 +99,9 @@ append : bool = True
 
 S2_scaling: list = [0, 10000, 0, 1.0]
         input / scaled value range of the Sentinel-2 datacube. needed to calculate VIs.
+
+PLANET_scaling: list = [0, 10000, 0, 1.0]
+        input / scaled value range of the PLanetScope datacube. needed to calculate VIs.
 
 S1_db_rescale: bool = True
         if the Sentinel-1 data is rescaled from natural values to logarithmic before VIs generation

@@ -2,7 +2,8 @@ from __future__ import annotations
 from skimage.morphology import disk
 from openeo.rest.datacube import DataCube
 import openeo
-from typing import Union, TYPE_CHECKING
+from openeo.processes import if_, eq, array_element, gte
+from typing import Union, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import openEO_bbox_format
@@ -25,9 +26,58 @@ def convolve(img: DataCube, radius: int) -> DataCube:
     img = img.apply_kernel(kernel)
     return img
 
-def scl_mask_erode_dilate(session: openeo.Connection, bbox: openEO_bbox_format,
-                          scl_layer_band: str ="SENTINEL2_L2A:SCL",
-                          erode_r: int =3, dilate_r: int =21, target_crs: Union[int, None] =None) -> DataCube:
+
+def classify_udm2(udm_array):
+    """
+    Classifies a pixel based on 6 UDM flags according to priority rules.
+
+    :param udm_array: list or array of 6 integers
+        Each element is a flag indicating a specific condition, arranged in this order:
+        Index 0: Clear
+        Index 1: Snow
+        Index 2: Cloud Shadow
+        Index 3: Light Haze	
+        Index 4: Heavy Haze	
+        Index 5: Cloud
+
+    :returns: A single classification value representing the pixel class:
+        - 7 = Cloud
+        - 6 = Heavy Haze
+        - 5 = Light Haze
+        - 4 = Cloud shadow
+        - 3 = Snow
+        - 2 = Unclear
+        - 1 = Clear
+        - 0 = No condition matched (default/unknown)
+
+    Priority:
+    ---------
+    The higher the class number, the higher the priority
+    """
+    snow = if_(eq(array_element(udm_array, 1), 1), 1, 0)
+    cloud_shadow = if_(eq(array_element(udm_array, 2), 1), 1, 0)
+    light_haze = if_(eq(array_element(udm_array, 3), 1), 1, 0)
+    heavy_haze = if_(eq(array_element(udm_array, 4), 1), 1, 0)
+    cloud = if_(eq(array_element(udm_array, 5), 1), 1, 0)
+    confident = if_(gte(array_element(udm_array, 6), 0.80), 1, 0)
+    
+    # Return the classification based on priority: 
+    return if_(cloud == 1, 7,
+                if_(heavy_haze == 1, 6,
+                    if_(light_haze == 1, 5,
+                        if_(cloud_shadow == 1, 4,
+                            if_(snow == 1, 3,
+                                if_(confident == 0, 2, 1))))))
+
+
+
+def scl_mask_erode_dilate(
+        session: openeo.Connection,
+        bbox: openEO_bbox_format,
+        scl_layer_band: str ="SENTINEL2_L2A:SCL",
+        erode_r: int =3,
+        dilate_r: int =21,
+        target_crs: Union[int, None] =None) -> DataCube:
     """
     Generates a binary mask from the Sentinel-2 Scene Classification Layer (SCL) by performing
     controlled erosion and dilation operations. This function applies a sequence of convolution
@@ -90,3 +140,66 @@ def scl_mask_erode_dilate(session: openeo.Connection, bbox: openEO_bbox_format,
     dilate_cube = (dilate_cube > 0.1)
 
     return dilate_cube.rename_labels("bands", ["S2-CLOUD-MASK"])
+
+
+def udm2_mask_erode_dilate(
+        stac_url: str, 
+        session: openeo.Connection, 
+        bbox: dict,
+        temporal_extent: List[str],
+        erode_r: int = 3, 
+        dilate_r: int = 21, 
+        target_crs: Union[int, None] = None) -> DataCube:
+    """
+    Generates a binary valid data mask from PlanetScope UDM2.1 8-band GeoTIFFs.
+    The mask is built by selecting pixels marked as clear and free from clouds, shadows, haze, and snow.
+
+    Morphological erosion and dilation are applied to remove edge noise and smooth the mask.
+
+    :param session: OpenEO connection.
+    :param bbox: Spatial extent dictionary.
+    :param udm21_collection: Collection ID for UDM2.1 (8-band) GeoTIFF.
+    :param erode_r: Radius for erosion.
+    :param dilate_r: Radius for dilation.
+    :param target_crs: Optional target CRS for processing.
+
+    :return: A DataCube with the final refined binary mask.
+    """
+
+    bands = ["B01", "B02", "B03", "B04", "B05", "B06", "B07"]
+    udm = session.load_stac(stac_url, 
+                            bands=bands,
+                            spatial_extent=bbox,
+                            temporal_extent=temporal_extent,
+                            properties=None)
+
+    udm = udm.resample_spatial(projection=target_crs, resolution=3.0)
+
+    # Assign each band to a variable
+    clear      = udm.band("B01") == 1
+    snow       = udm.band("B02") == 0
+    shadow     = udm.band("B03") == 0
+    light_haze = udm.band("B04") == 0
+    heavy_haze = udm.band("B04") == 0
+    cloud      = udm.band("B06") == 0
+    unusable   = udm.band("B07") == 0  # All bits 0 = usable, can also be below a threshold
+
+    # Combine all criteria for usable pixels
+    valid_mask = clear & snow & shadow & light_haze & heavy_haze & cloud & unusable
+
+    # Invert for erosion
+    erode_input = valid_mask.apply(lambda x: (x == 1).not_())
+
+    # Erosion
+    eroded = convolve(erode_input, erode_r)
+
+    # Invert back
+    eroded = (eroded > 0.1).apply(lambda x: (x == 1).not_())
+
+    # Dilation
+    dilated = convolve(eroded, dilate_r)
+
+    # Get binary mask. NOTE: >0.1 is a fix to avoid being triggered
+    # by small non-zero oscillations after applying convolution
+    final_mask = dilated > 0.1
+    return final_mask

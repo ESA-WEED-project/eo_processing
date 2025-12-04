@@ -3,17 +3,20 @@ from openeo.rest.datacube import DataCube
 from openeo.extra.spectral_indices import append_indices, compute_indices
 from openeo.processes import array_create, ProcessBuilder, array_concat, subtract
 
-from eo_processing.openeo.preprocessing import (extract_S2_datacube, extract_S1_datacube)
+from eo_processing.openeo.preprocessing import (extract_S2_datacube, extract_S1_datacube,
+                                                extract_planet_datacube)
 import openeo
 
-from typing import Optional, Dict, Union, List, TYPE_CHECKING
-from eo_processing.config.settings import VI_LIST, RADAR_LIST, S2_SCALING
+from typing import Optional, Dict, Union, List, Literal,  TYPE_CHECKING
+from eo_processing.config.settings import VI_LIST, RADAR_LIST, S2_SCALING, \
+    PLANET_VI_LIST, PLANET_SCALING
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import openEO_bbox_format
 
 def optical_indices(
         input_cube: DataCube,
+        collection: str ='SENTINEL2_L2A',
         **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
     """creates vegetation indices times series cube from given datacube of optical EO data
 
@@ -22,18 +25,27 @@ def optical_indices(
     :return: VI datacube merged of input_cube and vi results
     """
     # evaluate additional processing_options
-    vi_list = processing_options.get("optical_vi_list", VI_LIST)
-    input_scaling = processing_options.get("S2_scaling", S2_SCALING)
-    append = processing_options.get("append", True)
+    if collection == 'SENTINEL2_L2A':
+        vi_list = processing_options.get("optical_vi_list", VI_LIST)
+        input_scaling = processing_options.get("S2_scaling", S2_SCALING)
+        append = processing_options.get("append", True)
+        platform = 'Sentinel-2A'
+    elif collection == 'PlanetScope':
+        vi_list = processing_options.get("optical_vi_list", PLANET_VI_LIST)
+        input_scaling = processing_options.get("planet_scaling", PLANET_SCALING)
+        append = processing_options.get("append", True)
+        platform = 'PlanetScope'
+    else:
+        raise ValueError ('No Valid collection given')
 
     # convert input DataCube into float
     input_cube = input_cube.linear_scale_range(*input_scaling)
 
     # calculate VI's
     if append:
-        vi_cube = append_indices(datacube=input_cube, indices=vi_list)
+        vi_cube = append_indices(datacube=input_cube, indices=vi_list, platform=platform)
     else:
-        vi_cube = compute_indices(datacube=input_cube, indices=vi_list, append=False)
+        vi_cube = compute_indices(datacube=input_cube, indices=vi_list, append=False, platform=platform)
 
     # TODO: convert the datacube back to int16 - using the output scaling functionality tested in one
     #  of the example notebooks
@@ -171,7 +183,7 @@ def generate_S2_indices(
     input_cube = extract_S2_datacube(connection, bbox, start, end, S2_collection=S2_collection,
                                      **processing_options)
     # call the VI generator
-    result_cube = optical_indices(input_cube, **processing_options)
+    result_cube = optical_indices(input_cube, collection=S2_collection, **processing_options)
 
     return result_cube
 
@@ -201,6 +213,29 @@ def generate_indices_master_cube(
                                                                     S1_collection=S1_collection,
                                                                     **processing_options))
     return indices_cube
+
+def generate_indices_planet_cube(
+        connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
+        planet_collection: Optional[Literal["PlanetScope"]] = None,
+        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+    """ Warper to extract a full data cube of preprocessed PlanetScope data
+
+    :param connection: active openEO connection object
+    :param bbox: dict, bounding box of format {'east': x, 'south': x, 'west': x, 'north': x, 'crs': x}
+    :param start: str, Start date for requested input data (yyyy-mm-dd)
+    :param end: str, End date for requested input data (yyyy-mm-dd)
+    :param planet_collection: (str, optional): Collection name for Planet data
+    :param processing_options: (dict, optional), processing options for preprocessing routine (provider, target_crs,
+            resolution, ts_interval, time_interpolation, UDM_masking_algo, optical_vi_list, planet_scaling, append, Palent_bands)
+    :return: DataCube
+    """
+    # get the Planet input data pre-processed
+    input_cube = extract_planet_datacube(connection, bbox, start, end, planet_collection=planet_collection,
+                                        **processing_options)
+    # call the VI generator
+    result_cube = optical_indices(input_cube, collection=planet_collection, **processing_options)
+
+    return result_cube
 
 def _compute_features(input_timeseries: DataCube) -> ProcessBuilder:
     """
@@ -327,6 +362,31 @@ def generate_master_feature_cube(
     # get the reflectance and VI time series cube
     input_data = generate_indices_master_cube(connection, bbox, start, end, S2_collection=S2_collection,
                                               S1_collection=S1_collection, **processing_options)
+    # get features
+    features_cube = calculate_features_cube(input_data)
+
+    return features_cube
+
+def generate_planet_feature_cube(
+        connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
+        planet_collection: str ='PlanetScope',
+        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+    """ Warper to extract a full data cube of preprocessed Planet data
+
+    :param connection: active openEO connection object
+    :param bbox: dict, bounding box of format {'east': x, 'south': x, 'west': x, 'north': x, 'crs': x}
+    :param start: str, Start date for requested input data (yyyy-mm-dd)
+    :param end: str, End date for requested input data (yyyy-mm-dd)
+    :param planet_collection: (str, optional): Collection name for Planet data
+    :param processing_options: (dict, optional), processing options for preprocessing routine (provider, target_crs,
+            resolution, ts_interval, time_interpolation, UDM_masking_algo, optical_vi_list,
+            planet_scaling, append, planet_bands)
+    :return: DataCube
+    """
+    # get the Planet indices
+    # get the reflectance and VI time series cube
+    input_data = generate_indices_planet_cube(connection, bbox, start, end, planet_collection=planet_collection,
+                                             **processing_options)
     # get features
     features_cube = calculate_features_cube(input_data)
 

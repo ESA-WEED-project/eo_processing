@@ -42,6 +42,19 @@ SKIP_CHECK_S1: bool = False
 SKIP_CHECK_S2: bool = False
 
 # ---------------------------------------------------
+# Planet Processing options
+PLANET_MASKING_ALGO = str = 'mask_udm_dilation'
+PLANET_BANDS = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08"] # Same for UDM2 and Spectral bands
+PLANET_RESOLUTION = 3.0
+PLANET_VI_LIST = ['NDVI',
+           'AVI',
+           'CIRE',
+           'NIRv',
+           'NDWI'
+           ]
+PLANET_SCALING = [0, 10000, 0, 1.0]
+
+# ---------------------------------------------------
 # Job options for OpenEO
 
 OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, str] = {

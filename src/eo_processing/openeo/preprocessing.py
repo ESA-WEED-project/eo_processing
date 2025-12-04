@@ -306,13 +306,13 @@ def extract_planet_datacube(
     :param end: str, End date for requested input data (yyyy-mm-dd)
     :param Planet_collection: (str, optional): Collection name for Planet data
     :param processing_options: (dict, optional), processing options for preprocessing routine (provider, target_crs,
-            resolution, ts_interval, time_interpolation, SLC_masking_algo, Planet_bands)
+            resolution, ts_interval, time_interpolation, SLC_masking_algo, planet_bands)
     :return: DataCube
     """
     # evaluate additional processing_options
     target_crs = processing_options.get("target_crs", None)
     target_res = processing_options.get("resolution", 3.)
-    bands = processing_options.get("Planet_bands", PLANET_BANDS)
+    bands = processing_options.get("planet_bands", PLANET_BANDS)
     ts_interval = processing_options.get("ts_interval", None)
     ts_interpolation = processing_options.get("time_interpolation", False)
     masking = processing_options.get("UDM_masking_algo", None)

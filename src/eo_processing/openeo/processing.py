@@ -32,7 +32,7 @@ def optical_indices(
         platform = 'Sentinel-2A'
     elif collection == 'PlanetScope':
         vi_list = processing_options.get("optical_vi_list", PLANET_VI_LIST)
-        input_scaling = processing_options.get("S2_scaling", PLANET_SCALING)
+        input_scaling = processing_options.get("planet_scaling", PLANET_SCALING)
         append = processing_options.get("append", True)
         platform = 'PlanetScope'
     else:
@@ -226,7 +226,7 @@ def generate_indices_planet_cube(
     :param end: str, End date for requested input data (yyyy-mm-dd)
     :param planet_collection: (str, optional): Collection name for Planet data
     :param processing_options: (dict, optional), processing options for preprocessing routine (provider, target_crs,
-            resolution, ts_interval, time_interpolation, UDM_masking_algo, optical_vi_list, Planet_scaling, append, Palent_bands)
+            resolution, ts_interval, time_interpolation, UDM_masking_algo, optical_vi_list, planet_scaling, append, Palent_bands)
     :return: DataCube
     """
     # get the Planet input data pre-processed
@@ -380,7 +380,7 @@ def generate_planet_feature_cube(
     :param planet_collection: (str, optional): Collection name for Planet data
     :param processing_options: (dict, optional), processing options for preprocessing routine (provider, target_crs,
             resolution, ts_interval, time_interpolation, UDM_masking_algo, optical_vi_list,
-            Planet_scaling, append, Planet_bands)
+            planet_scaling, append, planet_bands)
     :return: DataCube
     """
     # get the Planet indices

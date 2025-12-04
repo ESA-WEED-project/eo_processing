@@ -1254,11 +1254,11 @@ class stac_storage:
         """
         data = {
             "grant_type": "client_credentials",
-            "client_id": self.stac_credentials["client_id"],
-            "client_secret": self.stac_credentials["client_secret"],
+            "client_id": self.stac_credentials["CLIENT_ID"],
+            "client_secret": self.stac_credentials["CLIENT_SECRET"],
             "scope": "openid roles",
         }
-        resp = post(self.stac_credentials["token_url"], data=data)
+        resp = post(self.stac_credentials["TOKEN_URL"], data=data)
         resp.raise_for_status()
         token = resp.json()["access_token"]
 

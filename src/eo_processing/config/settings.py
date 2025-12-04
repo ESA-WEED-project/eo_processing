@@ -6,20 +6,22 @@ if TYPE_CHECKING:
     from eo_processing.utils.storage import WEED_storage
 
 # ---------------------------------------------------
-# standard processing options
+# standard processing options S1/S2
 TARGET_CRS: int = 3035                   # can be all known EPSG codes
-S1_ORBITDIRECTION: str = 'DESCENDING'    #
 TARGET_RESOLUTION: float = 10.
-TIME_INTERPOLATION: bool = False
+S1_ORBITDIRECTION: str = 'DESCENDING'
+S2_BANDS: List[str] = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
+S2_MAX_CLOUD_COVER: int = 95
+MASKING_ALGO: str = 'mask_scl_dilation'
+APPLY_CLOUD_MASK: bool = True
+S2_TILEID_LIST: Optional[List[str]] = None
+SKIP_CHECK_S1: bool = False
+SKIP_CHECK_S2: bool = False
 TS_INTERVAL: str = 'dekad'
 S2_TEMPORAL_REDUCER: str = 'median'
 S1_TEMPORAL_REDUCER: str = 'mean'
-MASKING_ALGO: str = 'mask_scl_dilation'
-APPLY_CLOUD_MASK: bool = True
-S2_MAX_CLOUD_COVER = 95
-S2_BANDS = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B11", "B12"]
-
-VI_LIST = ['NDVI',
+TIME_INTERPOLATION: bool = False
+VI_LIST: List[str] = ['NDVI',
            'AVI',
            'CIRE',
            'NIRv',
@@ -31,32 +33,25 @@ VI_LIST = ['NDVI',
            'S2WI',
            'S2REP',
            'IRECI']
-
-RADAR_LIST = ['VHVVD',
+RADAR_LIST: List[str] = ['VHVVD',
               'VHVVR',
               'RVI']
-
-S2_SCALING = [0, 10000, 0, 1.0]
-S2_TILEID_LIST = None
-SKIP_CHECK_S1: bool = False
-SKIP_CHECK_S2: bool = False
-
+S2_SCALING: List = [0, 10000, 0, 1.0]
 # ---------------------------------------------------
 # Planet Processing options
-PLANET_MASKING_ALGO = str = 'mask_udm_dilation'
-PLANET_BANDS = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08"] # Same for UDM2 and Spectral bands
-PLANET_RESOLUTION = 3.0
-PLANET_VI_LIST = ['NDVI',
+PLANET_MASKING_ALGO: str = 'mask_udm_dilation'
+PLANET_BANDS: List[str] = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08"] # Same for UDM2 and Spectral bands
+PLANET_RESOLUTION: float = 3.0
+PLANET_VI_LIST: List[str] = ['NDVI',
            'AVI',
            'CIRE',
            'NIRv',
            'NDWI'
            ]
-PLANET_SCALING = [0, 10000, 0, 1.0]
+PLANET_SCALING: List = [0, 10000, 0, 1.0]
 
 # ---------------------------------------------------
 # Job options for OpenEO
-
 OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, str] = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "8G",

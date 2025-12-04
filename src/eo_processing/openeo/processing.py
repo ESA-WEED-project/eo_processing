@@ -212,6 +212,7 @@ def generate_indices_master_cube(
         indices_cube = indices_cube.merge_cubes(generate_S1_indices(connection, bbox, start, end,
                                                                     S1_collection=S1_collection,
                                                                     **processing_options))
+    return indices_cube
 
 def generate_indices_planet_cube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,

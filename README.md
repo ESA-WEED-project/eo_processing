@@ -133,10 +133,5 @@ planet_vi_list:  list = ['NDVI','AVI','CIRE','NIRv','NDWI']
         possible VIs)
 ```
 
-## explanation on settings for inference pipeline
-- the inference pipeline currently applies ML models stored in the ONNX format on a given datacube
-- the ONNX model has to be available on the CDSE (currently saved on the CREODIAS storage)
-- output is a Datacube with the winning class as first band as well as the class occurence probalilities as additional bands
-
 ## examples
 see the "notebook" sub-folder for detailed jupyter notebook examples

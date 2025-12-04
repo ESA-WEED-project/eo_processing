@@ -329,8 +329,11 @@ def extract_planet_datacube(
     """
 
     # request the needed datacube
+    planetscope_url = processing_options.get("planet_stac_url", None),
+    if not planetscope_url:
+        raise ValueError ('No known stac url given for PlanetScope data')
     bands = connection.load_stac(
-        url=processing_options.get("planet_stac_url", None),
+        url=planetscope_url,
         bands=bands,
         spatial_extent=bbox,
         temporal_extent=[start, end],
@@ -346,8 +349,8 @@ def extract_planet_datacube(
     # apply cloud masking
     if masking:
         udm2_url = processing_options.get("udm_stac_url", None)
-    else:
-        raise ValueError ('No known stac url given for UDM 2')
+        if not udm2_url:
+            raise ValueError ('No known stac url given for UDM 2')
     if masking == 'mask_udm_dilation':
         # we have to load the SCL mask as an extra cube to get it correctly working
         sub_collection = connection.load_stac(

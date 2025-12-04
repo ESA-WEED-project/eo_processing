@@ -310,12 +310,6 @@ def extract_planet_datacube(
     :return: DataCube
     """
     # evaluate additional processing_options
-    if ("creo" in processing_options.get("provider", "").lower()) or \
-            (processing_options.get("provider", "").lower() == "cdse" and bbox is not None):
-        catalogue_check = True
-    else:
-        catalogue_check = False
-
     target_crs = processing_options.get("target_crs", None)
     target_res = processing_options.get("resolution", 3.)
     bands = processing_options.get("Planet_bands", PLANET_BANDS)
@@ -327,11 +321,12 @@ def extract_planet_datacube(
     if masking not in ['satio','mask_udm_dilation', None]:
         raise ValueError(f'Unknown masking option `{masking}`')
     
-    # we have to check if enough data is available on creo platform
+    # we have to check if enough data is available on storage platform
+    #TODO current catalogue check used PLANET API, make pystac check
+    """
     if catalogue_check:
-        # PLANET2URL creo only accepts request in EPSG:4326
-        # catalogue_check_Planet(start, end, bbox) #TODO enable when having Planet API key
-        print('TODO uncomment catalogue_check_Planet')
+        catalogue_check_Planet(start, end, bbox) 
+    """
 
     # request the needed datacube
     bands = connection.load_stac(
@@ -345,13 +340,14 @@ def extract_planet_datacube(
     # warp and/or resample if needed
     if target_crs is not None:
         bands = bands.resample_spatial(projection=target_crs, resolution=target_res)
+    else:
+        bands = bands.resample_spatial(resolution=target_res)
 
     # apply cloud masking
     if masking:
         udm2_url = processing_options.get("udm_stac_url", None)
     else:
         raise ValueError ('No known stac url given for UDM 2')
-
     if masking == 'mask_udm_dilation':
         # we have to load the SCL mask as an extra cube to get it correctly working
         sub_collection = connection.load_stac(
@@ -373,7 +369,14 @@ def extract_planet_datacube(
             target=["UDM2"],
             dimension="bands"
         )
+        
+        # resample to 3m (needed for the correct kernels)
+        if target_crs is not None:
+            sub_collection = sub_collection.resample_spatial(resolution=3., projection=target_crs)
+        else:
+            sub_collection = sub_collection.resample_spatial(resolution=3.)
 
+        # Perform dilation
         udm_dilated_mask = sub_collection.process(
             "to_scl_dilation_mask",
             data=udm_classes,

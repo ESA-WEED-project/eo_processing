@@ -243,7 +243,7 @@ def extract_S2_datacube(
             bands=["SCL"],
             spatial_extent=bbox,
             temporal_extent=[start, end],
-            max_cloud_cover=95,
+            max_cloud_cover=max_cloud_max,
             properties=properties
         )
         # resample to 10m (needed for the correct kernels)

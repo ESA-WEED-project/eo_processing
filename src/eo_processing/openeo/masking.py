@@ -74,7 +74,8 @@ def scl_mask_erode_dilate(
         scl_layer_band: str ="SENTINEL2_L2A:SCL",
         erode_r: int =3,
         dilate_r: int =21,
-        target_crs: Union[int, None] =None) -> DataCube:
+        target_crs: Union[int, None] =None,
+        max_cloud_max: int = 95) -> DataCube:
     """
     Generates a binary mask from the Sentinel-2 Scene Classification Layer (SCL) by performing
     controlled erosion and dilation operations. This function applies a sequence of convolution
@@ -101,13 +102,14 @@ def scl_mask_erode_dilate(
         final mask dilation applied after erosion.
     :param target_crs: Target coordinate reference system (CRS) of the output data. If None,
         the existing CRS is used.
+    :parma max_cloud_max: Maximum cloud cover percentage to be considered in the mask generation.
 
     :return: A DataCube object containing the final binary mask after erosion and dilation.
     """
 
     layer_band = scl_layer_band.split(':')
     s2_sceneclassification = session.load_collection(
-        layer_band[0], bands=[layer_band[1]], spatial_extent=bbox)
+        layer_band[0], bands=[layer_band[1]], spatial_extent=bbox, max_cloud_cover=max_cloud_max)
 
     classification = s2_sceneclassification.band(layer_band[1])
 

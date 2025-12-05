@@ -243,7 +243,7 @@ def extract_S2_datacube(
             bands=["SCL"],
             spatial_extent=bbox,
             temporal_extent=[start, end],
-            max_cloud_cover=95,
+            max_cloud_cover=max_cloud_max,
             properties=properties
         )
         # resample to 10m (needed for the correct kernels)
@@ -273,7 +273,8 @@ def extract_S2_datacube(
             connection,
             bbox,
             scl_layer_band=S2_collection + ':SCL',
-            target_crs=target_crs)
+            target_crs=target_crs,
+            max_cloud_max=max_cloud_max)
 
         if apply_mask:
             bands = bands.mask(mask) # masks are automatically resampled/warped

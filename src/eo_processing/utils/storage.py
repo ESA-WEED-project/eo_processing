@@ -13,6 +13,7 @@ import tempfile
 import time
 from tqdm import tqdm
 import psycopg
+import json
 from dotenv import load_dotenv, find_dotenv, set_key
 from typing import Union, Dict, Tuple, List, TYPE_CHECKING, IO, Optional
 
@@ -1123,7 +1124,7 @@ class gdrive_storage:
         # return the fsspec filesystem to access the files & folders available for the service account credentials
         try:
             self.gdrive_fs = GDriveFileSystem(self.gdrive_entry_point, use_service_account=True,
-                                              client_json=self.gdrive_credentials)
+                                              client_json=json.dumps(self.gdrive_credentials))
         except:
             raise Exception('Could not initialize GDriveFileSystem.')
 

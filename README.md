@@ -102,6 +102,10 @@ optical_vi_list: list = ['NDVI','AVI','CIRE','NIRv','NDMI','NDWI','BLFEI','MNDWI
 radar_vi_list: list = ['VHVVD','VHVVR','RVI']
         list of VI's to be generated on the time series datacube of Sentinel-1 (see Spectral Awesome package for all 
         possible VIs)
+        
+openeo_chunk_size: int = 128
+        internal chunk size for the openEO job. Use the standard chunk size and only chnage this parameter if you 
+        know what you are doing. Note: this parameter is only relevant for S1/S2 data and not for PlanetScope.
 ```
 
 how to best define the `processing_options` in a call for PlanetScope

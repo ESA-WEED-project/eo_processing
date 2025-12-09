@@ -19,6 +19,9 @@
           "B11",
           "B12"
         ],
+        "featureflags": {
+          "tilesize": 128
+        },
         "id": "SENTINEL2_L2A",
         "properties": {
           "eo:cloud_cover": {

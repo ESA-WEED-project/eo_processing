@@ -6,7 +6,7 @@ from openeo.rest.datacube import DataCube
 from eo_processing.openeo.masking import scl_mask_erode_dilate, classify_udm2, udm2_mask_erode_dilate
 from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2,
                                                  catalogue_check_CDSE_S1, catalogue_check_CDSE_S2)
-from eo_processing.config.settings import S2_BANDS, PLANET_BANDS
+from eo_processing.config.settings import S2_BANDS, PLANET_BANDS, CHUNK_SIZE
 
 from typing import Optional, Dict, Union, List, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -78,6 +78,7 @@ def extract_S1_datacube(
     ts_interval: Optional[str] = processing_options.get("ts_interval", None)
     ts_reducer: str = processing_options.get("S1_temporal_reducer", "mean")
     ts_interpolation: bool = processing_options.get("time_interpolation", False)
+    chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
     if ("creo" in processing_options.get("provider", "").lower()) or \
             (processing_options.get("provider", "").lower() == "terrascope") or \
             (processing_options.get("provider", "").lower() == "development") or \
@@ -108,6 +109,7 @@ def extract_S1_datacube(
                                        spatial_extent=bbox,
                                        temporal_extent=[start, end],
                                        properties=properties)
+    bands.result_node().update_arguments(featureflags={"tilesize": chunk_size})
 
     # compute backscatter if starting from raw GRD, otherwise assume preprocessed backscatter
     check_flag = False
@@ -197,7 +199,8 @@ def extract_S2_datacube(
     ts_interpolation: bool = processing_options.get("time_interpolation", False)
     masking: Optional[str] = processing_options.get("SLC_masking_algo", None)
     apply_mask: bool = processing_options.get("apply_cloud_mask", True)
-    max_cloud_max: int = processing_options.get("S2_max_cloud_cover", 95.)
+    max_cloud_max: int = processing_options.get("S2_max_cloud_cover", 95)
+    chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
     s2_tileid_list: Optional[List[str]] = processing_options.get("s2_tileid_list", None)
 
     # check if the masking parameter is valid
@@ -228,6 +231,7 @@ def extract_S2_datacube(
         max_cloud_cover=max_cloud_max,
         properties=properties
     )
+    bands.result_node().update_arguments(featureflags={"tilesize": chunk_size})
 
     # warp and/or resample if needed
     if target_crs is not None:
@@ -246,6 +250,8 @@ def extract_S2_datacube(
             max_cloud_cover=max_cloud_max,
             properties=properties
         )
+        sub_collection.result_node().update_arguments(featureflags={"tilesize": chunk_size})
+
         # resample to 10m (needed for the correct kernels)
         if target_crs is not None:
             sub_collection = sub_collection.resample_spatial(resolution=10., projection=target_crs)
@@ -274,7 +280,8 @@ def extract_S2_datacube(
             bbox,
             scl_layer_band=S2_collection + ':SCL',
             target_crs=target_crs,
-            max_cloud_max=max_cloud_max)
+            max_cloud_max=max_cloud_max,
+            chunk_size=chunk_size)
 
         if apply_mask:
             bands = bands.mask(mask) # masks are automatically resampled/warped

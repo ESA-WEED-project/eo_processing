@@ -6,6 +6,10 @@ if TYPE_CHECKING:
     from eo_processing.utils.storage import WEED_storage
 
 # ---------------------------------------------------
+# processing options openEO
+CHUNK_SIZE: int = 128
+
+# ---------------------------------------------------
 # standard processing options S1/S2
 TARGET_CRS: int = 3035                   # can be all known EPSG codes
 TARGET_RESOLUTION: float = 10.
@@ -271,6 +275,7 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
             "skip_check_S1": SKIP_CHECK_S1,
             "skip_check_S2": SKIP_CHECK_S2,
             "apply_cloud_mask": APPLY_CLOUD_MASK,
+            "openeo_chunk_size": CHUNK_SIZE,
         }
     elif (task == 'feature_generation') or (task == 'vi_generation'):
         proc_opt = {
@@ -293,16 +298,18 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
             "radar_vi_list" : RADAR_LIST,
             "S2_scaling" : S2_SCALING,
             "S1_db_rescale" : True,
-            "append" : True
+            "append" : True,
+            "openeo_chunk_size": CHUNK_SIZE,
         }
     else:
         raise ValueError(f'Task `{task}` not known.')
     return proc_opt
 
-def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTION, target_crs: int = TARGET_CRS,
-                         resolution: int | float = TARGET_RESOLUTION, ts_interpolation: bool = TIME_INTERPOLATION,
-                         ts_interval: str = TS_INTERVAL, S2_temporal_reducer: str = S2_TEMPORAL_REDUCER,
-                         S1_temporal_reducer: str = S1_TEMPORAL_REDUCER, slc_masking: str = MASKING_ALGO,
+def get_advanced_options(provider: str, s1_orbitdirection: Optional[str] = S1_ORBITDIRECTION,
+                         target_crs: Optional[int] = TARGET_CRS, resolution: int | float = TARGET_RESOLUTION,
+                         ts_interpolation: bool = TIME_INTERPOLATION, ts_interval: Optional[str] = TS_INTERVAL,
+                         S2_temporal_reducer: str = S2_TEMPORAL_REDUCER, openeo_chunk_size: int = CHUNK_SIZE,
+                         S1_temporal_reducer: str = S1_TEMPORAL_REDUCER, slc_masking: Optional[str] = MASKING_ALGO,
                          S2_bands: List[str] = S2_BANDS, s2_tileid_list: Optional[List[str]] = S2_TILEID_LIST,
                          skip_check_S1: bool = SKIP_CHECK_S1, skip_check_S2: bool = SKIP_CHECK_S2,
                          apply_cloud_mask: bool = APPLY_CLOUD_MASK, S2_max_cloud_cover: int = S2_MAX_CLOUD_COVER,
@@ -358,6 +365,7 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
     :param S1_db_rescale: Boolean controlling whether Sentinel-1 data must be
                           rescaled in decibels.
     :param append: Boolean indicating whether to append the VI's to the reflectance cube or to replace them.
+    :param openeo_chunk_size: Chunk size for OpenEO processing.
 
     :return: A dictionary containing all validated options as key-value pairs.
     """
@@ -367,6 +375,9 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
 
     if type(target_crs) != int:
         raise ValueError(f'parameter for target_crs must be an integer value.')
+
+    if type(openeo_chunk_size) != int:
+        raise ValueError(f'parameter for openeo_chunk_size must be an integer value.')
 
     if type(S2_max_cloud_cover) != int:
         raise ValueError(f'parameter for S2_max_cloud_cover must be an integer value.')
@@ -442,7 +453,8 @@ def get_advanced_options(provider: str, s1_orbitdirection: str = S1_ORBITDIRECTI
         "radar_vi_list": radar_vi_list,
         "S2_scaling": S2_scaling,
         "S1_db_rescale": S1_db_rescale,
-        "append": append
+        "append": append,
+        "openeo_chunk_size": openeo_chunk_size,
     }
     return proc_opt
 

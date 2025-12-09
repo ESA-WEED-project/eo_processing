@@ -11,6 +11,9 @@
           "VH",
           "VV"
         ],
+        "featureflags": {
+          "tilesize": 128
+        },
         "id": "SENTINEL1_GRD",
         "properties": {
           "polarisation": {

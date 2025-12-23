@@ -393,6 +393,9 @@ def postprocess_output(
     # get the class labels assuming they are the same across all dictionaries (probabilities)
     class_labels = list(probabilities_dicts[0].keys())
 
+    # remove fake labels from single-class-models
+    class_labels = [l for l in class_labels if l not in [0, '0']]
+
     # Convert probabilities from dicts for each sample into a 2D array with shape (n_samples, n_classes)
     probabilities = np.array([[prob[class_id] for class_id in class_labels] for prob in probabilities_dicts])
 
@@ -465,9 +468,10 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     # get the list of models to apply on the cube from context
     model_id = context.get("model_id")
     if model_id.startswith('http'):
-        model_urls, _ = get_model_metadata_artifact(model_id)
+        model_urls, output_band_names = get_model_metadata_artifact(model_id)
     else:
-        model_urls, _ = get_model_metadata(model_id)
+        model_urls, output_band_names = get_model_metadata(model_id)
+    expected_band_len = len(output_band_names)
 
     # loop over the models and apply on input array
     output_cube_initialized = False
@@ -507,5 +511,9 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
             
     # make sure output Xarray has the correct dtype
     output_cube = output_cube.astype("uint8")
+
+    # final check
+    if output_cube.sizes["bands"] != expected_band_len:
+        raise ValueError(f"Expected {expected_band_len} bands in output, got {output_cube.sizes['bands']}")
 
     return output_cube

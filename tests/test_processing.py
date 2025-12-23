@@ -146,12 +146,5 @@ def test_master_cube_with_udf_catboost_inference(oeo_con100, groundtruth_filenam
 
     assert generated_process_graph is not None, "Post data is None"
 
-    # Save the process graph JSON to a file
-    output_path = os.path.join(r'C:\Users\BUCHHORM\Downloads', 'test.json')
-    with open(output_path, "w") as json_file:
-        json_file.write(generated_process_graph)
-        print(f"Process graph saved: {output_path}")
-
-
     # Compare generated job info with the ground truth process graph
     compare_job_info(json.loads(generated_process_graph), groundtruth_filename, as_benchmark_scenario=integration)

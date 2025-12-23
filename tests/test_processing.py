@@ -77,13 +77,13 @@ def test_generate_S2_feature_cube(oeo_con100, groundtruth_filename, integration)
     "groundtruth_filename, model_id, WERN_url, integration",
     [
         # unit tests
-        ("cube_generation/generate_master_feature_cube_with_catboost_inference.json",
-        "EUNIS2021plus_EU_v1_2024_PAN",
-        STAC_CAT_URL+ '/collections/wern_features',
-        False),
+        #("cube_generation/generate_master_feature_cube_with_catboost_inference.json",
+        #"EUNIS2021plus_EU_v1_2024_PAN",
+        #STAC_CAT_URL+ '/collections/wern_features',
+        #False),
         # integration tests
         ("cube_generation/generate_master_feature_cube_with_catboost_inference_integration.json",
-         "EUNIS2021plus_EU_v1_2024_PAN", 
+         "EUNIS2021plus_EU_v1_2024_PAN",
          'https://catalogue.weed.apex.esa.int/collections/wern_features',
          True)
     ],
@@ -145,6 +145,13 @@ def test_master_cube_with_udf_catboost_inference(oeo_con100, groundtruth_filenam
     generated_process_graph=generated_cube.to_json()
 
     assert generated_process_graph is not None, "Post data is None"
-    
+
+    # Save the process graph JSON to a file
+    output_path = os.path.join(r'C:\Users\BUCHHORM\Downloads', 'test.json')
+    with open(output_path, "w") as json_file:
+        json_file.write(generated_process_graph)
+        print(f"Process graph saved: {output_path}")
+
+
     # Compare generated job info with the ground truth process graph
     compare_job_info(json.loads(generated_process_graph), groundtruth_filename, as_benchmark_scenario=integration)

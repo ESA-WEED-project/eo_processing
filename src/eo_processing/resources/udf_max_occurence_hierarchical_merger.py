@@ -75,7 +75,8 @@ def _merge_hierarchical(cube: xr.DataArray, df_high_prob) -> xr.DataArray:
 
             if len(lsub) != 1:
                 raise RuntimeError(
-                    f'level2 sub-class results should only belong to ONE level 1 class. level 2 results of file {row.path} belong to {len(lsub)} level 1 classes ({lsub}).')
+                    f'level2 sub-class results should only belong to ONE level 1 class. '
+                    f'level 2 results of model {row.model} belong to {len(lsub)} level 1 classes ({lsub}).')
             # if we have this error then check if the classified tile is containing data, probably there is 'nodata' involved in the issue.
 
             # now imprint the data into level 1
@@ -100,7 +101,8 @@ def _merge_hierarchical(cube: xr.DataArray, df_high_prob) -> xr.DataArray:
 
             if len(lsub) != 1:
                 raise RuntimeError(
-                    f'level3 sub-class results should only belong to ONE level 2 class. level 3 results of file {row.model} belong to {len(lsub)} level 2 classes ({lsub}).')
+                    f'level3 sub-class results should only belong to ONE level 2 class. '
+                    f'level 3 results of model {row.model} belong to {len(lsub)} level 2 classes ({lsub}).')
             # if we have this error then check if the classified tile is containing data, probably there is 'nodata' involved in the issue.
 
             # now imprint the data into level 2

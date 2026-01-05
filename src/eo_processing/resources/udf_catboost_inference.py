@@ -17,7 +17,6 @@ from typing import Dict, List, Tuple, Union
 sys.path.append("onnx_deps")
 import onnxruntime as ort
 
-
 def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
     """Rename the bands by using apply metadata
     :param metadata: Metadata of the input data
@@ -32,7 +31,6 @@ def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
         _ , output_band_names = get_model_metadata(model_id)
     # rename band labels
     return metadata.rename_labels(dimension="bands", target=output_band_names)
-
 
 @functools.lru_cache(maxsize=1)
 def get_model_metadata(modelID) -> Tuple[List[str], List[str]]:
@@ -134,7 +132,6 @@ def get_model_metadata_artifact(modelID: str) -> Tuple[List[str], List[str]]:
 
     return model_urls, output_band_names
 
-
 def read_parquet_metadata(path_parquet: str) -> dict:
     """
     Reads the key-value metadata from a Parquet file using pyarrow.
@@ -214,19 +211,6 @@ def convert_to_list(input_value: Union[str, List[str]]) -> List[str]:
     else:
         return input_value
 
-def is_onnx_file(file_path: str) -> bool:
-    """
-    Determines if a file is an ONNX file based on its extension.
-
-    This function checks the provided file path and determines whether the file
-    is an ONNX file by checking if the file name ends with the `.onnx` file extension.
-
-    :param file_path: The path to the file whose extension is to be verified.
-    :return: True if the file has a `.onnx` extension, otherwise False.
-    """
-    return file_path.endswith(".onnx")
-
-
 def download_file(url: str, max_file_size_mb: int = 250, cache_dir: str = "/tmp/cache") -> str:
     """
     Downloads a file from the specified URL. The file is
@@ -271,7 +255,6 @@ def download_file(url: str, max_file_size_mb: int = 250, cache_dir: str = "/tmp/
         if os.path.exists(temp_file_path):
             os.remove(temp_file_path)  # Cleanup if an error occurs
         raise ValueError(f"Error downloading file: {e}")
-
 
 @functools.lru_cache(maxsize=1)
 def load_onnx_model(model_url: str, cache_dir: str = "/tmp/cache") -> Tuple[ort.InferenceSession, Dict[str, List[str]]]:
@@ -328,10 +311,8 @@ def load_onnx_model(model_url: str, cache_dir: str = "/tmp/cache") -> Tuple[ort.
     except Exception as e:
         raise ValueError(f"Failed to load ONNX model from {model_url}: {e}")
 
-
-def preprocess_input(
-    input_xr: xr.DataArray, ort_session: ort.InferenceSession
-) -> Tuple[np.ndarray, Tuple[int, int, int]]:
+def preprocess_input(input_xr: xr.DataArray,
+                     ort_session: ort.InferenceSession) -> Tuple[np.ndarray, Tuple[int, int, int]]:
     """
     Preprocesses input data for model inference using an ONNX runtime session. This
     function takes an xarray DataArray, rearranges its dimensions, and reshapes its
@@ -353,7 +334,6 @@ def preprocess_input(
     input_np = input_xr.values.reshape(-1, ort_session.get_inputs()[0].shape[1])
     return input_np, input_shape
 
-
 def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> List[Dict[Union[str, int], float]]:
     """
     Executes inference using an ONNX Runtime session and input numpy array. This function
@@ -370,10 +350,8 @@ def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> Li
     probabilities_dicts = ort_outputs[1]  # just take probability results
     return probabilities_dicts
 
-
-def postprocess_output(
-    probabilities_dicts: List[Dict[Union[str, int], float]], input_shape: Tuple[int, int, int]
-) -> np.ndarray:
+def postprocess_output(probabilities_dicts: List[Dict[Union[str, int], float]],
+                       input_shape: Tuple[int, int, int]) -> np.ndarray:
     """
     Processes the output probabilities of a model into a reshaped and scaled NumPy array.
 
@@ -393,6 +371,11 @@ def postprocess_output(
     # get the class labels assuming they are the same across all dictionaries (probabilities)
     class_labels = list(probabilities_dicts[0].keys())
 
+    if (0 in class_labels) or ('0' in class_labels):
+        inspect(message=f"* detected FAKE label from single-class-model. Fake result removed.")
+    # remove fake labels from single-class-models
+    class_labels = [l for l in class_labels if l not in [0, '0']]
+
     # Convert probabilities from dicts for each sample into a 2D array with shape (n_samples, n_classes)
     probabilities = np.array([[prob[class_id] for class_id in class_labels] for prob in probabilities_dicts])
 
@@ -401,7 +384,6 @@ def postprocess_output(
     probabilities = probabilities.astype("uint8")
 
     return probabilities
-
 
 def create_output_xarray(probabilities: np.ndarray, input_xr: xr.DataArray) -> xr.DataArray:
     """
@@ -423,7 +405,6 @@ def create_output_xarray(probabilities: np.ndarray, input_xr: xr.DataArray) -> x
         coords={"y": input_xr.coords["y"], "x": input_xr.coords["x"]},
     )
 
-
 def ensure_no_missing_bands(cube: xr.DataArray, required_bands: List[str]) -> xr.DataArray:
     """
     Ensure `cube` contains all `required_bands` along the 'bands' dimension.
@@ -439,7 +420,6 @@ def ensure_no_missing_bands(cube: xr.DataArray, required_bands: List[str]) -> xr
         raise ValueError(f"Missing bands: {missing}. Execution halted.")
     
     return cube
-
 
 def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     """
@@ -465,9 +445,10 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     # get the list of models to apply on the cube from context
     model_id = context.get("model_id")
     if model_id.startswith('http'):
-        model_urls, _ = get_model_metadata_artifact(model_id)
+        model_urls, output_band_names = get_model_metadata_artifact(model_id)
     else:
-        model_urls, _ = get_model_metadata(model_id)
+        model_urls, output_band_names = get_model_metadata(model_id)
+    expected_band_len = len(output_band_names)
 
     # loop over the models and apply on input array
     output_cube_initialized = False
@@ -497,6 +478,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
         model_output_cube = create_output_xarray(probabilities, subsampled_data_array)
 
         # merge the model results into one super-cube
+        inspect(message=f"add model output to overall output cube")
         if not output_cube_initialized:
             # Initialize the output_cube only on the first iteration
             output_cube = model_output_cube
@@ -507,5 +489,12 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
             
     # make sure output Xarray has the correct dtype
     output_cube = output_cube.astype("uint8")
+
+    # final check
+    if output_cube.sizes["bands"] != expected_band_len:
+        raise ValueError(f"Expected {expected_band_len} bands in output, got {output_cube.sizes['bands']}")
+    else:
+        inspect(message=f"Successfully applied all models on the input datacube. {output_cube.sizes['bands']} of "
+                        f"{expected_band_len} expected habitat proba bands generated.")
 
     return output_cube

@@ -478,6 +478,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
         model_output_cube = create_output_xarray(probabilities, subsampled_data_array)
 
         # merge the model results into one super-cube
+        inspect(message=f"add model output to overall output cube")
         if not output_cube_initialized:
             # Initialize the output_cube only on the first iteration
             output_cube = model_output_cube

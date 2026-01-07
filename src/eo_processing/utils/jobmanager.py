@@ -12,9 +12,10 @@ from pathlib import Path
 import collections
 import time
 import numpy as np
-from openeo.extra.job_management import (MultiBackendJobManager,_format_usage_stat, JobDatabaseInterface,
-                                         ignore_connection_errors, _ColumnProperties, _start_job_default,
-                                         get_job_db)
+from openeo.extra.job_management import (MultiBackendJobManager, JobDatabaseInterface, get_job_db)
+from openeo.extra.job_management._manager import (_format_usage_stat, ignore_connection_errors, _ColumnProperties,
+                                                  _start_job_default, _ColumnRequirements)
+
 from openeo.rest.auth.auth import BearerAuth
 from openeo.extra.job_management._thread_worker import (
     _JobManagerWorkerThreadPool,
@@ -47,7 +48,7 @@ class WeedJobManager(MultiBackendJobManager):
     or failed based on predefined criteria.
     """
     # alter the standard list of
-    _COLUMN_REQUIREMENTS: Mapping[str, _ColumnProperties] = {
+    _column_requirements: _ColumnRequirements= _ColumnRequirements({
         "id": _ColumnProperties(dtype="str"),
         "backend_name": _ColumnProperties(dtype="str"),
         "status": _ColumnProperties(dtype="str", default="not_started"),
@@ -62,7 +63,7 @@ class WeedJobManager(MultiBackendJobManager):
         "duration": _ColumnProperties(dtype="str"),
         "attempt": _ColumnProperties(dtype="int", default=0),
         "cost": _ColumnProperties(dtype="float")
-    }
+    })
 
     def __init__(self, poll_sleep: int = 5, root_dir: str = '.',
                  storage_options: Optional[storage_option_format] = None, max_attempts: int = 3,

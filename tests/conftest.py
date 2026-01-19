@@ -186,6 +186,12 @@ def compare_job_info(job_info: dict, filename: str, as_benchmark_scenario: bool=
             "process_graph": pg,
         }
 
+    """
+    if new groundtruth pg is needed use part below: 
+    with open(groundtruth_filepath, "w") as fp:
+        json.dump(result,fp, indent=2)
+    """
+
     # Compare the saved process graph with the one created by the job manager
     assert (
         result == groundtruth

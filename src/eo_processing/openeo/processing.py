@@ -374,13 +374,13 @@ def create_collections_list_from_bands(input_bands : List[str]):
 
 def generate_nonEO_feature_cube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
-        collections_list: List[(str, List[str] | None)],
+        collections_list: List[(str, List[str] | None, List[str] | None)],
         base_cube : DataCube,
         **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
 
     """ Warper to generate the data cube of all nonEO data based on a collections  list of the form [(collection, [band1, band2, ...])]"""
 
-    for collection, bands in collections_list:
+    for collection, bands, reproj in collections_list:
         #first need to distinguish between STAC and collection
         #we assume that they will allways be an url type of link in contrary with a collections which should just be a name
         STAC_url = get_stac_collection_url(collection)
@@ -388,8 +388,8 @@ def generate_nonEO_feature_cube(
 
         #secondly we know there are some specific case of reprojection EG DEM should be bilinear iso near
         isDEM = "DEM" in bands
-        if isDEM:
-            reprojection_method = "bilinear"
+        if reproj:
+            reprojection_method = reproj
         else:
             reprojection_method = "near"
 

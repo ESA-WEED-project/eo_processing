@@ -374,45 +374,50 @@ def create_collections_list_from_bands(input_bands : List[str]):
 
 def generate_nonEO_feature_cube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
-        collections_list: List[(str, List[str] | None, List[str] | None)],
+        collections_list: List[str],
         base_cube : DataCube,
         **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
 
     """ Warper to generate the data cube of all nonEO data based on a collections  list of the form [(collection, [band1, band2, ...])]"""
+    temporal_extent = [start, end]
+    temporal_extent = None
 
-    for collection, bands, reproj in collections_list:
+    for collection, band, reproj, year in collections_list:
         #first need to distinguish between STAC and collection
         #we assume that they will allways be an url type of link in contrary with a collections which should just be a name
+        if temporal_extent:
+            temporal_extent = [f"{year}-01-01T00:00:00Z", f"{year}-12-31T23:59:59Z"]
         STAC_url = get_stac_collection_url(collection)
         isSTAC = STAC_url is not None
 
         #secondly we know there are some specific case of reprojection EG DEM should be bilinear iso near
-        isDEM = "DEM" in bands
+        isDEM = "DEM" in band
         if reproj:
             reprojection_method = reproj
         else:
             reprojection_method = "near"
 
+        bands = [band]
         # load the features from public STAC
         if isSTAC:
-            if bands is None:
-                bands = metadata_from_stac(collection).band_names
+            if bands == [None]:
+                bands = metadata_from_stac(STAC_url).band_names
             #to be checked does the temporal filtering work on eg WERN
-            nonEO_feature_cube = connection.load_stac(collection,
+            nonEO_feature_cube = connection.load_stac(STAC_url,
                                                       bands=bands,
-                                                      temporal_extent=[start, end]
+                                                      temporal_extent=temporal_extent
                                                       )
 
         else:
             #if openeo the -v1 should be split off of the collection
-            if bands is None:
+            if bands == [None]:
                 nonEO_feature_cube = connection.load_collection(collection.split('-')[0],
-                                                                temporal_extent=[start, end])
+                                                                temporal_extent=temporal_extent)
                 bands = nonEO_feature_cube.dimension_labels('bands')
             else:
                 nonEO_feature_cube = connection.load_collection(collection.split('-')[0],
                                                                 bands = bands,
-                                                                temporal_extent = [start, end])
+                                                                temporal_extent = temporal_extent)
             if isDEM:
                 # reduce the temporal domain since copernicus_30 collection is "special" and feature only are one time stamp
                 nonEO_feature_cube = nonEO_feature_cube.reduce_dimension(dimension='t', reducer=lambda x: x.last(ignore_nodata=True))
@@ -423,7 +428,7 @@ def generate_nonEO_feature_cube(
         # resample the cube to 10m and EPSG of corresponding 20x20km grid tile
         nonEO_feature_cube = nonEO_feature_cube.resample_spatial(projection=processing_options['target_crs'],
                                      resolution=processing_options['resolution'],
-                                     method=reprojection_method).filter_bbox(bbox)
+                                     method=reprojection_method)
         # drop the time dimension this only needs to be done for STAC
         if isSTAC:
             try:

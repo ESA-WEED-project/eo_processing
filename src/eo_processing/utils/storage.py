@@ -12,7 +12,7 @@ from requests import auth, delete, post, put
 import tempfile
 import time
 from tqdm import tqdm
-import psycopg
+import psycopg2 as psycopg
 import json
 from dotenv import load_dotenv, find_dotenv, set_key
 from typing import Union, Dict, Tuple, List, TYPE_CHECKING, IO, Optional
@@ -891,6 +891,7 @@ class SQL_storage:
             print('**** execute bulk insert')
             # create cursor
             cur = conn.cursor()
+
             cur.copy_from(data, vTable, null='nan', columns=lColumns)
 
             conn.commit()

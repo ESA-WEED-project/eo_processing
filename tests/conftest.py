@@ -3,11 +3,11 @@ import os
 from pathlib import Path
 
 import openeo
+import pystac
 import pytest
 from openeo.rest._testing import build_capabilities, DummyBackend
 from openeo.util import url_join
 import tests.config_collections as collections
-
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -64,7 +64,7 @@ INTEGRATION_JOB_OPTIONS = {
       "python-memory": "4000m",
       "max-executors": 20,
       "udf-dependency-archives": [
-         "https://s3.waw3-1.cloudferro.com/swift/v1/project_dependencies/onnx_dependencies_1.16.3.zip#onnx_deps"
+         "https://s3.waw3-1.cloudferro.com/swift/v1/project_dependencies/onnx_deps_python311.zip#onnx_deps"
          ]}
 
 
@@ -77,6 +77,17 @@ def api_capabilities() -> dict:
     Inspired by the tests in https://github.com/Open-EO/openeo-python-client
     """
     return {}
+
+@pytest.fixture(autouse=True)
+def mock_pystac(monkeypatch):
+    """Mock pystac.read_file to return the right fake metadata based on URL."""
+    def fake_read_file(url):
+        if "wern_features" in url:
+            return pystac.Collection.from_dict(collections.DEFAULT_WERN_METADATA)
+        else:
+            raise ValueError(f"No mock STAC defined for URL: {url}")
+
+    monkeypatch.setattr(pystac, "read_file", fake_read_file)
 
 @pytest.fixture
 def oeo_con100(requests_mock, api_capabilities):
@@ -98,10 +109,11 @@ def oeo_con100(requests_mock, api_capabilities):
     requests_mock.get(
         OPENEO_API_URL, json=build_capabilities(api_version="1.0.0", **api_capabilities)
     )
-    # TODO remove Mocking and use DummyBackend after production openeo.rest.testing 
+    # Collections
     requests_mock.get(OPENEO_API_URL+ "collections/SENTINEL1_GRD", json=collections.DEFAULT_S1_METADATA)
     requests_mock.get(OPENEO_API_URL+ "collections/SENTINEL2_L2A", json=collections.DEFAULT_S2_METADATA)
     requests_mock.get(OPENEO_API_URL+ "collections/COPERNICUS_30", json=collections.DEFAULT_DEM_METADATA)
+    # STACS (add to ficture mock_pystac)
     requests_mock.get(url_join(STAC_CAT_URL, "collections/wern_features"), json=collections.DEFAULT_WERN_METADATA)
 
     return openeo.connect(OPENEO_API_URL)
@@ -173,6 +185,12 @@ def compare_job_info(job_info: dict, filename: str, as_benchmark_scenario: bool=
         result = {
             "process_graph": pg,
         }
+
+    """
+    if new groundtruth pg is needed use part below: 
+    with open(groundtruth_filepath, "w") as fp:
+        json.dump(result,fp, indent=2)
+    """
 
     # Compare the saved process graph with the one created by the job manager
     assert (

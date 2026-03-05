@@ -1,9 +1,13 @@
-""" extract from the official Sentinel2 tiling grid KML file the UTM bounding box"""
+"""
+extract from the official Sentinel2 tiling grid KML file the UTM bounding box
+
+we create a high resolution S2 tiling grid in EPSG:3035 optimized for panEU
+
+"""
 
 import bs4 as bs
 import pandas as pd
 import geopandas as gpd
-from shapely.geometry import MultiPolygon
 import shapely.wkt
 
 def get_epsg(tile_id):
@@ -23,15 +27,14 @@ def get_epsg(tile_id):
 
     return target_EPSG
 
-
-# filter to tiles in UTM zones needed for 20x20km grid for EU
-df2 = pd.read_csv(r'C:\Users\buchhorm\Downloads\UTMzones.csv')
+# filter to tiles in UTM zones needed for pan EU
+df2 = pd.read_csv(r'C:\Users\buchhorm\Downloads\new_grids\utm_codes_europe.csv')
 df2['utm'] = df2['ZONE'].astype(str) + df2['ROW_']
 lNeeded = df2['utm'].tolist()
 
 
 ## Start read out everything we need with beautiful soup from Sentinel-2 KML
-xml_file = r'C:\Users\buchhorm\Downloads\Sentinel2_tiles.kml'
+xml_file = r'C:\Users\buchhorm\Downloads\new_grids\Sentinel2_tiles.kml'
 soup = bs.BeautifulSoup(open(xml_file), 'xml')
 
 #find all VRTRasterBands in the soup
@@ -40,6 +43,7 @@ tiles = soup.findAll('description')
 data = []
 
 for element in tiles:
+
     text = bs.BeautifulSoup(element.text, 'html.parser')
     try:
         rows = text.table.find_all('tr')
@@ -56,8 +60,6 @@ for element in tiles:
     if data1[:3] in lNeeded:
         data.append((data1, data2, get_epsg(data1)))
 
-
-
 df = pd.DataFrame(data, columns=['tile_id', 'geometry', 'epsg'])
 data = None
 soup = None
@@ -66,27 +68,22 @@ tiles = None
 # convert the geometry string into a shapely geometry
 df['geometry'] = df['geometry'].apply(lambda x: shapely.wkt.loads(x))
 
-
 # now we convert the UTM into EPSG:3035 and combine all
-
-
-result = gpd.GeoDataFrame(columns=['tile_id', 'epsg', 'geometry'], geometry='geometry', crs='EPSG:3035')
-
 lEPSG = df.epsg.unique().tolist()
 
+list_results: list[gpd.GeoDataFrame] = []
 for tile in lEPSG:
+    print(f'run EPSG zone: {tile}')
     df3 = df[df.epsg == tile].copy()
-    gdf = gpd.GeoDataFrame(df3, geometry=df3.geometry, crs=f'EPSG:{tile}')
+    gdf: gpd.GeoDataFrame = gpd.GeoDataFrame(df3, geometry=df3.geometry, crs=f'EPSG:{tile}')
 
     # add extra points in 250m intervall
     gdf['geometry'] = gdf['geometry'].apply(lambda x: x.segmentize(250))
 
-
-
-
     gdf2 = gdf.to_crs(epsg=3035)
+    list_results.append(gdf2)
 
-    result = result.append(gdf2, ignore_index=True)
+result = gpd.GeoDataFrame(pd.concat(list_results, ignore_index=True), crs=list_results[0].crs)
 
 # write out
-result.to_file(r'C:\Users\buchhorm\Downloads\Sentinel2_tiling_grid_EU_high_res_EPSG3035.gpkg')
+result.to_file(r'C:\Users\buchhorm\Downloads\new_grids\Sentinel2_tiling_grid_EU_high_res_EPSG3035.gpkg', driver='GPKG')

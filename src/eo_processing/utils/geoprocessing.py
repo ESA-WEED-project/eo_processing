@@ -7,6 +7,7 @@ from shapely.geometry import box
 from shapely.geometry import shape
 from shapely.ops import unary_union
 import geopandas as gpd
+import pandas as pd
 import numpy as np
 import geojson
 import json
@@ -52,6 +53,64 @@ def laea20km_id_to_extent(laea_id: str) -> openEO_bbox_format:
         'south': south,
         'west': west,
         'north': south + 20000,
+        'crs': 'EPSG:3035'
+    }
+
+def laea100km_id_to_extent(laea_id: str) -> openEO_bbox_format:
+    """
+    Determines the bounding box extent for a given LAEA 100km grid cell identifier.
+
+    This function calculates the bounding box in the LAEA (Lambert Azimuthal Equal-Area)
+    projection system for a grid cell specified by its identifier. The identifier is expected
+    to follow the pattern 'E<w>X<N<y>' where `<w>` and `<y>` are integers representing the
+    coordinates of the lower-left corner of the grid cell, in 100km intervals.
+
+    Expected CRS (coordinate reference system) for the bounding box is 'EPSG:3035'. The result
+    is returned as a dictionary compatible with the openEO bounding box format.
+
+    :param laea_id: Identifier for a 100km LAEA grid cell, in the format 'E<w>X<N<y>'.
+    :return: A dictionary representing the bounding box of the grid cell in the specified CRS.
+    """
+    assert laea_id[0] == 'E'
+    assert 'N' in laea_id
+    parts = laea_id.lstrip('E').split('N')
+    west = int(parts[0]) * 100000
+    south = int(parts[1]) * 100000
+    # we now have lower-left corner
+    return {
+        'east': west + 100000,
+        'south': south,
+        'west': west,
+        'north': south + 100000,
+        'crs': 'EPSG:3035'
+    }
+
+def laea50km_id_to_extent(laea_id: str) -> openEO_bbox_format:
+    """
+    Determines the bounding box extent for a given LAEA 50km grid cell identifier.
+
+    This function calculates the bounding box in the LAEA (Lambert Azimuthal Equal-Area)
+    projection system for a grid cell specified by its identifier. The identifier is expected
+    to follow the pattern 'E<w>X<N<y>' where `<w>` and `<y>` are integers representing the
+    coordinates of the lower-left corner of the grid cell, in 50km intervals.
+
+    Expected CRS (coordinate reference system) for the bounding box is 'EPSG:3035'. The result
+    is returned as a dictionary compatible with the openEO bounding box format.
+
+    :param laea_id: Identifier for a 50km LAEA grid cell, in the format 'E<w>X<N<y>'.
+    :return: A dictionary representing the bounding box of the grid cell in the specified CRS.
+    """
+    assert laea_id[0] == 'E'
+    assert 'N' in laea_id
+    parts = laea_id.lstrip('E').split('N')
+    west = int(parts[0]) * 10000
+    south = int(parts[1]) * 10000
+    # we now have lower-left corner
+    return {
+        'east': west + 50000,
+        'south': south,
+        'west': west,
+        'north': south + 50000,
         'crs': 'EPSG:3035'
     }
 
@@ -124,9 +183,15 @@ def AOI_tiler(AOI: Union[gpd.GeoDataFrame, openEO_bbox_format, geojson.GeoJSON, 
         tiling_grid_gdf = tiling_grid.copy()
         tiling_grid_gdf = tiling_grid_gdf.to_crs('EPSG:4326')
         tiling_grid_gdf = tiling_grid_gdf[tiling_grid_gdf.geometry.intersects(bbox_polygon)]
-    elif (isinstance(tiling_grid, str)) and (tiling_grid in ['EU', 'global']):
+    elif (isinstance(tiling_grid, str)) and (tiling_grid in ['EU', 'global', 'EU100', 'EU50']):
         if tiling_grid == 'EU':
             grid_path = importlib_resources.files(eo_processing.resources).joinpath('LAEA-20km_add-info.gpkg')
+            tiling_grid_gdf = gpd.read_file(os.path.normpath(grid_path), bbox=total_bbox)
+        elif tiling_grid == 'EU50':
+            grid_path = importlib_resources.files(eo_processing.resources).joinpath('LAEA-50km_add-info.gpkg')
+            tiling_grid_gdf = gpd.read_file(os.path.normpath(grid_path), bbox=total_bbox)
+        elif tiling_grid == 'EU100':
+            grid_path = importlib_resources.files(eo_processing.resources).joinpath('LAEA-100km_add-info.gpkg')
             tiling_grid_gdf = gpd.read_file(os.path.normpath(grid_path), bbox=total_bbox)
         elif tiling_grid == 'global':
             from eo_processing.utils.storage import WEED_storage
@@ -162,7 +227,7 @@ def AOI_tiler(AOI: Union[gpd.GeoDataFrame, openEO_bbox_format, geojson.GeoJSON, 
             raise ValueError('tiling grid must be a valid URL to geoparquet file or a path to local geoparquet, '
                              'geoparquet or geoJSON file.')
     else:
-        raise ValueError('I tried my best. tiling_grid must be either "EU" or "global" string. '
+        raise ValueError('I tried my best. tiling_grid must be either "EU"/"EU100" or "global" string. '
                          'Or a valid url to a geoparquet; or path to local geopandas, geoparquet or geoJSON file')
 
     # intersect to get AOI tiles dataframe
@@ -406,7 +471,6 @@ def geoJson_2_BBOX(file_path: str, delete_file: bool = False,
     except Exception as e:
         print(f"An error occurred: {e}")
 
-
 def is_valid_geometry(geometry: dict) -> bool:
     """
     Checks if the given geometry is a valid GeoJSON geometry object.
@@ -438,7 +502,6 @@ def is_valid_geometry(geometry: dict) -> bool:
         "GeometryCollection"
     }
     return geometry["type"] in valid_geom_types
-
 
 def is_geojson(data: str | dict) -> bool:
     """
@@ -476,3 +539,70 @@ def is_geojson(data: str | dict) -> bool:
         return is_valid_geometry(data)
 
     return False
+
+def grid20_feature_extraction_job_splitter(geo_df: gpd.GeoDataFrame) -> list[gpd.GeoDataFrame]:
+    """
+    Splits a geospatial dataframe into smaller dataframes based on a grouping strategy optimized
+    for geographical 100x100km and 20x100km tiles.
+
+    The function processes the input GeoDataFrame by creating grouping identifiers based on
+    specific grid patterns (100x100km, 20x100km). It ensures no group exceeds a threshold number
+    of rows (256) by applying these identifiers hierarchically. The final result is a list of
+    GeoDataFrames, each corresponding to a unique grouping identifier.
+
+    param geo_df: The input GeoDataFrame containing a column `grid20id` which represents
+                  the 20x20km tiles, serving as a basis for grouping and extraction.
+    return: A list of GeoDataFrames, where each dataframe corresponds to a subset of the
+            input dataframe based on the applied grouping strategy.
+    """
+    #check:
+    if 'grid20id' not in geo_df.columns:
+        raise ValueError('grid20id column not found in input dataframe')
+
+    # create grid100id from the grid20id representing the 100x100km processing tile
+    geo_df['grid100id'] = geo_df.grid20id.str[:5]
+
+    # add a id to group by 20x100km strips (so 5 sub-units per 100x100km tile)
+    geo_df['grid20stripid'] = geo_df.grid20id.str[:6]
+
+    # create dataframes which have the count rows by applied grouping by the different ids
+    group_counts_100 = geo_df.groupby('grid100id').grid100id.transform('count')
+    group_counts_20strip = geo_df.groupby('grid20stripid').grid20stripid.transform('count')
+
+    # add the final grouping id to each row
+    geo_df['final_grouping'] = geo_df.apply(
+        lambda row:
+            row.grid100id if group_counts_100[row.name] < 256
+            else (row.grid20stripid if group_counts_20strip[row.name] < 256
+                  else row.grid20id),
+        axis=1
+    )
+
+    # split the jobs
+    return [geo_df[geo_df['final_grouping'] == tile_id] for tile_id in geo_df['final_grouping'].unique()]
+
+def create_feature_extraction_processing_grid(path_grid: str, bbox : tuple) -> gpd.GeoDataFrame:
+    # since the GeoPackage is huge we use a helper function
+    gdf_grid = gpd.read_file(path_grid, bbox=bbox)
+    gdf_grid['tile_name'] = gdf_grid.grid20id
+    # add the additional ids
+    gdf_grid['grid100id'] = gdf_grid.grid20id.str[:5]
+    gdf_grid['grid20stripid'] = gdf_grid.grid20id.str[:6]
+    # create the polygons for these ids
+    gdf_grid100 = gdf_grid.dissolve(by='grid100id').reset_index()
+    gdf_grid100['tile_name'] = gdf_grid100.grid100id
+    gdf_grid20strip = gdf_grid.dissolve(by='grid20stripid').reset_index()
+    gdf_grid20strip['tile_name'] = gdf_grid20strip.grid20stripid
+
+    # merge
+    gdf_grid_all = pd.concat([gdf_grid, gdf_grid100, gdf_grid20strip])
+
+    return gdf_grid_all
+
+
+def get_point_number(row: pd.Series) -> int:
+    """
+    :param row: A pandas Series object that contains a geometry field with a GeoJSON string.
+    :return: The number of features present in the GeoJSON geometry.
+    """
+    return len(geojson.loads(row.FeatureCollection)['features'])

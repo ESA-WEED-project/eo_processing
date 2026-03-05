@@ -13,8 +13,7 @@ INTEGRATION_TESTS = (
         "extract_S1_integration.json": 176, # 7 credits
         "extract_S2_integration.json": 100, # 7 credits
         "ts_datacube_extraction_combined_integration.json": 228, # 13 credits
-        "ts_datacube_extraction_S1_integration.json": 228, # 13 credits       
-        "ts_datacube_extraction_S2_integration.json": 228, # 13 credits
+        "ts_datacube_extraction_S2_integration.json": 100, # 13 credits
         "generate_master_feature_cube_with_catboost_inference_integration.json": 1, # 28 credits
         "generate_S1_feature_cube_integration.json": 1, # 12 credits
         "generate_S2_feature_cube_integration.json": 1, # 15 credits

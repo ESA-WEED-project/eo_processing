@@ -3,8 +3,11 @@
         "tests", // Tells pytest to look for tests in the "tests" directory
         "-vv",   // Show output verbose
         "--disable-warnings", // Disable warnings
-        //"--integration"
+        // "--integration"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "python-envs.pythonProjects": []
 }

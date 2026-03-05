@@ -7,14 +7,15 @@ import xarray as xr
 import numpy as np
 import json
 import shutil
+import pyarrow.parquet as pq
 from urllib.parse import urlparse
 from openeo.udf import inspect
 from openeo.metadata import CubeMetadata
+from ast import literal_eval
 from typing import Dict, List, Tuple, Union
 
 sys.path.append("onnx_deps")
 import onnxruntime as ort
-
 
 def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
     """Rename the bands by using apply metadata
@@ -24,10 +25,12 @@ def apply_metadata(metadata: CubeMetadata, context: dict) -> CubeMetadata:
     """
     # Get the model metadata
     model_id = context.get("model_id")
-    _, output_band_names = get_model_metadata(model_id)
+    if model_id.startswith('http'):
+        _ , output_band_names = get_model_metadata_artifact(model_id)
+    else:
+        _ , output_band_names = get_model_metadata(model_id)
     # rename band labels
     return metadata.rename_labels(dimension="bands", target=output_band_names)
-
 
 @functools.lru_cache(maxsize=1)
 def get_model_metadata(modelID) -> Tuple[List[str], List[str]]:
@@ -86,19 +89,127 @@ def get_model_metadata(modelID) -> Tuple[List[str], List[str]]:
         raise RuntimeError(r.text)
     return model_urls, output_band_names
 
-
-def is_onnx_file(file_path: str) -> bool:
+@functools.lru_cache(maxsize=1)
+def get_model_metadata_artifact(modelID: str) -> Tuple[List[str], List[str]]:
     """
-    Determines if a file is an ONNX file based on its extension.
+    Retrieves and parses metadata for a given model from its associated parquet artifact.  
+    The metadata contains the list of model URLs and the model's output band names.  
 
-    This function checks the provided file path and determines whether the file
-    is an ONNX file by checking if the file name ends with the `.onnx` file extension.
+    The function ensures that both `model_urls` and `output_band_names` exist in the
+    metadata. If the metadata is missing, invalid, or cannot be read, an error is raised.
 
-    :param file_path: The path to the file whose extension is to be verified.
-    :return: True if the file has a `.onnx` extension, otherwise False.
+    :param modelID: The unique identifier of the model whose metadata should be retrieved.
+    :return: A tuple containing:
+        - model_urls (List[str]): A list of URLs associated with the model.
+        - output_band_names (List[str]): A list of the model's output band names.
+
+    :raises RuntimeError: If the parquet metadata cannot be read or is missing.  
+    :raises ValueError: If either `model_urls` or `output_band_names` is missing from
+        the metadata.
     """
-    return file_path.endswith(".onnx")
+    # Download model ensemble_artifact
+    inspect(message=f"Downloading model file for {modelID}...")
+    model_path = download_file(modelID)
 
+    # Read metadata
+    try:
+        metadata = read_parquet_metadata(model_path)
+    except Exception as e:
+        raise RuntimeError(f"Failed to read parquet metadata for {modelID}: {e}")
+
+    if not metadata:
+        raise RuntimeError(f"No metadata found for model {modelID}")
+
+    # Extract model URLs and band names
+    model_urls = convert_to_list(metadata.get("model_urls", None))
+    output_band_names = convert_to_list(metadata.get("output_band_names", None))
+    if not output_band_names:
+      raise ValueError(f"output_band_names does not exist")
+    if not model_urls:
+      raise ValueError(f"model_urls does not exist")
+
+    inspect(message=f"Metadata for model {modelID} successfully extracted.")
+
+    return model_urls, output_band_names
+
+def read_parquet_metadata(path_parquet: str) -> dict:
+    """
+    Reads the key-value metadata from a Parquet file using pyarrow.
+
+    :param path_parquet: Path to the Parquet file.
+    :return: A dictionary containing metadata key-value pairs. 
+        Values that are JSON strings will be converted to dicts or lists.
+        Returns an empty dict if no metadata is found.
+    """
+    inspect(f"Reading metadata of {path_parquet} ...")
+    parquet_file = pq.ParquetFile(path_parquet)
+    metadata = parquet_file.metadata
+
+    dict_metadata = {}
+
+    if metadata is not None and metadata.metadata is not None:
+        for key, value in metadata.metadata.items():
+            try:
+                key_object = decode_object(key)
+                value_object = decode_object(value)
+                dict_metadata[key_object] = value_object
+            except Exception as e:
+                raise RuntimeError(
+                    f"Failed to decode parquet metadata key/value ({key}, {value}): {e}"
+                )
+
+    return dict_metadata
+
+def decode_object(obj: bytes, encoding: str = "utf-8") -> object:
+    """
+    Decode a bytes object back into Python object.
+
+    - First decode from bytes to string
+    - Then attempt JSON parsing (for dicts/lists/numbers/bools/null)
+    - If JSON parsing fails, return as plain string
+    """
+    if not isinstance(obj, (bytes, bytearray)):
+        raise TypeError(f"decode_object expected bytes, got {type(obj)}")
+
+    text = obj.decode(encoding)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return text
+    
+def string_to_dict(string: str) -> Union[Dict, List]:
+    """
+    Converts a string representation of a dictionary back into a dictionary.
+
+    :param string: The string to convert.
+    :return: A dictionary object.
+    """
+    try:
+        # Attempt to load as JSON
+        return json.loads(string)
+    except json.JSONDecodeError:
+        # Fallback to evaluating as a Python literal
+        return literal_eval(string)
+
+def convert_to_list(input_value: Union[str, List[str]]) -> List[str]:
+    """
+    Parse a string representation of a list or a list object into a Python list object.
+
+    This function takes an input that can either be a string representing a list
+    or an already existing list object. If the input is a string, it utilizes
+    `string_to_dict` function to convert it into a Python list. If the input is already
+    a list, it simply returns the input without any modifications.
+
+    :param input_value: The input value to parse. It can be a string that represents
+        a list or a list object.
+    :return: A Python list object resulting from parsing the string or directly returning
+        the input list if the input is already of list type.
+    """
+    if not isinstance(input_value, list):
+        return string_to_dict(input_value)
+    else:
+        return input_value
 
 def download_file(url: str, max_file_size_mb: int = 250, cache_dir: str = "/tmp/cache") -> str:
     """
@@ -144,7 +255,6 @@ def download_file(url: str, max_file_size_mb: int = 250, cache_dir: str = "/tmp/
         if os.path.exists(temp_file_path):
             os.remove(temp_file_path)  # Cleanup if an error occurs
         raise ValueError(f"Error downloading file: {e}")
-
 
 @functools.lru_cache(maxsize=1)
 def load_onnx_model(model_url: str, cache_dir: str = "/tmp/cache") -> Tuple[ort.InferenceSession, Dict[str, List[str]]]:
@@ -201,10 +311,8 @@ def load_onnx_model(model_url: str, cache_dir: str = "/tmp/cache") -> Tuple[ort.
     except Exception as e:
         raise ValueError(f"Failed to load ONNX model from {model_url}: {e}")
 
-
-def preprocess_input(
-    input_xr: xr.DataArray, ort_session: ort.InferenceSession
-) -> Tuple[np.ndarray, Tuple[int, int, int]]:
+def preprocess_input(input_xr: xr.DataArray,
+                     ort_session: ort.InferenceSession) -> Tuple[np.ndarray, Tuple[int, int, int]]:
     """
     Preprocesses input data for model inference using an ONNX runtime session. This
     function takes an xarray DataArray, rearranges its dimensions, and reshapes its
@@ -226,7 +334,6 @@ def preprocess_input(
     input_np = input_xr.values.reshape(-1, ort_session.get_inputs()[0].shape[1])
     return input_np, input_shape
 
-
 def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> List[Dict[Union[str, int], float]]:
     """
     Executes inference using an ONNX Runtime session and input numpy array. This function
@@ -243,10 +350,8 @@ def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> Li
     probabilities_dicts = ort_outputs[1]  # just take probability results
     return probabilities_dicts
 
-
-def postprocess_output(
-    probabilities_dicts: List[Dict[Union[str, int], float]], input_shape: Tuple[int, int, int]
-) -> np.ndarray:
+def postprocess_output(probabilities_dicts: List[Dict[Union[str, int], float]],
+                       input_shape: Tuple[int, int, int]) -> np.ndarray:
     """
     Processes the output probabilities of a model into a reshaped and scaled NumPy array.
 
@@ -266,6 +371,11 @@ def postprocess_output(
     # get the class labels assuming they are the same across all dictionaries (probabilities)
     class_labels = list(probabilities_dicts[0].keys())
 
+    if (0 in class_labels) or ('0' in class_labels):
+        inspect(message=f"* detected FAKE label from single-class-model. Fake result removed.")
+    # remove fake labels from single-class-models
+    class_labels = [l for l in class_labels if l not in [0, '0']]
+
     # Convert probabilities from dicts for each sample into a 2D array with shape (n_samples, n_classes)
     probabilities = np.array([[prob[class_id] for class_id in class_labels] for prob in probabilities_dicts])
 
@@ -274,7 +384,6 @@ def postprocess_output(
     probabilities = probabilities.astype("uint8")
 
     return probabilities
-
 
 def create_output_xarray(probabilities: np.ndarray, input_xr: xr.DataArray) -> xr.DataArray:
     """
@@ -296,7 +405,6 @@ def create_output_xarray(probabilities: np.ndarray, input_xr: xr.DataArray) -> x
         coords={"y": input_xr.coords["y"], "x": input_xr.coords["x"]},
     )
 
-
 def ensure_no_missing_bands(cube: xr.DataArray, required_bands: List[str]) -> xr.DataArray:
     """
     Ensure `cube` contains all `required_bands` along the 'bands' dimension.
@@ -312,7 +420,6 @@ def ensure_no_missing_bands(cube: xr.DataArray, required_bands: List[str]) -> xr
         raise ValueError(f"Missing bands: {missing}. Execution halted.")
     
     return cube
-
 
 def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
     """
@@ -331,13 +438,17 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
         "model_list" key.
     :return: An `xr.DataArray` representing the processed output cube after successfully applying all models.
     """
-    # fill nan in cube and make sure cube is in right dtype for inference
-    cube = cube.fillna(0)
+    # Make sure the cube is in the right dtype for inference
+    # NaN values are defined by open EO as np.nan and will be ignored 
     cube = cube.astype("float32")
 
     # get the list of models to apply on the cube from context
     model_id = context.get("model_id")
-    model_urls, _ = get_model_metadata(model_id)
+    if model_id.startswith('http'):
+        model_urls, output_band_names = get_model_metadata_artifact(model_id)
+    else:
+        model_urls, output_band_names = get_model_metadata(model_id)
+    expected_band_len = len(output_band_names)
 
     # loop over the models and apply on input array
     output_cube_initialized = False
@@ -367,6 +478,7 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
         model_output_cube = create_output_xarray(probabilities, subsampled_data_array)
 
         # merge the model results into one super-cube
+        inspect(message=f"add model output to overall output cube")
         if not output_cube_initialized:
             # Initialize the output_cube only on the first iteration
             output_cube = model_output_cube
@@ -377,5 +489,12 @@ def apply_datacube(cube: xr.DataArray, context: Dict) -> xr.DataArray:
             
     # make sure output Xarray has the correct dtype
     output_cube = output_cube.astype("uint8")
+
+    # final check
+    if output_cube.sizes["bands"] != expected_band_len:
+        raise ValueError(f"Expected {expected_band_len} bands in output, got {output_cube.sizes['bands']}")
+    else:
+        inspect(message=f"Successfully applied all models on the input datacube. {output_cube.sizes['bands']} of "
+                        f"{expected_band_len} expected habitat proba bands generated.")
 
     return output_cube

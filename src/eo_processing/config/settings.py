@@ -5,6 +5,8 @@ if TYPE_CHECKING:
     from eo_processing.config.data_formats import storage_option_format
     from eo_processing.utils.storage import WEED_storage
 
+from openeo.api.process import Parameter
+
 # ---------------------------------------------------
 # processing options openEO
 CHUNK_SIZE: int = 128
@@ -374,7 +376,8 @@ def get_advanced_options(provider: str, s1_orbitdirection: Optional[str] = S1_OR
         raise ValueError(f'parameter for s1_orbitdirection: {s1_orbitdirection} is not valid.')
 
     if type(target_crs) != int:
-        raise ValueError(f'parameter for target_crs must be an integer value.')
+        if type(target_crs) != Parameter:
+            raise ValueError(f'parameter for target_crs must be an integer value.')
 
     if type(openeo_chunk_size) != int:
         raise ValueError(f'parameter for openeo_chunk_size must be an integer value.')
@@ -386,7 +389,8 @@ def get_advanced_options(provider: str, s1_orbitdirection: Optional[str] = S1_OR
 
     if type(resolution) != int:
         if type(resolution) != float:
-            raise ValueError(f'parameter for resolution must be an integer value.')
+            if type(target_crs) != Parameter:
+                raise ValueError(f'parameter for resolution must be an integer value.')
 
     if ts_interval not in ['day', 'week', 'dekad', 'month', 'season', 'year', None]:
         raise ValueError(f'parameter for ts_interpolation: {ts_interval} is not valid.')

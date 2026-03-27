@@ -249,10 +249,13 @@ def _compute_features(input_timeseries: DataCube) -> ProcessBuilder:
         mean, standard deviation, sum, and the interquartile range (IQR).
     """
     return array_concat(
-        input_timeseries.quantiles(probabilities=[0.02, 0.25, 0.5, 0.75, 0.98]),
+        input_timeseries.quantiles(probabilities=[0.02, 0.05, 0.25, 0.5, 0.75, 0.95, 0.98]),
         [input_timeseries.mean(), input_timeseries.sd(), input_timeseries.sum(),
          subtract(x=input_timeseries.quantiles(probabilities=[0.75]),
-                  y=input_timeseries.quantiles(probabilities=[0.25]))])
+                  y=input_timeseries.quantiles(probabilities=[0.25])),
+         subtract(x=input_timeseries.quantiles(probabilities=[0.95]),
+                  y=input_timeseries.quantiles(probabilities=[0.05]))
+         ])
 
 def calculate_features_cube(input_data: DataCube) -> DataCube:
     """
@@ -279,17 +282,17 @@ def calculate_features_cube(input_data: DataCube) -> DataCube:
     new_band_names = [
         band + "_" + stat
         for band in input_data.metadata.band_names
-        for stat in ["p2", "p25", "median", "p75", "p98", "mean", "sd", "sum", "iqr"]
+        for stat in ["p2", "p5", "p25", "median", "p75", "p95", "p98", "mean", "sd", "sum", "iqr", "iqr0595"]
     ]
     features_cube = features_cube.rename_labels('bands', new_band_names)
 
     # remove some bands which make no sense :)
     # mainly from S2REP --> sd, sum, iqr
     bands_keep = [band for band in features_cube.metadata.band_names if
-                  band not in ['S2REP_sd', 'S2REP_sum', 'S2REP_iqr', 'VV_sum', 'VH_sum', 'VHVVD_sum',
-                               'S2-CLOUD-MASK_p2', 'S2-CLOUD-MASK_p25', 'S2-CLOUD-MASK_median', 'S2-CLOUD-MASK_p75',
-                               'S2-CLOUD-MASK_p98', 'S2-CLOUD-MASK_mean', 'S2-CLOUD-MASK_sd', 'S2-CLOUD-MASK_sum',
-                               'S2-CLOUD-MASK_iqr']]
+                  band not in ['S2REP_sd', 'S2REP_sum', 'S2REP_iqr', 'S2REP_iqr0595' , 'VV_sum', 'VH_sum', 'VHVVD_sum',
+                               'S2-CLOUD-MASK_p2', 'S2-CLOUD-MASK_p5', 'S2-CLOUD-MASK_p25', 'S2-CLOUD-MASK_median',
+                               'S2-CLOUD-MASK_p75','S2-CLOUD-MASK_p95', 'S2-CLOUD-MASK_p98', 'S2-CLOUD-MASK_mean',
+                               'S2-CLOUD-MASK_sd', 'S2-CLOUD-MASK_sum','S2-CLOUD-MASK_iqr','S2-CLOUD-MASK_iqr0595']]
 
     features_cube = features_cube.filter_bands(bands=bands_keep)
 

@@ -27,18 +27,27 @@ TS_INTERVAL: str = 'dekad'
 S2_TEMPORAL_REDUCER: str = 'median'
 S1_TEMPORAL_REDUCER: str = 'mean'
 TIME_INTERPOLATION: bool = False
-VI_LIST: List[str] = ['NDVI',
-           'AVI',
-           'CIRE',
-           'NIRv',
-           'NDMI',
-           'NDWI',
-           'BLFEI',
-           'MNDWI',
-           'NDVIMNDWI',
-           'S2WI',
-           'S2REP',
-           'IRECI']
+VI_LIST: List[str] = [
+            'ABDI1',
+            'ABDI2',
+            'AWEInsh',
+            'AVI',
+            'BLFEI',
+            'CIRE',
+            'EVI',
+            'IRECI',
+            'MBWI',
+            'MNDWI',
+            'MNDVI'
+            'NDMI',
+            'NDVI',
+            'NDVIMNDWI',
+            'NDWI',
+            'NIRv',
+            'S2WI',
+            'S2REP',
+            'WRI'
+            ]
 RADAR_LIST: List[str] = ['VHVVD',
               'VHVVR',
               'RVI']

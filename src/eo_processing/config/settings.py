@@ -43,6 +43,7 @@ VI_LIST: List[str] = [
             'NDVI',
             'NDVIMNDWI',
             'NDWI',
+            'NMDI'
             'NIRv',
             'S2WI',
             'S2REP',

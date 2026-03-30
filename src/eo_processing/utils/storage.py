@@ -281,7 +281,7 @@ class S3_storage:
         file_keys = self.get_file_keys(s3_directory, extension, recursive=recursive)
 
         # define the base URL to the specified S3 Model storage
-        base_url = f"{self.s3_credentials['s3_endpoint']}/swift/v1/{self.s3_bucket}/"
+        base_url = f"{self.s3_credentials['s3_endpoint']}/{self.s3_bucket}/"
 
         return [f"{base_url}{element}" for element in file_keys]
 
@@ -330,7 +330,7 @@ class S3_storage:
             raise Exception(f"File with key {s3_object_key} does not exist in S3 bucket {self.s3_bucket}.")
 
         # define the base URL to the specified S3 Model storage
-        base_url = f"{self.s3_credentials['s3_endpoint']}/swift/v1/{self.s3_bucket}/"
+        base_url = f"{self.s3_credentials['s3_endpoint']}/{self.s3_bucket}/"
 
         return f"{base_url}{s3_object_key}"
 

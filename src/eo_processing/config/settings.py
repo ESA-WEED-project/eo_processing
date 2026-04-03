@@ -38,12 +38,12 @@ VI_LIST: List[str] = [
             'IRECI',
             'MBWI',
             'MNDWI',
-            'MNDVI'
+            'MNDVI',
             'NDMI',
             'NDVI',
             'NDVIMNDWI',
             'NDWI',
-            'NMDI'
+            'NMDI',
             'NIRv',
             'S2WI',
             'S2REP',

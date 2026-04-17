@@ -8,8 +8,8 @@ from openeo.processes import array_create, ProcessBuilder, array_concat, subtrac
 from eo_processing.openeo.preprocessing import (extract_S2_datacube, extract_S1_datacube,
                                                 extract_planet_datacube)
 from eo_processing.utils.stac_helper import get_stac_collection_url
-from eo_processing.config.settings import VI_LIST, RADAR_LIST, S2_SCALING, \
-    PLANET_VI_LIST, PLANET_SCALING
+from eo_processing.config.settings import VI_LIST, RADAR_LIST, S1_MAP, S2_SCALING, S2_L2A_MAP, \
+    PLANET_VI_LIST, PLANET_SCALING, PLANET_MAP
 
 from typing import Optional, Dict, Union, List, Literal, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -52,6 +52,10 @@ def optical_indices(
 
     # TODO: convert the datacube back to int16 - using the output scaling functionality tested in one
     #  of the example notebooks
+
+    band_names = bands.dimension_labels('bands')
+    newband_names = [f"{collection}-{band_name}" for band_name in band_names]
+    bands = bands.rename_labels('bands', target=newband_names, source=band_names)
 
     return vi_cube
 
@@ -141,6 +145,11 @@ def radar_indices(
     if RVI_flag:
         vi_cube = vi_cube.merge_cubes(cube_RVI)
     """
+
+    band_names = bands.dimension_labels('bands')
+    newband_names = [f"{S1_collection}-{band_name}" for band_name in band_names]
+    bands = bands.rename_labels('bands', target=newband_names, source=band_names)
+
     return vi_cube
 
 def generate_S1_indices(
@@ -209,6 +218,8 @@ def generate_indices_master_cube(
     # get the S2 indices
     indices_cube = generate_S2_indices(connection, bbox, start, end, S2_collection=S2_collection,
                                        **processing_options)
+
+
     # merge the S1 indices
     if S1_collection is not None:
         indices_cube = indices_cube.merge_cubes(generate_S1_indices(connection, bbox, start, end,
@@ -235,6 +246,8 @@ def generate_indices_planet_cube(
     input_cube = extract_planet_datacube(connection, bbox, start, end, **processing_options)
     # call the VI generator
     result_cube = optical_indices(input_cube, collection=planet_collection, **processing_options)
+
+
 
     return result_cube
 

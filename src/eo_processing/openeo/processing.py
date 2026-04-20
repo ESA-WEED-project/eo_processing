@@ -39,7 +39,7 @@ def optical_indices(
         append = processing_options.get("append", True)
         platform = 'PlanetScope'
     else:
-        raise ValueError ('No Valid collection given')
+        raise ValueError ('No valid optical collection given')
 
     # convert input DataCube into float
     input_cube = input_cube.linear_scale_range(*input_scaling)
@@ -61,6 +61,7 @@ def optical_indices(
 
 def radar_indices(
         input_cube: DataCube,
+        collection: str ='SENTINEL1_GRD',
         **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
     """creates radar indices times series cube from given datacube of radar EO data
 
@@ -68,10 +69,15 @@ def radar_indices(
     :param processing_options: parameters for the processing of the datacube (radar_vi_list, db_rescaling, append)
     :return: VI datacube merged of input_cube and vi results
     """
-    # evaluate additional processing_options
-    vi_list = processing_options.get("radar_vi_list", RADAR_LIST)
-    db_rescaling = processing_options.get("S1_db_rescale", True)
-    append = processing_options.get("append", True)
+    if collection == 'SENTINEL1_GRD':
+        # evaluate additional processing_options
+        vi_list = processing_options.get("radar_vi_list", RADAR_LIST)
+        db_rescaling = processing_options.get("S1_db_rescale", True)
+        append = processing_options.get("append", True)
+        platform = 'sentinel1'
+
+    else:
+        raise ValueError('No valid radar collection given')
 
     # convert input DataCube into float (db)
     if db_rescaling:
@@ -83,7 +89,7 @@ def radar_indices(
         )
 
     # calculate all VI's manual since Spectral_Indices doesnt know the SENTINEL_1_GRD catalogID
-    # TODO: activate the automatic calculation as below commented area
+    """
     if append:
         def compute_indices1(bands):
             VV = bands["VV"]
@@ -116,35 +122,12 @@ def radar_indices(
         ).rename_labels("bands", ["RVI", "VHVVD", "VHVVR"])
 
     """
-    # check the list if RVI is in which is not in Awesome Package
-    RVI_flag = False
-    if 'RVI' in vi_list:
-        RVI_flag = True
-        vi_list.remove('RVI')
-
-        def compute_indices(bands):
-            VV = bands["VV"]
-            VH = bands["VH"]
-            RVI = (4 * VH) / (VV + VH)
-            return array_create([RVI])
-
-        cube_RVI = input_cube.apply_dimension(
-            dimension="bands",
-            process=compute_indices,
-            context={"parallel": True,
-                     "TileSize": 128}
-        ).rename_labels("bands", ["RVI"])
-
     # calculate VI's
     if append:
         vi_cube = append_indices(datacube=input_cube, indices=vi_list)
     else:
         vi_cube = compute_indices(datacube=input_cube, indices=vi_list, append=False)
 
-    # add RVI if needed
-    if RVI_flag:
-        vi_cube = vi_cube.merge_cubes(cube_RVI)
-    """
 
     band_names = bands.dimension_labels('bands')
     newband_names = [f"{S1_collection}-{band_name}" for band_name in band_names]
@@ -171,7 +154,7 @@ def generate_S1_indices(
     input_cube = extract_S1_datacube(connection, bbox, start, end, S1_collection=S1_collection, **processing_options)
 
     # call the VI generator
-    result_cube = radar_indices(input_cube, **processing_options)
+    result_cube = radar_indices(input_cube, S1_collection=S1_collection, **processing_options)
 
     return result_cube
 

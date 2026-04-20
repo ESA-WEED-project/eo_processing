@@ -39,7 +39,7 @@ VI_LIST: List[str] = ['NDVI',
            'IRECI']
 RADAR_LIST: List[str] = ['VHVVD',
               'VHVVR',
-              'RVI']
+              'DpRVIVV']
 S2_SCALING: List = [0, 10000, 0, 1.0]
 # ---------------------------------------------------
 # Planet Processing options

@@ -197,7 +197,7 @@ def get_job_options(provider: str = None, task: str = 'raw_extraction') -> Dict[
 
     if 'creo' in provider.lower():
         job_options.update(OPENEO_EXTRACT_CREO_JOB_OPTIONS)
-    if provider.lower() == 'cdse' or provider.lower() == 'cdse-staging':
+    if 'cdse' in provider.lower():
         if task in ['inference']:
             job_options.update(OPENEO_INFERENCE_CDSE_JOB_OPTIONS)
         elif task in ['point_extraction']:
@@ -233,7 +233,7 @@ def get_collection_options(provider: str) -> Dict[str, str]:
         return _SENTINELHUB_COLLECTIONS
     elif 'creo' in provider.lower():
         return _CREO_COLLECTIONS
-    elif provider.lower() == 'cdse' or provider.lower() == 'cdse-staging':
+    elif 'cdse' in provider.lower():
         return _CDSE_COLLECTIONS
     else:
         raise ValueError(f'Provider `{provider}` not known.')

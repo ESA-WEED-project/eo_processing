@@ -46,6 +46,8 @@ def init_connection(provider: str) -> openeo.Connection :
         connection = openeo.connect(url="openeo.dataspace.copernicus.eu").authenticate_oidc()
     elif provider == 'cdse-staging':
         connection = openeo.connect(url='openeo-staging.dataspace.copernicus.eu').authenticate_oidc()
+    elif provider == 'cdse-staging-waw4-1':
+        connection = openeo.connect(url='https://openeo.stag.waw4-1.openeo-int.v1.dataspace.copernicus.eu').authenticate_oidc()
     else:
         print('currently no specific connections to backends like creodias and sentinelhub are setup.')
         print('use standard entry point')

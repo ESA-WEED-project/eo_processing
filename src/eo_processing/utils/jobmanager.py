@@ -363,7 +363,8 @@ class WeedJobManager(MultiBackendJobManager):
                     worker = Thread(target=self.on_job_done,
                                               args=(the_job, active.loc[i]))
                     worker.start()
-                    active.loc[i, "cost"] = job_metadata['costs']
+                    if "costs" in job_metadata.keys():
+                        active.loc[i, "cost"] = job_metadata['costs']
                     new_status = "downloading"
 
                 if previous_status == "downloading":

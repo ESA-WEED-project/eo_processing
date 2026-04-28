@@ -68,7 +68,7 @@ class WeedJobManager(MultiBackendJobManager):
     def __init__(self, poll_sleep: int = 5, root_dir: str = '.',
                  storage_options: Optional[storage_option_format] = None, max_attempts: int = 3,
                  viz: bool = False, viz_labels: bool = False, viz_edge_color: str = 'black',
-                 dl_cancel_time: int = 1800) -> None:
+                 dl_cancel_time: int = 1800, cancel_running_job_after: Optional[int] = None) -> None:
         """
         Initializes an instance of the class with configuration options for polling, directory paths,
         visualization settings, maximum retry attempts, and download cancellation timing.
@@ -86,8 +86,10 @@ class WeedJobManager(MultiBackendJobManager):
         :param viz_labels: Flag indicating whether to include labels in the visualization.
         :param viz_edge_color: Color to use for edges in visualization graphs.
         :param dl_cancel_time: Time in seconds after which a download operation is canceled.
+        :param cancel_running_job_after: Time in seconds after which a running job is canceled.
         """
-        super().__init__(poll_sleep=poll_sleep, root_dir=root_dir)
+        super().__init__(poll_sleep=poll_sleep, root_dir=root_dir,
+                         cancel_running_job_after=cancel_running_job_after)
         self.storage_options = storage_options if storage_options else {}
         self.viz = viz
         self.viz_labels = viz_labels
@@ -390,7 +392,11 @@ class WeedJobManager(MultiBackendJobManager):
                         new_status = "not_started"
 
                 if self._cancel_running_job_after and new_status == "running":
+                    if not active.loc[i, "running_start_time"] or pd.isna(active.loc[i, "running_start_time"]):
+                        stats["job started running"] += 1
+                        active.loc[i, "running_start_time"] = rfc3339.now_utc()
                     self._cancel_prolonged_job(the_job, active.loc[i])
+
                 # TODO: there is well hidden coupling here with "cpu", "memory" and "duration" from `_normalize_df`
                 for key in job_metadata.get("usage", {}).keys():
                     if key in active.columns:

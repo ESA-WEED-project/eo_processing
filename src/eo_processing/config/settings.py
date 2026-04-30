@@ -118,14 +118,14 @@ OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
 }
 
 OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
-    "driver-memory": "10G",
-    "driver-memoryOverhead": "6G",
+    "driver-memory": "4G",
+    "driver-memoryOverhead": "2G",
     "driver-cores": 1,
-    "executor-memory": "3G",
-    "executor-memoryOverhead": "4G",
+    "executor-memory": "2G",
+    "executor-memoryOverhead": "2G",
     "python-memory": "disable",
     "executor-cores": 1,
-    "max-executors": 15,
+    "max-executors": 25,
     "logging-threshold": "info"
 }
 

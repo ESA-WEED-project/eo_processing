@@ -12,7 +12,7 @@ import numpy as np
 import geojson
 import json
 from typing import Union, Tuple, Optional, TYPE_CHECKING
-from eo_processing.utils.mgrs import LL_2_UTM, compute_pixel_center, UTM_2_LL, UTM_2_MGRSid, UTM_2_MGRSid10, UTM_2_MGRSid1, UTM_2_grid20id
+from eo_processing.utils.mgrs import LL_2_UTM, compute_pixel_center, UTM_2_LL, UTM_2_MGRSid, UTM_2_MGRSid10, UTM_2_MGRSid1, UTM_2_grid20id, MGRS_2Mil_letter
 from urllib3.util.url import parse_url
 import eo_processing.resources
 import fsspec
@@ -350,9 +350,11 @@ def bbox_of_PointsFeatureCollection(points_collection: geojson.FeatureCollection
             'north': coords[:,1].max(),
             'crs': 'EPSG:4326'}
 
-def get_point_info(longitude: float, latitude: float, resolution: float=10.0) -> Tuple[str, float, float, str]:
+def get_point_info(longitude: float, latitude: float, resolution: float=10.0) \
+        -> Tuple[str, float, float, str]:
     """
     Gets metadata and identifiers for a geographical point based on its longitude and latitude.
+    NOTE: only works on one point.
 
     This function performs multiple spatial transformations to extract identifiers and
     coordinates in standardized formats. It converts the provided longitude and latitude
@@ -402,6 +404,126 @@ def get_point_info(longitude: float, latitude: float, resolution: float=10.0) ->
     grid20id = UTM_2_grid20id(rounded_easting, rounded_northing, zone_number, zone_letter)
 
     return MGRSid, round(center_lon, 7), round(center_lat, 7), grid20id
+
+
+def get_point_info_vectorised(lons: np.ndarray, lats: np.ndarray, resolution: float = 10.0) -> Tuple[
+    np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Compute MGRS identifiers, center coordinates, and grid identifiers for a set of geographic points.
+
+    This function performs vectorized computation of MGRS (Military Grid Reference System) identifiers, 
+    center longitude and latitude coordinates, and 20km grid identifiers for an array of input geographic 
+    points. It uses UTM (Universal Transverse Mercator) projection and handles latitude and longitude edge 
+    cases, including special regions like Norway and Svalbard.
+
+    :param lons: Longitude values of the points as a Numpy array of floats.
+    :param lats: Latitude values of the points as a Numpy array of floats.
+    :param resolution: Grid resolution for snapping coordinates, default is 10.0 (float).
+
+    :return: A tuple containing:
+        - mgrs_ids: MGRS identifiers for each point as an array of strings.
+        - center_lons: Center longitudes for each point as an array of floats.
+        - center_lats: Center latitudes for each point as an array of floats.
+        - grid20ids: 20km grid identifiers for each point as an array of strings.
+    """
+
+    # Constants for MGRS letter lookups (based on mgrs.
+    from eo_processing.utils.mgrs import ZONE_LETTERS, _100km, _Le100k, _Ln100k
+
+    n = len(lons)
+    lons = np.asarray(lons, dtype=np.float64)
+    lats = np.asarray(lats, dtype=np.float64)
+
+    # Output arrays
+    mgrs_ids = np.empty(n, dtype=object)
+    center_lons = np.empty(n, dtype=np.float64)
+    center_lats = np.empty(n, dtype=np.float64)
+    grid20ids = np.empty(n, dtype=object)
+
+    # Compute UTM zone number for each point (vectorized)
+    zone_numbers = np.floor((lons + 180) / 6).astype(int) + 1
+
+    # Handle Norway/Svalbard special cases
+    norway_mask = (lats >= 56) & (lats < 64) & (lons >= 3) & (lons < 12)
+    zone_numbers[norway_mask] = 32
+
+    svalbard_mask = (lats >= 72) & (lats <= 84) & (lons >= 0)
+    zone_numbers[svalbard_mask & (lons < 9)] = 31
+    zone_numbers[svalbard_mask & (lons >= 9) & (lons < 21)] = 33
+    zone_numbers[svalbard_mask & (lons >= 21) & (lons < 33)] = 35
+    zone_numbers[svalbard_mask & (lons >= 33) & (lons < 42)] = 37
+
+    # Compute zone letter for each point (vectorized)
+    zone_letter_indices = ((lats + 80) // 8).astype(int)
+    zone_letter_indices = np.clip(zone_letter_indices, 0, len(ZONE_LETTERS) - 1)
+    zone_letters = np.array([ZONE_LETTERS[i] for i in zone_letter_indices])
+
+    # Mark points outside valid lat range
+    invalid_lat = (lats < -80) | (lats > 84)
+    zone_letters[invalid_lat] = 'Z'
+
+    # Determine northern hemisphere
+    northern = (zone_letters >= 'N')
+
+    # Compute EPSG codes
+    epsg_codes = np.where(northern, 32600 + zone_numbers, 32700 + zone_numbers)
+
+    # Process per unique EPSG (one transformer per zone)
+    unique_epsgs = np.unique(epsg_codes)
+
+    for epsg in unique_epsgs:
+        mask = epsg_codes == epsg
+        idx = np.where(mask)[0]
+
+        # Forward transform: LL -> UTM (vectorized)
+        transformer_fwd = pyproj.Transformer.from_crs('EPSG:4326', f'EPSG:{epsg}', always_xy=True)
+        eastings, northings = transformer_fwd.transform(lons[mask], lats[mask])
+
+        # Snap to pixel center (vectorized)
+        half_res = resolution / 2.0
+        rounded_eastings = (eastings // resolution * resolution) + half_res
+        rounded_northings = (northings // resolution * resolution) + half_res
+
+        # Inverse transform: UTM -> LL (vectorized)
+        transformer_inv = pyproj.Transformer.from_crs(f'EPSG:{epsg}', 'EPSG:4326', always_xy=True)
+        c_lons, c_lats = transformer_inv.transform(rounded_eastings, rounded_northings)
+        center_lons[idx] = np.round(c_lons, 7)
+        center_lats[idx] = np.round(c_lats, 7)
+
+        # Compute MGRSid10 and grid20id per point in this zone
+        zn = zone_numbers[mask]
+        zl = zone_letters[mask]
+
+        for i, local_idx in enumerate(idx):
+            e = rounded_eastings[i]
+            n_val = rounded_northings[i]
+            z_num = int(zn[i])
+            z_let = zl[i]
+
+            # MGRS 100k letters
+            E_div = int(e // _100km)
+            N_div = int(n_val // _100km)
+            le = _Le100k[(z_num - 1) % 3][E_div - 1]
+            ln = _Ln100k[(z_num - 1) % 2][N_div % 20]
+            letters_100k = le + ln
+
+            # MGRSid base: zone_number(2) + zone_letter + 100k_letters
+            mgrs_base = f"{z_num:02d}{z_let}{letters_100k}"
+
+            # MGRSid10: add 4-digit easting + 4-digit northing
+            formatted_e = f"{int(e):05d}"[-5:-1]
+            formatted_n = f"{int(n_val):05d}"[-5:-1]
+            mgrs_ids[local_idx] = f"{mgrs_base}{formatted_e}{formatted_n}"
+
+            # grid20id: grid100id + subgrid position
+            letter_2m = MGRS_2Mil_letter(n_val, z_let)
+            grid100id = f"{z_num:02d}{letter_2m}{letters_100k}"
+            sub_e = int((e % _100km) // 20000)
+            sub_n = int((n_val % _100km) // 20000)
+            grid20ids[local_idx] = f"{grid100id}{sub_e}{sub_n}"
+
+    return mgrs_ids, center_lons, center_lats, grid20ids
+
 
 def geoJson_2_BBOX(file_path: str, delete_file: bool = False,
                    size_check: Optional[int] = None) -> Optional[openEO_bbox_format]:
@@ -542,18 +664,21 @@ def is_geojson(data: str | dict) -> bool:
 
 def grid20_feature_extraction_job_splitter(geo_df: gpd.GeoDataFrame) -> list[gpd.GeoDataFrame]:
     """
-    Splits a geospatial dataframe into smaller dataframes based on a grouping strategy optimized
-    for geographical 100x100km and 20x100km tiles.
+    Splits a GeoDataFrame into smaller GeoDataFrames based on specified grouping
+    criteria to optimize processing workflows.
 
-    The function processes the input GeoDataFrame by creating grouping identifiers based on
-    specific grid patterns (100x100km, 20x100km). It ensures no group exceeds a threshold number
-    of rows (256) by applying these identifiers hierarchically. The final result is a list of
-    GeoDataFrames, each corresponding to a unique grouping identifier.
+    This function identifies grouping IDs for spatial data by analyzing the
+    'grid20id' column and creates new calculated group IDs: 'grid100id',
+    'grid20stripid', and 'final_grouping'. It uses these group IDs to split the
+    input GeoDataFrame into smaller chunks for processing tasks, ensuring that
+    each group contains a manageable number of rows.
 
-    param geo_df: The input GeoDataFrame containing a column `grid20id` which represents
-                  the 20x20km tiles, serving as a basis for grouping and extraction.
-    return: A list of GeoDataFrames, where each dataframe corresponds to a subset of the
-            input dataframe based on the applied grouping strategy.
+    :param geo_df (gpd.GeoDataFrame): The input GeoDataFrame containing a 'grid20id'
+        column which represents unique spatial identifiers.
+
+    :return: A list of GeoDataFrames, where each GeoDataFrame corresponds to a
+        subset of the input GeoDataFrame grouped by the calculated 'final_grouping'
+        column.
     """
     #check:
     if 'grid20id' not in geo_df.columns:
@@ -582,6 +707,17 @@ def grid20_feature_extraction_job_splitter(geo_df: gpd.GeoDataFrame) -> list[gpd
     return [geo_df[geo_df['final_grouping'] == tile_id] for tile_id in geo_df['final_grouping'].unique()]
 
 def create_feature_extraction_processing_grid(path_grid: str, bbox : tuple) -> gpd.GeoDataFrame:
+    """
+    Reads a geospatial grid from a file, processes it to generate additional identifiers, and combines the
+    processed data into a single GeoDataFrame for feature extraction.
+
+    Parameters:
+    :param path_grid (str): The file path to the geospatial grid in GeoPackage format.
+    :param bbox (tuple): A bounding box (minx, miny, maxx, maxy) to filter the spatial data.
+
+    Returns:
+    :return (gpd.GeoDataFrame): A GeoDataFrame containing the processed grid data with additional identifiers and merged polygons.
+    """
     # since the GeoPackage is huge we use a helper function
     gdf_grid = gpd.read_file(path_grid, bbox=bbox)
     gdf_grid['tile_name'] = gdf_grid.grid20id

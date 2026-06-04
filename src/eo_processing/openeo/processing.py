@@ -4,12 +4,12 @@ import openeo
 from openeo.rest.datacube import DataCube
 from openeo.extra.spectral_indices import append_indices, compute_indices
 from openeo.processes import array_create, ProcessBuilder, array_concat, subtract
-
+from openeo.metadata import metadata_from_stac
 from eo_processing.openeo.preprocessing import (extract_S2_datacube, extract_S1_datacube,
                                                 extract_planet_datacube)
 from eo_processing.utils.stac_helper import get_stac_collection_url
 from eo_processing.config.settings import VI_LIST, RADAR_LIST, S1_MAP, S2_SCALING, S2_L2A_MAP, \
-    PLANET_VI_LIST, PLANET_SCALING, PLANET_MAP
+    PLANET_VI_LIST, PLANET_SCALING, PLANET_MAP, CHUNK_SIZE
 
 from typing import Optional, Dict, Union, List, Literal, TYPE_CHECKING
 if TYPE_CHECKING:
@@ -79,6 +79,9 @@ def radar_indices(
     else:
         raise ValueError('No valid radar collection given')
 
+    # evaluate additional processing_options
+    chunk_size = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
+
     # convert input DataCube into float (db)
     if db_rescaling:
         input_cube = input_cube.apply_dimension(
@@ -103,7 +106,7 @@ def radar_indices(
             dimension="bands",
             process=compute_indices1,
             context={"parallel": True,
-                     "TileSize": 128}
+                     "TileSize": chunk_size}
         ).rename_labels("bands", ["VV", "VH", "RVI", "VHVVD", "VHVVR"])
     else:
         def compute_indices2(bands):
@@ -118,7 +121,7 @@ def radar_indices(
             dimension="bands",
             process=compute_indices2,
             context={"parallel": True,
-                     "TileSize": 128}
+                     "TileSize": chunk_size}
         ).rename_labels("bands", ["RVI", "VHVVD", "VHVVR"])
 
     """
@@ -201,8 +204,6 @@ def generate_indices_master_cube(
     # get the S2 indices
     indices_cube = generate_S2_indices(connection, bbox, start, end, S2_collection=S2_collection,
                                        **processing_options)
-
-
     # merge the S1 indices
     if S1_collection is not None:
         indices_cube = indices_cube.merge_cubes(generate_S1_indices(connection, bbox, start, end,
@@ -230,8 +231,6 @@ def generate_indices_planet_cube(
     # call the VI generator
     result_cube = optical_indices(input_cube, collection=planet_collection, **processing_options)
 
-
-
     return result_cube
 
 def _compute_features(input_timeseries: DataCube) -> ProcessBuilder:
@@ -247,12 +246,15 @@ def _compute_features(input_timeseries: DataCube) -> ProcessBuilder:
         mean, standard deviation, sum, and the interquartile range (IQR).
     """
     return array_concat(
-        input_timeseries.quantiles(probabilities=[0.02, 0.25, 0.5, 0.75, 0.98]),
+        input_timeseries.quantiles(probabilities=[0.02, 0.05, 0.25, 0.5, 0.75, 0.95, 0.98]),
         [input_timeseries.mean(), input_timeseries.sd(), input_timeseries.sum(),
          subtract(x=input_timeseries.quantiles(probabilities=[0.75]),
-                  y=input_timeseries.quantiles(probabilities=[0.25]))])
+                  y=input_timeseries.quantiles(probabilities=[0.25])),
+         subtract(x=input_timeseries.quantiles(probabilities=[0.95]),
+                  y=input_timeseries.quantiles(probabilities=[0.05]))
+         ])
 
-def calculate_features_cube(input_data: DataCube) -> DataCube:
+def calculate_features_cube(input_data: DataCube, chunk_size: int = CHUNK_SIZE) -> DataCube:
     """
     Calculates feature statistics for each time series within the input data cube. This function applies
     statistical summaries to the bands of the input `DataCube` across the time dimension (`t`). It then
@@ -272,22 +274,25 @@ def calculate_features_cube(input_data: DataCube) -> DataCube:
                                                process=_compute_features,
                                                target_dimension='bands',
                                                context={"parallel": True,
-                                                        "TileSize": 128})
+                                                        "TileSize": chunk_size})
     # adapt the band names
     new_band_names = [
         band + "_" + stat
         for band in input_data.metadata.band_names
-        for stat in ["p2", "p25", "median", "p75", "p98", "mean", "sd", "sum", "iqr"]
+        for stat in ["p2", "p5", "p25", "median", "p75", "p95", "p98", "mean", "sd", "sum", "iqr", "iqr0595"]
     ]
+    #rename 'S2-CLOUD-MASK_sum'
+    new_band_names = ['valid_obs' if x == 'S2-CLOUD-MASK_sum' else x for x in new_band_names]
+
     features_cube = features_cube.rename_labels('bands', new_band_names)
 
     # remove some bands which make no sense :)
     # mainly from S2REP --> sd, sum, iqr
     bands_keep = [band for band in features_cube.metadata.band_names if
-                  band not in ['S2REP_sd', 'S2REP_sum', 'S2REP_iqr', 'VV_sum', 'VH_sum', 'VHVVD_sum',
-                               'S2-CLOUD-MASK_p2', 'S2-CLOUD-MASK_p25', 'S2-CLOUD-MASK_median', 'S2-CLOUD-MASK_p75',
-                               'S2-CLOUD-MASK_p98', 'S2-CLOUD-MASK_mean', 'S2-CLOUD-MASK_sd', 'S2-CLOUD-MASK_sum',
-                               'S2-CLOUD-MASK_iqr']]
+                  band not in ['S2REP_sd', 'S2REP_sum', 'S2REP_iqr', 'S2REP_iqr0595' , 'VV_sum', 'VH_sum', 'VHVVD_sum',
+                               'S2-CLOUD-MASK_p2', 'S2-CLOUD-MASK_p5', 'S2-CLOUD-MASK_p25', 'S2-CLOUD-MASK_median',
+                               'S2-CLOUD-MASK_p75','S2-CLOUD-MASK_p95', 'S2-CLOUD-MASK_p98', 'S2-CLOUD-MASK_mean',
+                               'S2-CLOUD-MASK_sd','S2-CLOUD-MASK_iqr','S2-CLOUD-MASK_iqr0595']]
 
     features_cube = features_cube.filter_bands(bands=bands_keep)
 
@@ -308,11 +313,13 @@ def generate_S1_feature_cube(
             resolution, ts_interval, time_interpolation, s1_orbitdirection, radar_vi_list, S1_db_rescale, append)
     :return: DataCube with only features
     """
+    chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
+
     # get the reflectance and VI time series cube
     input_data = generate_S1_indices(connection, bbox, start, end, S1_collection=S1_collection,
                                      **processing_options)
     # get features
-    features_cube = calculate_features_cube(input_data)
+    features_cube = calculate_features_cube(input_data, chunk_size=chunk_size)
 
     return features_cube
 
@@ -331,11 +338,12 @@ def generate_S2_feature_cube(
             resolution, ts_interval, time_interpolation, SLC_masking_algo, optical_vi_list, S2_scaling, append, S2_bands)
     :return: DataCube with only features
     """
+    chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
     # get the reflectance and VI time series cube
     input_data = generate_S2_indices(connection, bbox, start, end, S2_collection=S2_collection,
                                      **processing_options)
     # get features
-    features_cube = calculate_features_cube(input_data)
+    features_cube = calculate_features_cube(input_data, chunk_size=chunk_size)
 
     return features_cube
 
@@ -356,12 +364,13 @@ def generate_planet_feature_cube(
             planet_scaling, append, planet_bands)
     :return: DataCube
     """
+    chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
     # get the Planet indices
     # get the reflectance and VI time series cube
     input_data = generate_indices_planet_cube(connection, bbox, start, end, planet_collection=planet_collection,
                                              **processing_options)
     # get features
-    features_cube = calculate_features_cube(input_data)
+    features_cube = calculate_features_cube(input_data, chunk_size=chunk_size)
 
     return features_cube
 
@@ -382,11 +391,12 @@ def generate_master_feature_cube(
             S2_scaling, append, S2_bands, radar_vi_list, S1_db_rescale)
     :return: DataCube with only features
     """
+    chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
     # get the reflectance and VI time series cube
     input_data = generate_indices_master_cube(connection, bbox, start, end, S2_collection=S2_collection,
                                               S1_collection=S1_collection, **processing_options)
     # get features
-    features_cube = calculate_features_cube(input_data)
+    features_cube = calculate_features_cube(input_data, chunk_size=chunk_size)
 
     return features_cube
 
@@ -441,6 +451,8 @@ def generate_nonEO_feature_cube(
     temporal_extent = [start, end]
     temporal_extent = None
 
+    chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
+
     for collection, band, reproj, year in collections_list:
         #first need to distinguish between STAC and collection
         #we assume that they will allways be an url type of link in contrary with a collections which should just be a name
@@ -466,17 +478,20 @@ def generate_nonEO_feature_cube(
                                                       bands=bands,
                                                       temporal_extent=temporal_extent
                                                       )
+            nonEO_feature_cube.result_node().update_arguments(featureflags={'tilesize': chunk_size})
 
         else:
             #if openeo the -v1 should be split off of the collection
             if bands == [None]:
                 nonEO_feature_cube = connection.load_collection(collection.split('-')[0],
                                                                 temporal_extent=temporal_extent)
+                nonEO_feature_cube.result_node().update_arguments(featureflags={'tilesize': chunk_size})
                 bands = nonEO_feature_cube.dimension_labels('bands')
             else:
                 nonEO_feature_cube = connection.load_collection(collection.split('-')[0],
                                                                 bands = bands,
                                                                 temporal_extent = temporal_extent)
+                nonEO_feature_cube.result_node().update_arguments(featureflags={'tilesize': chunk_size})
             if isDEM:
                 # reduce the temporal domain since copernicus_30 collection is "special" and feature only are one time stamp
                 nonEO_feature_cube = nonEO_feature_cube.reduce_dimension(dimension='t', reducer=lambda x: x.last(ignore_nodata=True))

@@ -76,7 +76,8 @@ OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, str] = {
     "executor-memoryOverhead": "2G",
     "executor-cores": 2,
     "max-executors": 50,
-    "soft-errors": "true"
+    "soft-errors": "true",
+    "stac-version":"1.1"
 }
 
 OPENEO_EXTRACT_CREO_JOB_OPTIONS: Dict[str, str] = {

@@ -282,17 +282,21 @@ def calculate_features_cube(input_data: DataCube, chunk_size: int = CHUNK_SIZE) 
         for stat in ["p2", "p5", "p25", "median", "p75", "p95", "p98", "mean", "sd", "sum", "iqr", "iqr0595"]
     ]
     #rename 'S2-CLOUD-MASK_sum'
-    new_band_names = ['valid_obs' if x == 'S2-CLOUD-MASK_sum' else x for x in new_band_names]
+    new_band_names = ['valid_obs' if x == 'SENTINEL2_L2A-S2_CLOUD_MASK_mean' else x for x in new_band_names]
 
     features_cube = features_cube.rename_labels('bands', new_band_names)
 
     # remove some bands which make no sense :)
     # mainly from S2REP --> sd, sum, iqr
     bands_keep = [band for band in features_cube.metadata.band_names if
-                  band not in ['S2REP_sd', 'S2REP_sum', 'S2REP_iqr', 'S2REP_iqr0595' , 'VV_sum', 'VH_sum', 'VHVVD_sum',
-                               'S2-CLOUD-MASK_p2', 'S2-CLOUD-MASK_p5', 'S2-CLOUD-MASK_p25', 'S2-CLOUD-MASK_median',
-                               'S2-CLOUD-MASK_p75','S2-CLOUD-MASK_p95', 'S2-CLOUD-MASK_p98', 'S2-CLOUD-MASK_mean',
-                               'S2-CLOUD-MASK_sd','S2-CLOUD-MASK_iqr','S2-CLOUD-MASK_iqr0595']]
+                  band not in ['SENTINEL2_L2A-S2REP_sd', 'SENTINEL2_L2A-S2REP_sum', 'SENTINEL2_L2A-S2REP_iqr',
+                               'SENTINEL2_L2A-S2REP_iqr0595' , 'SENTINEL1_GRD-VV_sum', 'SENTINEL1_GRD-VH_sum',
+                               'SENTINEL1_GRD-VHVVD_sum','SENTINEL2_L2A-S2_CLOUD_MASK_p2',
+                               'SENTINEL2_L2A-S2_CLOUD_MASK_p5','SENTINEL2_L2A-S2_CLOUD_MASK_p25',
+                               'SENTINEL2_L2A-S2_CLOUD_MASK_median','SENTINEL2_L2A-S2_CLOUD_MASK_p75',
+                               'SENTINEL2_L2A-S2_CLOUD_MASK_p95','SENTINEL2_L2A-S2_CLOUD_MASK_p98',
+                               'SENTINEL2_L2A-S2_CLOUD_MASK_sd','SENTINEL2_L2A-S2_CLOUD_MASK_iqr',
+                               'SENTINEL2_L2A-S2_CLOUD_MASK_iqr0595']]
 
     features_cube = features_cube.filter_bands(bands=bands_keep)
 

@@ -268,7 +268,7 @@ def extract_S2_datacube(
             mask1_values=[2, 4, 5, 6, 7],
             mask2_values=[3, 8, 9, 10, 11],
             erosion_kernel_size=3
-        ).rename_labels("bands", ["S2-CLOUD-MASK"])
+        ).rename_labels("bands", ["S2_CLOUD_MASK"])
 
         if apply_mask:
             bands = bands.mask(scl_dilated_mask) # here I do trust the automatic resampling of the mask
@@ -394,7 +394,7 @@ def extract_planet_datacube(
             mask1_values=[1],
             mask2_values=[2,3,4,5,6,7],
             erosion_kernel_size=3
-        ).rename_labels("bands", ["Planet-UDM2_DILATED_MASK"])
+        ).rename_labels("bands", ["Planet_UDM2_DILATED_MASK"])
         bands = bands.mask(udm_dilated_mask)  # masks are automatically resampled/warped
 
     elif masking == 'satio':

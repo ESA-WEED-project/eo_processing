@@ -55,7 +55,7 @@
         "noise_removal": true,
         "options": {
           "implementation_version": "2",
-          "tile_size": 256,
+          "tile_size": 128,
           "otb_memory": 1024,
           "debug": false,
           "elev_geoid": "/opt/openeo-vito-aux-data/egm96.tif"
@@ -539,9 +539,11 @@
                 },
                 "probabilities": [
                   0.02,
+                  0.05,
                   0.25,
                   0.5,
                   0.75,
+                  0.95,
                   0.98
                 ]
               }
@@ -603,6 +605,39 @@
                 }
               }
             },
+            "quantiles4": {
+              "process_id": "quantiles",
+              "arguments": {
+                "data": {
+                  "from_parameter": "data"
+                },
+                "probabilities": [
+                  0.95
+                ]
+              }
+            },
+            "quantiles5": {
+              "process_id": "quantiles",
+              "arguments": {
+                "data": {
+                  "from_parameter": "data"
+                },
+                "probabilities": [
+                  0.05
+                ]
+              }
+            },
+            "subtract5": {
+              "process_id": "subtract",
+              "arguments": {
+                "x": {
+                  "from_node": "quantiles4"
+                },
+                "y": {
+                  "from_node": "quantiles5"
+                }
+              }
+            },
             "arrayconcat1": {
               "process_id": "array_concat",
               "arguments": {
@@ -621,6 +656,9 @@
                   },
                   {
                     "from_node": "subtract4"
+                  },
+                  {
+                    "from_node": "subtract5"
                   }
                 ]
               },
@@ -640,50 +678,65 @@
         "dimension": "bands",
         "target": [
           "VV_p2",
+          "VV_p5",
           "VV_p25",
           "VV_median",
           "VV_p75",
+          "VV_p95",
           "VV_p98",
           "VV_mean",
           "VV_sd",
           "VV_sum",
           "VV_iqr",
+          "VV_iqr0595",
           "VH_p2",
+          "VH_p5",
           "VH_p25",
           "VH_median",
           "VH_p75",
+          "VH_p95",
           "VH_p98",
           "VH_mean",
           "VH_sd",
           "VH_sum",
           "VH_iqr",
+          "VH_iqr0595",
           "RVI_p2",
+          "RVI_p5",
           "RVI_p25",
           "RVI_median",
           "RVI_p75",
+          "RVI_p95",
           "RVI_p98",
           "RVI_mean",
           "RVI_sd",
           "RVI_sum",
           "RVI_iqr",
+          "RVI_iqr0595",
           "VHVVD_p2",
+          "VHVVD_p5",
           "VHVVD_p25",
           "VHVVD_median",
           "VHVVD_p75",
+          "VHVVD_p95",
           "VHVVD_p98",
           "VHVVD_mean",
           "VHVVD_sd",
           "VHVVD_sum",
           "VHVVD_iqr",
+          "VHVVD_iqr0595",
           "VHVVR_p2",
+          "VHVVR_p5",
           "VHVVR_p25",
           "VHVVR_median",
           "VHVVR_p75",
+          "VHVVR_p95",
           "VHVVR_p98",
           "VHVVR_mean",
           "VHVVR_sd",
           "VHVVR_sum",
-          "VHVVR_iqr"
+          "VHVVR_iqr",
+          "VHVVR_iqr0595"
         ]
       }
     },
@@ -692,47 +745,62 @@
       "arguments": {
         "bands": [
           "VV_p2",
+          "VV_p5",
           "VV_p25",
           "VV_median",
           "VV_p75",
+          "VV_p95",
           "VV_p98",
           "VV_mean",
           "VV_sd",
           "VV_iqr",
+          "VV_iqr0595",
           "VH_p2",
+          "VH_p5",
           "VH_p25",
           "VH_median",
           "VH_p75",
+          "VH_p95",
           "VH_p98",
           "VH_mean",
           "VH_sd",
           "VH_iqr",
+          "VH_iqr0595",
           "RVI_p2",
+          "RVI_p5",
           "RVI_p25",
           "RVI_median",
           "RVI_p75",
+          "RVI_p95",
           "RVI_p98",
           "RVI_mean",
           "RVI_sd",
           "RVI_sum",
           "RVI_iqr",
+          "RVI_iqr0595",
           "VHVVD_p2",
+          "VHVVD_p5",
           "VHVVD_p25",
           "VHVVD_median",
           "VHVVD_p75",
+          "VHVVD_p95",
           "VHVVD_p98",
           "VHVVD_mean",
           "VHVVD_sd",
           "VHVVD_iqr",
+          "VHVVD_iqr0595",
           "VHVVR_p2",
+          "VHVVR_p5",
           "VHVVR_p25",
           "VHVVR_median",
           "VHVVR_p75",
+          "VHVVR_p95",
           "VHVVR_p98",
           "VHVVR_mean",
           "VHVVR_sd",
           "VHVVR_sum",
-          "VHVVR_iqr"
+          "VHVVR_iqr",
+          "VHVVR_iqr0595"
         ],
         "data": {
           "from_node": "renamelabels2"

@@ -12,7 +12,7 @@ from requests import auth, delete, post, put
 import tempfile
 import time
 from tqdm import tqdm
-import psycopg
+import psycopg2 as psycopg
 import json
 from dotenv import load_dotenv, find_dotenv, set_key
 from typing import Union, Dict, Tuple, List, TYPE_CHECKING, IO, Optional
@@ -281,7 +281,7 @@ class S3_storage:
         file_keys = self.get_file_keys(s3_directory, extension, recursive=recursive)
 
         # define the base URL to the specified S3 Model storage
-        base_url = f"{self.s3_credentials['s3_endpoint']}/swift/v1/{self.s3_bucket}/"
+        base_url = f"{self.s3_credentials['s3_endpoint']}/{self.s3_bucket}/"
 
         return [f"{base_url}{element}" for element in file_keys]
 
@@ -330,7 +330,7 @@ class S3_storage:
             raise Exception(f"File with key {s3_object_key} does not exist in S3 bucket {self.s3_bucket}.")
 
         # define the base URL to the specified S3 Model storage
-        base_url = f"{self.s3_credentials['s3_endpoint']}/swift/v1/{self.s3_bucket}/"
+        base_url = f"{self.s3_credentials['s3_endpoint']}/{self.s3_bucket}/"
 
         return f"{base_url}{s3_object_key}"
 
@@ -774,10 +774,7 @@ class SQL_storage:
         try:
             # get connection to server
             print("** Establish connection to the database ...")
-            if self.hadoop:
-                host = self.sql_credentials['host_hadoop']
-            else :
-                host = self.sql_credentials['host']
+            host = self.sql_credentials['host']
 
             conn = psycopg.connect(dbname=self.sql_credentials['dbname'],
                                    user=self.sql_credentials['schema'],
@@ -891,6 +888,7 @@ class SQL_storage:
             print('**** execute bulk insert')
             # create cursor
             cur = conn.cursor()
+
             cur.copy_from(data, vTable, null='nan', columns=lColumns)
 
             conn.commit()

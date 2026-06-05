@@ -5,6 +5,8 @@ if TYPE_CHECKING:
     from eo_processing.config.data_formats import storage_option_format
     from eo_processing.utils.storage import WEED_storage
 
+from openeo.api.process import Parameter
+
 # ---------------------------------------------------
 # processing options openEO
 CHUNK_SIZE: int = 128
@@ -25,21 +27,31 @@ TS_INTERVAL: str = 'dekad'
 S2_TEMPORAL_REDUCER: str = 'median'
 S1_TEMPORAL_REDUCER: str = 'mean'
 TIME_INTERPOLATION: bool = False
-VI_LIST: List[str] = ['NDVI',
-           'AVI',
-           'CIRE',
-           'NIRv',
-           'NDMI',
-           'NDWI',
-           'BLFEI',
-           'MNDWI',
-           'NDVIMNDWI',
-           'S2WI',
-           'S2REP',
-           'IRECI']
+VI_LIST: List[str] = [
+            'ABDI1',
+            'ABDI2',
+            'AWEInsh',
+            'AVI',
+            'BLFEI',
+            'CIRE',
+            'EVI',
+            'IRECI',
+            'MBWI',
+            'MNDWI',
+            'MNDVI',
+            'NDMI',
+            'NDVI',
+            'NDVIMNDWI',
+            'NDWI',
+            'NMDI',
+            'NIRv',
+            'S2WI',
+            'S2REP',
+            'WRI'
+            ]
 RADAR_LIST: List[str] = ['VHVVD',
               'VHVVR',
-              'RVI']
+              'DpRVIVV']
 S2_SCALING: List = [0, 10000, 0, 1.0]
 # ---------------------------------------------------
 # Planet Processing options
@@ -64,7 +76,8 @@ OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, str] = {
     "executor-memoryOverhead": "2G",
     "executor-cores": 2,
     "max-executors": 50,
-    "soft-errors": "true"
+    "soft-errors": "true",
+    "stac-version":"1.1"
 }
 
 OPENEO_EXTRACT_CREO_JOB_OPTIONS: Dict[str, str] = {
@@ -101,17 +114,17 @@ OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "python-memory": "4000m",
     "logging-threshold": "info",
     "udf-dependency-archives": [
-        "https://s3.waw3-1.cloudferro.com/swift/v1/project_dependencies/onnx_deps_python311.zip#onnx_deps"
+        "https://s3.waw3-1.cloudferro.com/project_dependencies/onnx_deps_python311.zip#onnx_deps"
     ]
 }
 
 OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
-    "driver-memory": "2G",
-    "driver-memoryOverhead": "1G",
+    "driver-memory": "4G",
+    "driver-memoryOverhead": "2G",
     "driver-cores": 1,
-    "executor-memory": "2000m",
-    "executor-memoryOverhead": "256m",
-    "python-memory": "2500m",
+    "executor-memory": "2G",
+    "executor-memoryOverhead": "2G",
+    "python-memory": "disable",
     "executor-cores": 1,
     "max-executors": 25,
     "logging-threshold": "info"
@@ -195,7 +208,7 @@ def get_job_options(provider: str = None, task: str = 'raw_extraction') -> Dict[
 
     if 'creo' in provider.lower():
         job_options.update(OPENEO_EXTRACT_CREO_JOB_OPTIONS)
-    if provider.lower() == 'cdse' or provider.lower() == 'cdse-staging':
+    if 'cdse' in provider.lower():
         if task in ['inference']:
             job_options.update(OPENEO_INFERENCE_CDSE_JOB_OPTIONS)
         elif task in ['point_extraction']:
@@ -231,7 +244,7 @@ def get_collection_options(provider: str) -> Dict[str, str]:
         return _SENTINELHUB_COLLECTIONS
     elif 'creo' in provider.lower():
         return _CREO_COLLECTIONS
-    elif provider.lower() == 'cdse' or provider.lower() == 'cdse-staging':
+    elif 'cdse' in provider.lower():
         return _CDSE_COLLECTIONS
     else:
         raise ValueError(f'Provider `{provider}` not known.')
@@ -374,7 +387,8 @@ def get_advanced_options(provider: str, s1_orbitdirection: Optional[str] = S1_OR
         raise ValueError(f'parameter for s1_orbitdirection: {s1_orbitdirection} is not valid.')
 
     if type(target_crs) != int:
-        raise ValueError(f'parameter for target_crs must be an integer value.')
+        if type(target_crs) != Parameter:
+            raise ValueError(f'parameter for target_crs must be an integer value.')
 
     if type(openeo_chunk_size) != int:
         raise ValueError(f'parameter for openeo_chunk_size must be an integer value.')
@@ -386,7 +400,8 @@ def get_advanced_options(provider: str, s1_orbitdirection: Optional[str] = S1_OR
 
     if type(resolution) != int:
         if type(resolution) != float:
-            raise ValueError(f'parameter for resolution must be an integer value.')
+            if type(target_crs) != Parameter:
+                raise ValueError(f'parameter for resolution must be an integer value.')
 
     if ts_interval not in ['day', 'week', 'dekad', 'month', 'season', 'year', None]:
         raise ValueError(f'parameter for ts_interpolation: {ts_interval} is not valid.')

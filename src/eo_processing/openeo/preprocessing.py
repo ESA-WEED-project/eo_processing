@@ -63,7 +63,7 @@ def extract_S1_datacube(
     """
     # evaluate additional processing options
     if ("creo" in processing_options.get("provider", "").lower()) or \
-            (processing_options.get("provider", "").lower() == "cdse" and bbox is not None):
+            ("cdse" in processing_options.get("provider", "").lower() and bbox is not None):
         catalogue_check = True
     else:
         catalogue_check = False
@@ -79,17 +79,18 @@ def extract_S1_datacube(
     ts_reducer: str = processing_options.get("S1_temporal_reducer", "mean")
     ts_interpolation: bool = processing_options.get("time_interpolation", False)
     chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
+
     if ("creo" in processing_options.get("provider", "").lower()) or \
             (processing_options.get("provider", "").lower() == "terrascope") or \
             (processing_options.get("provider", "").lower() == "development") or \
-            (processing_options.get("provider", "").lower() == "cdse"):
+            ("cdse" in processing_options.get("provider", "").lower()):
         flag_DEM = True
     else:
         flag_DEM = False
 
     # we have to check if enough data is available on creo platform
     if catalogue_check:
-        if processing_options.get("provider", "").lower() == "cdse":
+        if "cdse" in processing_options.get("provider", "").lower():
             orbit_direction = catalogue_check_CDSE_S1(orbit_direction, start, end, bbox)
         else:
             orbit_direction = catalogue_check_S1(orbit_direction, start, end, bbox)
@@ -120,7 +121,7 @@ def extract_S1_datacube(
             # DO NOT USE MAPZEN
             elevation_model='COPERNICUS_30' if flag_DEM else None,
             options={"implementation_version": "2",
-                     "tile_size": 256, "otb_memory": 1024, "debug": False,
+                     "tile_size": chunk_size, "otb_memory": 1024, "debug": False,
                      "elev_geoid": "/opt/openeo-vito-aux-data/egm96.tif"}
         )
         check_flag = True
@@ -183,7 +184,7 @@ def extract_S2_datacube(
     """
     # evaluate additional processing_options
     if ("creo" in processing_options.get("provider", "").lower()) or \
-            (processing_options.get("provider", "").lower() == "cdse" and bbox is not None):
+            ("cdse" in processing_options.get("provider", "").lower() and bbox is not None):
         catalogue_check = True
     else:
         catalogue_check = False
@@ -209,7 +210,7 @@ def extract_S2_datacube(
 
     # we have to check if enough data is available on creo platform
     if catalogue_check:
-        if processing_options.get("provider", "").lower() == "cdse":
+        if "cdse" in processing_options.get("provider", "").lower():
             catalogue_check_CDSE_S2(start, end, bbox)
         else:
             catalogue_check_S2(start, end, bbox)

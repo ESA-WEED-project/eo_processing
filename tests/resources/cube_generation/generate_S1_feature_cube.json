@@ -55,7 +55,7 @@
         "noise_removal": true,
         "options": {
           "implementation_version": "2",
-          "tile_size": 256,
+          "tile_size": 128,
           "otb_memory": 1024,
           "debug": false,
           "elev_geoid": "/opt/openeo-vito-aux-data/egm96.tif"
@@ -394,10 +394,6 @@
     "applydimension3": {
       "process_id": "apply_dimension",
       "arguments": {
-        "context": {
-          "parallel": true,
-          "TileSize": 128
-        },
         "data": {
           "from_node": "applydimension2"
         },
@@ -410,7 +406,7 @@
                 "data": {
                   "from_parameter": "data"
                 },
-                "label": "VV"
+                "index": 0
               }
             },
             "arrayelement8": {
@@ -419,20 +415,11 @@
                 "data": {
                   "from_parameter": "data"
                 },
-                "label": "VH"
+                "index": 1
               }
             },
-            "multiply5": {
-              "process_id": "multiply",
-              "arguments": {
-                "x": 4,
-                "y": {
-                  "from_node": "arrayelement8"
-                }
-              }
-            },
-            "add3": {
-              "process_id": "add",
+            "subtract3": {
+              "process_id": "subtract",
               "arguments": {
                 "x": {
                   "from_node": "arrayelement7"
@@ -446,15 +433,24 @@
               "process_id": "divide",
               "arguments": {
                 "x": {
-                  "from_node": "multiply5"
+                  "from_node": "arrayelement7"
                 },
                 "y": {
-                  "from_node": "add3"
+                  "from_node": "arrayelement8"
                 }
               }
             },
-            "subtract3": {
-              "process_id": "subtract",
+            "multiply5": {
+              "process_id": "multiply",
+              "arguments": {
+                "x": 4.0,
+                "y": {
+                  "from_node": "arrayelement7"
+                }
+              }
+            },
+            "add3": {
+              "process_id": "add",
               "arguments": {
                 "x": {
                   "from_node": "arrayelement8"
@@ -468,28 +464,26 @@
               "process_id": "divide",
               "arguments": {
                 "x": {
-                  "from_node": "arrayelement8"
+                  "from_node": "multiply5"
                 },
                 "y": {
-                  "from_node": "arrayelement7"
+                  "from_node": "add3"
                 }
               }
             },
-            "arraycreate3": {
-              "process_id": "array_create",
+            "arraymodify1": {
+              "process_id": "array_modify",
               "arguments": {
-                "data": [
+                "data": {
+                  "from_parameter": "data"
+                },
+                "index": 2,
+                "values": [
                   {
-                    "from_node": "arrayelement7"
-                  },
-                  {
-                    "from_node": "arrayelement8"
+                    "from_node": "subtract3"
                   },
                   {
                     "from_node": "divide3"
-                  },
-                  {
-                    "from_node": "subtract3"
                   },
                   {
                     "from_node": "divide4"
@@ -510,11 +504,11 @@
         },
         "dimension": "bands",
         "target": [
-          "VV",
           "VH",
-          "RVI",
+          "VV",
           "VHVVD",
-          "VHVVR"
+          "VHVVR",
+          "DpRVIVV"
         ]
       }
     },
@@ -539,9 +533,11 @@
                 },
                 "probabilities": [
                   0.02,
+                  0.05,
                   0.25,
                   0.5,
                   0.75,
+                  0.95,
                   0.98
                 ]
               }
@@ -603,6 +599,39 @@
                 }
               }
             },
+            "quantiles4": {
+              "process_id": "quantiles",
+              "arguments": {
+                "data": {
+                  "from_parameter": "data"
+                },
+                "probabilities": [
+                  0.95
+                ]
+              }
+            },
+            "quantiles5": {
+              "process_id": "quantiles",
+              "arguments": {
+                "data": {
+                  "from_parameter": "data"
+                },
+                "probabilities": [
+                  0.05
+                ]
+              }
+            },
+            "subtract5": {
+              "process_id": "subtract",
+              "arguments": {
+                "x": {
+                  "from_node": "quantiles4"
+                },
+                "y": {
+                  "from_node": "quantiles5"
+                }
+              }
+            },
             "arrayconcat1": {
               "process_id": "array_concat",
               "arguments": {
@@ -621,6 +650,9 @@
                   },
                   {
                     "from_node": "subtract4"
+                  },
+                  {
+                    "from_node": "subtract5"
                   }
                 ]
               },
@@ -639,51 +671,66 @@
         },
         "dimension": "bands",
         "target": [
-          "VV_p2",
-          "VV_p25",
-          "VV_median",
-          "VV_p75",
-          "VV_p98",
-          "VV_mean",
-          "VV_sd",
-          "VV_sum",
-          "VV_iqr",
           "VH_p2",
+          "VH_p5",
           "VH_p25",
           "VH_median",
           "VH_p75",
+          "VH_p95",
           "VH_p98",
           "VH_mean",
           "VH_sd",
           "VH_sum",
           "VH_iqr",
-          "RVI_p2",
-          "RVI_p25",
-          "RVI_median",
-          "RVI_p75",
-          "RVI_p98",
-          "RVI_mean",
-          "RVI_sd",
-          "RVI_sum",
-          "RVI_iqr",
+          "VH_iqr0595",
+          "VV_p2",
+          "VV_p5",
+          "VV_p25",
+          "VV_median",
+          "VV_p75",
+          "VV_p95",
+          "VV_p98",
+          "VV_mean",
+          "VV_sd",
+          "VV_sum",
+          "VV_iqr",
+          "VV_iqr0595",
           "VHVVD_p2",
+          "VHVVD_p5",
           "VHVVD_p25",
           "VHVVD_median",
           "VHVVD_p75",
+          "VHVVD_p95",
           "VHVVD_p98",
           "VHVVD_mean",
           "VHVVD_sd",
           "VHVVD_sum",
           "VHVVD_iqr",
+          "VHVVD_iqr0595",
           "VHVVR_p2",
+          "VHVVR_p5",
           "VHVVR_p25",
           "VHVVR_median",
           "VHVVR_p75",
+          "VHVVR_p95",
           "VHVVR_p98",
           "VHVVR_mean",
           "VHVVR_sd",
           "VHVVR_sum",
-          "VHVVR_iqr"
+          "VHVVR_iqr",
+          "VHVVR_iqr0595",
+          "DpRVIVV_p2",
+          "DpRVIVV_p5",
+          "DpRVIVV_p25",
+          "DpRVIVV_median",
+          "DpRVIVV_p75",
+          "DpRVIVV_p95",
+          "DpRVIVV_p98",
+          "DpRVIVV_mean",
+          "DpRVIVV_sd",
+          "DpRVIVV_sum",
+          "DpRVIVV_iqr",
+          "DpRVIVV_iqr0595"
         ]
       }
     },
@@ -691,48 +738,63 @@
       "process_id": "filter_bands",
       "arguments": {
         "bands": [
-          "VV_p2",
-          "VV_p25",
-          "VV_median",
-          "VV_p75",
-          "VV_p98",
-          "VV_mean",
-          "VV_sd",
-          "VV_iqr",
           "VH_p2",
+          "VH_p5",
           "VH_p25",
           "VH_median",
           "VH_p75",
+          "VH_p95",
           "VH_p98",
           "VH_mean",
           "VH_sd",
           "VH_iqr",
-          "RVI_p2",
-          "RVI_p25",
-          "RVI_median",
-          "RVI_p75",
-          "RVI_p98",
-          "RVI_mean",
-          "RVI_sd",
-          "RVI_sum",
-          "RVI_iqr",
+          "VH_iqr0595",
+          "VV_p2",
+          "VV_p5",
+          "VV_p25",
+          "VV_median",
+          "VV_p75",
+          "VV_p95",
+          "VV_p98",
+          "VV_mean",
+          "VV_sd",
+          "VV_iqr",
+          "VV_iqr0595",
           "VHVVD_p2",
+          "VHVVD_p5",
           "VHVVD_p25",
           "VHVVD_median",
           "VHVVD_p75",
+          "VHVVD_p95",
           "VHVVD_p98",
           "VHVVD_mean",
           "VHVVD_sd",
           "VHVVD_iqr",
+          "VHVVD_iqr0595",
           "VHVVR_p2",
+          "VHVVR_p5",
           "VHVVR_p25",
           "VHVVR_median",
           "VHVVR_p75",
+          "VHVVR_p95",
           "VHVVR_p98",
           "VHVVR_mean",
           "VHVVR_sd",
           "VHVVR_sum",
-          "VHVVR_iqr"
+          "VHVVR_iqr",
+          "VHVVR_iqr0595",
+          "DpRVIVV_p2",
+          "DpRVIVV_p5",
+          "DpRVIVV_p25",
+          "DpRVIVV_median",
+          "DpRVIVV_p75",
+          "DpRVIVV_p95",
+          "DpRVIVV_p98",
+          "DpRVIVV_mean",
+          "DpRVIVV_sd",
+          "DpRVIVV_sum",
+          "DpRVIVV_iqr",
+          "DpRVIVV_iqr0595"
         ],
         "data": {
           "from_node": "renamelabels2"

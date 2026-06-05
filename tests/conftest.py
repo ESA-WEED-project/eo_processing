@@ -64,7 +64,7 @@ INTEGRATION_JOB_OPTIONS = {
       "python-memory": "4000m",
       "max-executors": 20,
       "udf-dependency-archives": [
-         "https://s3.waw3-1.cloudferro.com/swift/v1/project_dependencies/onnx_deps_python311.zip#onnx_deps"
+         "https://s3.waw3-1.cloudferro.com/project_dependencies/onnx_deps_python311.zip#onnx_deps"
          ]}
 
 
@@ -187,7 +187,7 @@ def compare_job_info(job_info: dict, filename: str, as_benchmark_scenario: bool=
         }
 
     """
-    if new groundtruth pg is needed use part below: 
+    #if new groundtruth pg is needed use part below: 
     with open(groundtruth_filepath, "w") as fp:
         json.dump(result,fp, indent=2)
     """

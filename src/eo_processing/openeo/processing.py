@@ -1,6 +1,5 @@
 from __future__ import annotations
 import itertools
-from ast import literal_eval
 import openeo
 from openeo.rest.datacube import DataCube
 from openeo.extra.spectral_indices import append_indices, compute_indices
@@ -70,6 +69,7 @@ def radar_indices(
     db_rescaling = processing_options.get("S1_db_rescale", True)
     append = processing_options.get("append", True)
     chunk_size = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
+    platform = "sentinel1"
 
     # convert input DataCube into float (db)
     if db_rescaling:
@@ -80,69 +80,14 @@ def radar_indices(
                  (20. * x[1].log(base=10)) - 83.])
         )
 
-    # calculate all VI's manual since Spectral_Indices doesnt know the SENTINEL_1_GRD catalogID
-    # TODO: activate the automatic calculation as below commented area
-    if append:
-        def compute_indices1(bands):
-            VV = bands["VV"]
-            VH = bands["VH"]
-            RVI = (4 * VH) / (VV + VH)
-            VHVVD = VH - VV
-            VHVVR = VH / VV
-            return array_create([VV, VH, RVI, VHVVD, VHVVR])
-
-        vi_cube = input_cube.apply_dimension(
-            dimension="bands",
-            process=compute_indices1,
-            context={"parallel": True,
-                     "TileSize": chunk_size}
-        ).rename_labels("bands", ["VV", "VH", "RVI", "VHVVD", "VHVVR"])
-    else:
-        def compute_indices2(bands):
-            VV = bands["VV"]
-            VH = bands["VH"]
-            RVI = (4 * VH) / (VV + VH)
-            VHVVD = VH - VV
-            VHVVR = VH / VV
-            return array_create([RVI, VHVVD, VHVVR])
-
-        vi_cube = input_cube.apply_dimension(
-            dimension="bands",
-            process=compute_indices2,
-            context={"parallel": True,
-                     "TileSize": chunk_size}
-        ).rename_labels("bands", ["RVI", "VHVVD", "VHVVR"])
-
-    """
-    # check the list if RVI is in which is not in Awesome Package
-    RVI_flag = False
-    if 'RVI' in vi_list:
-        RVI_flag = True
-        vi_list.remove('RVI')
-
-        def compute_indices(bands):
-            VV = bands["VV"]
-            VH = bands["VH"]
-            RVI = (4 * VH) / (VV + VH)
-            return array_create([RVI])
-
-        cube_RVI = input_cube.apply_dimension(
-            dimension="bands",
-            process=compute_indices,
-            context={"parallel": True,
-                     "TileSize": 128}
-        ).rename_labels("bands", ["RVI"])
 
     # calculate VI's
     if append:
-        vi_cube = append_indices(datacube=input_cube, indices=vi_list)
+        vi_cube = append_indices(datacube=input_cube, indices=vi_list, platform=platform)
     else:
-        vi_cube = compute_indices(datacube=input_cube, indices=vi_list, append=False)
+        vi_cube = compute_indices(datacube=input_cube, indices=vi_list, platform=platform, append=False)
 
-    # add RVI if needed
-    if RVI_flag:
-        vi_cube = vi_cube.merge_cubes(cube_RVI)
-    """
+
     return vi_cube
 
 def generate_S1_indices(

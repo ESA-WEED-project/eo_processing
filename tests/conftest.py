@@ -187,7 +187,7 @@ def compare_job_info(job_info: dict, filename: str, as_benchmark_scenario: bool=
         }
 
     """
-    if new groundtruth pg is needed use part below: 
+    #if new groundtruth pg is needed use part below: 
     with open(groundtruth_filepath, "w") as fp:
         json.dump(result,fp, indent=2)
     """

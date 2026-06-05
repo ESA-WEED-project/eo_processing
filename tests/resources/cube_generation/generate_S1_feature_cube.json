@@ -394,10 +394,6 @@
     "applydimension3": {
       "process_id": "apply_dimension",
       "arguments": {
-        "context": {
-          "parallel": true,
-          "TileSize": 128
-        },
         "data": {
           "from_node": "applydimension2"
         },
@@ -410,7 +406,7 @@
                 "data": {
                   "from_parameter": "data"
                 },
-                "label": "VV"
+                "index": 0
               }
             },
             "arrayelement8": {
@@ -419,20 +415,11 @@
                 "data": {
                   "from_parameter": "data"
                 },
-                "label": "VH"
+                "index": 1
               }
             },
-            "multiply5": {
-              "process_id": "multiply",
-              "arguments": {
-                "x": 4,
-                "y": {
-                  "from_node": "arrayelement8"
-                }
-              }
-            },
-            "add3": {
-              "process_id": "add",
+            "subtract3": {
+              "process_id": "subtract",
               "arguments": {
                 "x": {
                   "from_node": "arrayelement7"
@@ -446,15 +433,24 @@
               "process_id": "divide",
               "arguments": {
                 "x": {
-                  "from_node": "multiply5"
+                  "from_node": "arrayelement7"
                 },
                 "y": {
-                  "from_node": "add3"
+                  "from_node": "arrayelement8"
                 }
               }
             },
-            "subtract3": {
-              "process_id": "subtract",
+            "multiply5": {
+              "process_id": "multiply",
+              "arguments": {
+                "x": 4.0,
+                "y": {
+                  "from_node": "arrayelement7"
+                }
+              }
+            },
+            "add3": {
+              "process_id": "add",
               "arguments": {
                 "x": {
                   "from_node": "arrayelement8"
@@ -468,28 +464,26 @@
               "process_id": "divide",
               "arguments": {
                 "x": {
-                  "from_node": "arrayelement8"
+                  "from_node": "multiply5"
                 },
                 "y": {
-                  "from_node": "arrayelement7"
+                  "from_node": "add3"
                 }
               }
             },
-            "arraycreate3": {
-              "process_id": "array_create",
+            "arraymodify1": {
+              "process_id": "array_modify",
               "arguments": {
-                "data": [
+                "data": {
+                  "from_parameter": "data"
+                },
+                "index": 2,
+                "values": [
                   {
-                    "from_node": "arrayelement7"
-                  },
-                  {
-                    "from_node": "arrayelement8"
+                    "from_node": "subtract3"
                   },
                   {
                     "from_node": "divide3"
-                  },
-                  {
-                    "from_node": "subtract3"
                   },
                   {
                     "from_node": "divide4"
@@ -510,11 +504,11 @@
         },
         "dimension": "bands",
         "target": [
-          "VV",
           "VH",
-          "RVI",
+          "VV",
           "VHVVD",
-          "VHVVR"
+          "VHVVR",
+          "DpRVIVV"
         ]
       }
     },
@@ -677,18 +671,6 @@
         },
         "dimension": "bands",
         "target": [
-          "VV_p2",
-          "VV_p5",
-          "VV_p25",
-          "VV_median",
-          "VV_p75",
-          "VV_p95",
-          "VV_p98",
-          "VV_mean",
-          "VV_sd",
-          "VV_sum",
-          "VV_iqr",
-          "VV_iqr0595",
           "VH_p2",
           "VH_p5",
           "VH_p25",
@@ -701,18 +683,18 @@
           "VH_sum",
           "VH_iqr",
           "VH_iqr0595",
-          "RVI_p2",
-          "RVI_p5",
-          "RVI_p25",
-          "RVI_median",
-          "RVI_p75",
-          "RVI_p95",
-          "RVI_p98",
-          "RVI_mean",
-          "RVI_sd",
-          "RVI_sum",
-          "RVI_iqr",
-          "RVI_iqr0595",
+          "VV_p2",
+          "VV_p5",
+          "VV_p25",
+          "VV_median",
+          "VV_p75",
+          "VV_p95",
+          "VV_p98",
+          "VV_mean",
+          "VV_sd",
+          "VV_sum",
+          "VV_iqr",
+          "VV_iqr0595",
           "VHVVD_p2",
           "VHVVD_p5",
           "VHVVD_p25",
@@ -736,7 +718,19 @@
           "VHVVR_sd",
           "VHVVR_sum",
           "VHVVR_iqr",
-          "VHVVR_iqr0595"
+          "VHVVR_iqr0595",
+          "DpRVIVV_p2",
+          "DpRVIVV_p5",
+          "DpRVIVV_p25",
+          "DpRVIVV_median",
+          "DpRVIVV_p75",
+          "DpRVIVV_p95",
+          "DpRVIVV_p98",
+          "DpRVIVV_mean",
+          "DpRVIVV_sd",
+          "DpRVIVV_sum",
+          "DpRVIVV_iqr",
+          "DpRVIVV_iqr0595"
         ]
       }
     },
@@ -744,17 +738,6 @@
       "process_id": "filter_bands",
       "arguments": {
         "bands": [
-          "VV_p2",
-          "VV_p5",
-          "VV_p25",
-          "VV_median",
-          "VV_p75",
-          "VV_p95",
-          "VV_p98",
-          "VV_mean",
-          "VV_sd",
-          "VV_iqr",
-          "VV_iqr0595",
           "VH_p2",
           "VH_p5",
           "VH_p25",
@@ -766,18 +749,17 @@
           "VH_sd",
           "VH_iqr",
           "VH_iqr0595",
-          "RVI_p2",
-          "RVI_p5",
-          "RVI_p25",
-          "RVI_median",
-          "RVI_p75",
-          "RVI_p95",
-          "RVI_p98",
-          "RVI_mean",
-          "RVI_sd",
-          "RVI_sum",
-          "RVI_iqr",
-          "RVI_iqr0595",
+          "VV_p2",
+          "VV_p5",
+          "VV_p25",
+          "VV_median",
+          "VV_p75",
+          "VV_p95",
+          "VV_p98",
+          "VV_mean",
+          "VV_sd",
+          "VV_iqr",
+          "VV_iqr0595",
           "VHVVD_p2",
           "VHVVD_p5",
           "VHVVD_p25",
@@ -800,7 +782,19 @@
           "VHVVR_sd",
           "VHVVR_sum",
           "VHVVR_iqr",
-          "VHVVR_iqr0595"
+          "VHVVR_iqr0595",
+          "DpRVIVV_p2",
+          "DpRVIVV_p5",
+          "DpRVIVV_p25",
+          "DpRVIVV_median",
+          "DpRVIVV_p75",
+          "DpRVIVV_p95",
+          "DpRVIVV_p98",
+          "DpRVIVV_mean",
+          "DpRVIVV_sd",
+          "DpRVIVV_sum",
+          "DpRVIVV_iqr",
+          "DpRVIVV_iqr0595"
         ],
         "data": {
           "from_node": "renamelabels2"

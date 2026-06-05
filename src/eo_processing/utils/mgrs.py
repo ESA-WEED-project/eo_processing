@@ -5,6 +5,15 @@ import pyproj
 from math import trunc, floor
 from typing import Union, Tuple
 import warnings
+#constants
+ZONE_LETTERS = "CDEFGHJKLMNPQRSTUVWXX"
+# 100km in meter
+_100km = 100e3
+# 100 km sub-grid easting (‘e’) letters repeat every third zone
+_Le100k = 'ABCDEFGH', 'JKLMNPQR', 'STUVWXYZ'
+# 100 km sub-grid northing (‘n’) letters repeat every other zone
+_Ln100k = 'ABCDEFGHJKLMNPQRSTUV', 'FGHJKLMNPQRSTUVABCDE'
+
 
 def latitude_to_zone_letter(latitude: float) -> Union[str, None]:
     """
@@ -15,7 +24,7 @@ def latitude_to_zone_letter(latitude: float) -> Union[str, None]:
     :return: The UTM zone letter corresponding to the latitude if within the valid range.
              If the latitude is outside the valid range (-80 to 84), returns None.
     """
-    ZONE_LETTERS = "CDEFGHJKLMNPQRSTUVWXX"
+
     if -80 <= latitude <= 84:
         return ZONE_LETTERS[int(latitude + 80) >> 3]
     else:
@@ -63,13 +72,6 @@ def MGRS_100k_letters(easting: float, northing:float, zone_number: int) -> str:
     :param zone_number: The UTM zone number (1 to 60).
     :return: A two-character string representing the 100-km grid square designator.
     """
-    ## ini some constants
-    # 100km in meter
-    _100km = 100e3
-    # 100 km sub-grid easting (‘e’) letters repeat every third zone
-    _Le100k = 'ABCDEFGH', 'JKLMNPQR', 'STUVWXYZ'
-    # 100 km sub-grid northing (‘n’) letters repeat every other zone
-    _Ln100k = 'ABCDEFGHJKLMNPQRSTUV', 'FGHJKLMNPQRSTUVABCDE'
 
     ## get the correct combination out of easting and northing value
     E, _ = divmod(easting, _100km)

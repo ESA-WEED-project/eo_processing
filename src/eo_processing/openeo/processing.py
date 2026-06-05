@@ -1,5 +1,6 @@
 from __future__ import annotations
 import itertools
+from ast import literal_eval
 import openeo
 from openeo.rest.datacube import DataCube
 from openeo.extra.spectral_indices import append_indices, compute_indices
@@ -459,7 +460,7 @@ def generate_nonEO_feature_cube(
 
     chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
 
-    for collection, band, reproj, year in collections_list:
+    for collection, bands, reproj, year in collections_list:
         #first need to distinguish between STAC and collection
         #we assume that they will allways be an url type of link in contrary with a collections which should just be a name
         if temporal_extent:
@@ -468,16 +469,16 @@ def generate_nonEO_feature_cube(
         isSTAC = STAC_url is not None
 
         #secondly we know there are some specific case of reprojection EG DEM should be bilinear iso near
-        isDEM = "DEM" in band
+        isDEM = "DEM" in bands
         if reproj:
             reprojection_method = reproj
         else:
             reprojection_method = "near"
 
-        bands = [band]
         # load the features from public STAC
+
         if isSTAC:
-            if bands == [None]:
+            if bands == []:
                 bands = metadata_from_stac(STAC_url).band_names
             #to be checked does the temporal filtering work on eg WERN
             nonEO_feature_cube = connection.load_stac(STAC_url,
@@ -488,7 +489,7 @@ def generate_nonEO_feature_cube(
 
         else:
             #if openeo the -v1 should be split off of the collection
-            if bands == [None]:
+            if bands == []:
                 nonEO_feature_cube = connection.load_collection(collection.split('-')[0],
                                                                 temporal_extent=temporal_extent)
                 nonEO_feature_cube.result_node().update_arguments(featureflags={'tilesize': chunk_size})

@@ -240,7 +240,7 @@
         "noise_removal": true,
         "options": {
           "implementation_version": "2",
-          "tile_size": 256,
+          "tile_size": 128,
           "otb_memory": 1024,
           "debug": false,
           "elev_geoid": "/opt/openeo-vito-aux-data/egm96.tif"

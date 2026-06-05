@@ -774,10 +774,7 @@ class SQL_storage:
         try:
             # get connection to server
             print("** Establish connection to the database ...")
-            if self.hadoop:
-                host = self.sql_credentials['host_hadoop']
-            else :
-                host = self.sql_credentials['host']
+            host = self.sql_credentials['host']
 
             conn = psycopg.connect(dbname=self.sql_credentials['dbname'],
                                    user=self.sql_credentials['schema'],

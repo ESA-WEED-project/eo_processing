@@ -27,21 +27,31 @@ TS_INTERVAL: str = 'dekad'
 S2_TEMPORAL_REDUCER: str = 'median'
 S1_TEMPORAL_REDUCER: str = 'mean'
 TIME_INTERPOLATION: bool = False
-VI_LIST: List[str] = ['NDVI',
-           'AVI',
-           'CIRE',
-           'NIRv',
-           'NDMI',
-           'NDWI',
-           'BLFEI',
-           'MNDWI',
-           'NDVIMNDWI',
-           'S2WI',
-           'S2REP',
-           'IRECI']
+VI_LIST: List[str] = [
+            'ABDI1',
+            'ABDI2',
+            'AWEInsh',
+            'AVI',
+            'BLFEI',
+            'CIRE',
+            'EVI',
+            'IRECI',
+            'MBWI',
+            'MNDWI',
+            'MNDVI',
+            'NDMI',
+            'NDVI',
+            'NDVIMNDWI',
+            'NDWI',
+            'NMDI',
+            'NIRv',
+            'S2WI',
+            'S2REP',
+            'WRI'
+            ]
 RADAR_LIST: List[str] = ['VHVVD',
               'VHVVR',
-              'RVI']
+              'DpRVIVV']
 S2_SCALING: List = [0, 10000, 0, 1.0]
 # ---------------------------------------------------
 # Planet Processing options
@@ -66,7 +76,8 @@ OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, str] = {
     "executor-memoryOverhead": "2G",
     "executor-cores": 2,
     "max-executors": 50,
-    "soft-errors": "true"
+    "soft-errors": "true",
+    "stac-version":"1.1"
 }
 
 OPENEO_EXTRACT_CREO_JOB_OPTIONS: Dict[str, str] = {
@@ -108,12 +119,12 @@ OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
 }
 
 OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
-    "driver-memory": "2G",
-    "driver-memoryOverhead": "1G",
+    "driver-memory": "4G",
+    "driver-memoryOverhead": "2G",
     "driver-cores": 1,
-    "executor-memory": "2000m",
-    "executor-memoryOverhead": "256m",
-    "python-memory": "2500m",
+    "executor-memory": "2G",
+    "executor-memoryOverhead": "2G",
+    "python-memory": "disable",
     "executor-cores": 1,
     "max-executors": 25,
     "logging-threshold": "info"

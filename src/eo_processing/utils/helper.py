@@ -13,7 +13,7 @@ import hashlib
 from datetime import datetime
 import json
 from ast import literal_eval
-from typing import Union, Dict, List, TYPE_CHECKING
+from typing import Union, Dict, List, TYPE_CHECKING, Optional
 try:
     import importlib.resources as importlib_resources
 except:
@@ -21,39 +21,65 @@ except:
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import openEO_bbox_format
+    from eo_processing.utils.storage import WEED_storage
 
-def init_connection(provider: str) -> openeo.Connection :
+def init_connection(provider: str, storage: Optional[WEED_storage]=None) -> openeo.Connection :
     """
-    Initializes a connection to the specified OpenEO backend provider and
-    authenticates the connection using OpenID Connect. Supports connections
-    to Terrascope, Development, CDSE, CDSE-Staging, and a standard OpenEO
-    entry point.
 
-    :param provider: The name of the OpenEO backend provider. Supported values
-                     are 'terrascope', 'development', 'cdse', 'cdse-staging',
-                     or other for default OpenEO connection.
-    :return: An authenticated OpenEO connection to the specified provider.
+    Initializes a connection to an OpenEO backend based on the specified provider. Supports
+    two modes of authentication: OpenID Connect and client credentials when a storage object
+    is provided. Each provider corresponds to a specific backend URL.
 
-    :raises ValueError: If the provider specified does not match the supported
-                        categories and a backend-specific connection setup is
-                        unavailable.
+    :param provider: (str) The name of the OpenEO backend provider. Supported values include:
+        - 'terrascope': Connects to the VITO backend.
+        - 'development': Connects to the VITO development backend.
+        - 'cdse': Connects to the Copernicus Data Space Ecosystem backend.
+        - 'cdse-staging': Connects to the staging environment of the Copernicus Data Space
+          Ecosystem backend.
+        - 'cdse-staging-waw4-1': Connects to the staging WAW4-1 instance.
+        If an unsupported provider is specified and no storage is provided, a connection is
+        established with the default "https://openeo.cloud" entry point.
+
+    :param storage: (Optional[WEED_storage]) An optional storage object containing
+        service account credentials necessary for client credentials authentication. When
+        provided, attempts to authenticate using the storage's `CLIENT_ID` and `CLIENT_SECRET`.
+        Supported providers with this authentication mode include:
+        - 'cdse'
+        - 'cdse-staging'
+        - 'cdse-staging-waw4-1'
+
+    :return: An instance of `openeo.Connection` representing the connection to the selected
+        backend.
     """
-    if provider == 'terrascope':
-        connection = openeo.connect("https://openeo.vito.be").authenticate_oidc()
-    elif provider == 'development':
-        connection = openeo.connect("https://openeo-dev.vito.be").authenticate_oidc()
-    elif provider == 'cdse':
-        connection = openeo.connect(url="openeo.dataspace.copernicus.eu").authenticate_oidc()
-    elif provider == 'cdse-staging':
-        connection = openeo.connect(url='openeo-staging.dataspace.copernicus.eu').authenticate_oidc()
-    elif provider == 'cdse-staging-waw4-1':
-        connection = openeo.connect(url='https://openeo.stag.waw4-1.openeo-int.v1.dataspace.copernicus.eu').authenticate_oidc()
+    if storage is None:
+        if provider == 'terrascope':
+            url = 'https://openeo.vito.be'
+        elif provider == 'development':
+            url = 'https://openeo-dev.vito.be'
+        elif provider == 'cdse':
+            url = 'https://openeo.dataspace.copernicus.eu'
+        elif provider == 'cdse-staging':
+            url = 'https://openeo-staging.dataspace.copernicus.eu'
+        elif provider == 'cdse-staging-waw4-1':
+            url = 'https://openeo.stag.waw4-1.openeo-int.v1.dataspace.copernicus.eu'
+        else:
+            print('currently no specific connections to backends like creodias and sentinelhub are setup.')
+            print('use standard entry point')
+            url = 'https://openeo.cloud'
+        connection = openeo.connect(url).authenticate_oidc()
     else:
-        print('currently no specific connections to backends like creodias and sentinelhub are setup.')
-        print('use standard entry point')
-        connection = openeo.connect("https://openeo.cloud").authenticate_oidc()
+        if provider == 'cdse':
+            url = 'https://openeo.dataspace.copernicus.eu'
+        elif provider == 'cdse-staging':
+            url = 'https://openeo-staging.dataspace.copernicus.eu'
+        elif provider == 'cdse-staging-waw4-1':
+            url = 'https://openeo.stag.waw4-1.openeo-int.v1.dataspace.copernicus.eu'
+        else:
+            raise ValueError('currently no other backends are setup for WEED service account. Choose from cdse, cdse-staging, cdse-staging-waw4-1.')
+        connection = openeo.connect(url=url).authenticate_oidc_client_credentials(
+            client_id=storage.service_account['CLIENT_ID'],
+            client_secret=storage.service_account['CLIENT_SECRET'])
     return connection
-
 
 def location_visu(aoi_object: openEO_bbox_format | gpd.GeoDataFrame, zoom: bool = False, region: str = 'EU',
                   label: bool = True) -> None:

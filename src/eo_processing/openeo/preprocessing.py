@@ -1,6 +1,5 @@
 from __future__ import annotations
 import openeo
-from openeo import DataCube
 from openeo.processes import array_create, if_, is_nodata, power, array_contains
 from openeo.rest.datacube import DataCube
 

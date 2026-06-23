@@ -310,7 +310,8 @@ def generate_S2_feature_cube(
 
     # add the nobs_perc_band to the cube if needed
     if get_NOBSperc:
-        features_cube = features_cube.merge_cubes(nobs_perc_band)
+        if nobs_perc_band is not None:
+            features_cube = features_cube.merge_cubes(nobs_perc_band)
 
     return features_cube
 
@@ -383,7 +384,8 @@ def generate_master_feature_cube(
 
     # add the nobs_perc_band to the cube if needed
     if get_NOBSperc:
-        features_cube = features_cube.merge_cubes(nobs_perc_band)
+        if nobs_perc_band is not None:
+            features_cube = features_cube.merge_cubes(nobs_perc_band)
 
     return features_cube
 

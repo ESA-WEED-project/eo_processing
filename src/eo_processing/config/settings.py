@@ -20,6 +20,7 @@ S2_BANDS: List[str] = ["B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "
 S2_MAX_CLOUD_COVER: int = 95
 MASKING_ALGO: str = 'mask_scl_dilation'
 APPLY_CLOUD_MASK: bool = True
+GET_NOBS: bool = False
 S2_TILEID_LIST: Optional[List[str]] = None
 SKIP_CHECK_S1: bool = False
 SKIP_CHECK_S2: bool = False
@@ -68,7 +69,7 @@ PLANET_SCALING: List = [0, 10000, 0, 1.0]
 
 # ---------------------------------------------------
 # Job options for OpenEO
-OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, str] = {
+OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "8G",
     "driver-cores": 2,
@@ -80,7 +81,7 @@ OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, str] = {
     "stac-version":"1.1"
 }
 
-OPENEO_EXTRACT_CREO_JOB_OPTIONS: Dict[str, str] = {
+OPENEO_EXTRACT_CREO_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "2G",
     "driver-cores": 1,
@@ -91,7 +92,7 @@ OPENEO_EXTRACT_CREO_JOB_OPTIONS: Dict[str, str] = {
     "max-executors": 200
 }
 
-OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, str] = {
+OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "driver-memory": "8G",
     "driver-memoryOverhead": "5G",
     "driver-cores": 1,
@@ -103,7 +104,7 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "logging-threshold": "info"
 }
 
-OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
+OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "driver-memory": "1000m",
     "driver-memoryOverhead": "1000m",
     "driver-cores": 1,
@@ -118,7 +119,7 @@ OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, str] = {
     ]
 }
 
-OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
+OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "2G",
     "driver-cores": 1,
@@ -130,7 +131,7 @@ OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
     "logging-threshold": "info"
 }
 
-OPENEO_CUBEEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, str] = {
+OPENEO_CUBEEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "4G",
     "driver-cores": 1,
@@ -168,7 +169,7 @@ _CDSE_COLLECTIONS: Dict[str, str] = {
     'S1_collection': "SENTINEL1_GRD"
 }
 
-def _get_default_job_options() -> Dict[str, str]:
+def _get_default_job_options() -> Dict[str, Union[str, int, float, List]]:
     """
     Retrieves the default job options for OpenEO extract operations.
 
@@ -181,7 +182,7 @@ def _get_default_job_options() -> Dict[str, str]:
     """
     return OPENEO_EXTRACT_JOB_OPTIONS.copy()
 
-def get_job_options(provider: str = None, task: str = 'raw_extraction') -> Dict[str, str]:
+def get_job_options(provider: str = None, task: str = 'raw_extraction') -> Dict[str, Union[str, int, float, List]]:
     """
     Retrieve job options based on the specified provider and task.
 
@@ -288,6 +289,7 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
             "skip_check_S1": SKIP_CHECK_S1,
             "skip_check_S2": SKIP_CHECK_S2,
             "apply_cloud_mask": APPLY_CLOUD_MASK,
+            "get_NOBSperc": GET_NOBS,
             "openeo_chunk_size": CHUNK_SIZE,
         }
     elif (task == 'feature_generation') or (task == 'vi_generation'):
@@ -307,6 +309,7 @@ def get_standard_processing_options(provider: str, task: str = 'raw_extraction')
             "skip_check_S1": SKIP_CHECK_S1,
             "skip_check_S2": SKIP_CHECK_S2,
             "apply_cloud_mask": APPLY_CLOUD_MASK,
+            "get_NOBSperc": GET_NOBS,
             "optical_vi_list" : VI_LIST,
             "radar_vi_list" : RADAR_LIST,
             "S2_scaling" : S2_SCALING,
@@ -325,62 +328,57 @@ def get_advanced_options(provider: str, s1_orbitdirection: Optional[str] = S1_OR
                          S1_temporal_reducer: str = S1_TEMPORAL_REDUCER, slc_masking: Optional[str] = MASKING_ALGO,
                          S2_bands: List[str] = S2_BANDS, s2_tileid_list: Optional[List[str]] = S2_TILEID_LIST,
                          skip_check_S1: bool = SKIP_CHECK_S1, skip_check_S2: bool = SKIP_CHECK_S2,
-                         apply_cloud_mask: bool = APPLY_CLOUD_MASK, S2_max_cloud_cover: int = S2_MAX_CLOUD_COVER,
+                         apply_cloud_mask: bool = APPLY_CLOUD_MASK, get_NOBSperc: bool = GET_NOBS,
+                         S2_max_cloud_cover: int = S2_MAX_CLOUD_COVER,
                          optical_vi_list: List[str] = VI_LIST, radar_vi_list: List[str] = RADAR_LIST,
                          S2_scaling: List[int | float] = S2_SCALING, S1_db_rescale: bool = True,
                          append: bool = True) -> Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]:
     """
-    Generate a dictionary of advanced options for processing satellite imagery.
+    Constructs a dictionary of advanced processing options for remote sensing data.
 
-    This function validates input parameters and prepares a dictionary of options
-    required for processing satellite imagery data. Validation is applied for
-    various parameters to ensure that the provided values conform to the expected
-    formats or constraints. The function checks for valid values for key options
-    like satellite orbit direction, target coordinate reference system (CRS),
-    resolution, and others before constructing the dictionary.
+    This function validates input parameters and generates an options dictionary
+    tailored for processing remote sensing datasets, including Sentinel-1 and
+    Sentinel-2 data. It handles settings like temporal reducers, orbit directions,
+    spatial resolutions, and others. Input validation ensures proper parameter
+    types and value ranges.
 
-    :param provider: The provider of satellite data.
-    :param s1_orbitdirection: Direction of Sentinel-1 pass, can be 'ASCENDING',
-                              'DESCENDING' or None.
-    :param target_crs: An integer representing the target coordinate reference
-                       system (CRS).
-    :param resolution: The spatial resolution of the output in integer or float
-                       format.
-    :param ts_interpolation: Boolean indicating whether to apply linear time-series
-                             interpolation.
-    :param ts_interval: Interval for time series aggregation (temporal binning). Accepted values
-                        are 'day', 'week', 'dekad', 'month', 'season', 'year', or
-                        None.
-    :param S2_temporal_reducer: Method for reducing temporal data for Sentinel-2.
-                                Valid options include 'median', 'mean', 'max',
-                                'min', 'first', 'last', 'product', 'sd', 'sum',
-                                or 'variance'.
-    :param S1_temporal_reducer: Method for reducing temporal data for Sentinel-1.
-                                Valid options include 'median', 'mean', 'max',
-                                'min', 'first', 'last', 'product', 'sd', 'sum',
-                                or 'variance'.
-    :param slc_masking: Masking approach to be applied. Valid options are
-                        'mask_scl_dilation', 'satio', or None.
-    :param S2_bands: List of selected Sentinel-2 reflectance bands.
-    :param s2_tileid_list: Optional list of Sentinel-2 tiles for processing. Can
-                           be None if tiles are not specified.
-    :param skip_check_S1: Boolean indicating whether to skip validation checks
-                          for Sentinel-1 data.
-    :param skip_check_S2: Boolean indicating whether to skip validation checks
-                          for Sentinel-2 data.
-    :param apply_cloud_mask: Boolean indicating whether to apply cloud masking or to add it as own band.
-    :param S2_max_cloud_cover: Maximum allowable cloud cover percentage for
-                               Sentinel-2 data. Acceptable values are integers
-                               between 0 and 100.
-    :param optical_vi_list: List of selected vegetation indices for optical data.
-    :param radar_vi_list: List of selected vegetation indices for radar data.
-    :param S2_scaling: List of scaling factors to be applied to Sentinel-2 data.
-    :param S1_db_rescale: Boolean controlling whether Sentinel-1 data must be
-                          rescaled in decibels.
-    :param append: Boolean indicating whether to append the VI's to the reflectance cube or to replace them.
-    :param openeo_chunk_size: Chunk size for OpenEO processing.
+    :param provider: (str) The data provider identifier.
+    :param s1_orbitdirection: (Optional[str]) The orbit direction for Sentinel-1
+        data, can be 'ASCENDING', 'DESCENDING', or None.
+    :param target_crs: (Optional[int]) Target coordinate reference system code.
+    :param resolution: (int or float) Spatial resolution for the output data.
+    :param ts_interpolation: (bool) Whether to enable time-series interpolation.
+    :param ts_interval: (Optional[str]) Time-series interval, allowed values:
+        'day', 'week', 'dekad', 'month', 'season', 'year', or None.
+    :param S2_temporal_reducer: (str) Temporal reducer applied to Sentinel-2 data,
+        permitted values: 'median', 'mean', 'max', 'min', 'first', 'last',
+        'product', 'sd', 'sum', 'variance'.
+    :param openeo_chunk_size: (int) Chunk size for OpenEO processing.
+    :param S1_temporal_reducer: (str) Temporal reducer applied to Sentinel-1 data,
+        permitted values: 'median', 'mean', 'max', 'min', 'first', 'last',
+        'product', 'sd', 'sum', 'variance'.
+    :param slc_masking: (Optional[str]) Masking algorithm for SLC, either
+        'mask_scl_dilation', 'satio', or None.
+    :param S2_bands: (List[str]) List of Sentinel-2 reflectance bands to include.
+    :param s2_tileid_list: (Optional[List[str]]) List of Sentinel-2 tile IDs to
+        process, or None.
+    :param skip_check_S1: (bool) Whether to skip checking for Sentinel-1 data.
+    :param skip_check_S2: (bool) Whether to skip checking for Sentinel-2 data.
+    :param apply_cloud_mask: (bool) Whether to apply a cloud mask to Sentinel-2
+        data.
+    :param get_NOBSperc: (bool) Whether to calculate the percentage of observations.
+    :param S2_max_cloud_cover: (int) Maximum cloud cover percentage allowed
+        for Sentinel-2 scenes (0-100 inclusive).
+    :param optical_vi_list: (List[str]) List of vegetation indices to calculate
+        for optical data.
+    :param radar_vi_list: (List[str]) List of indices to calculate for radar data.
+    :param S2_scaling: (List[int or float]) List of scaling factors for Sentinel-2 data.
+    :param S1_db_rescale: (bool) Whether to rescale Sentinel-1 data to decibels.
+    :param append: (bool) Whether to append new processing options to an existing
+        configuration dictionary.
 
-    :return: A dictionary containing all validated options as key-value pairs.
+    :return: (Dict[str, Union[str, bool, int or float, List[str], List[int or float]]])
+        A dictionary containing all validated and formatted processing options.
     """
 
     if s1_orbitdirection not in ['ASCENDING', 'DESCENDING', None]:
@@ -448,6 +446,13 @@ def get_advanced_options(provider: str, s1_orbitdirection: Optional[str] = S1_OR
     if type(apply_cloud_mask) != bool:
         raise ValueError(f'parameter for apply_cloud_mask must be an boolean.')
 
+    if type(get_NOBSperc) != bool:
+        raise ValueError(f'parameter for get_NOBSperc must be an boolean.')
+
+    if (get_NOBSperc == True) and ((apply_cloud_mask == False) or (slc_masking != 'mask_scl_dilation')):
+        raise ValueError(f'parameter for get_NOBSperc can be only set to True if apply_cloud_mask is set to True '
+                         f'AND slc_masking is set to mask_scl_dilation.')
+
     proc_opt = {
         "provider": provider,
         "s1_orbitdirection": s1_orbitdirection,
@@ -464,6 +469,7 @@ def get_advanced_options(provider: str, s1_orbitdirection: Optional[str] = S1_OR
         "skip_check_S1": skip_check_S1,
         "skip_check_S2": skip_check_S2,
         "apply_cloud_mask": apply_cloud_mask,
+        "get_NOBSperc": get_NOBSperc,
         "optical_vi_list": optical_vi_list,
         "radar_vi_list": radar_vi_list,
         "S2_scaling": S2_scaling,

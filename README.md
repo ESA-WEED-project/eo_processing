@@ -81,12 +81,20 @@ SLC_masking_algo: str = 'mask_scl_dilation'
         Masking method for Sentinel-2 optical data ('satio', 'mask_scl_dilation', None)
         Note: if set to None, no masking is applied and the S2 L2A data is used as is.
 
-apply_cloud_mask : bool = True
+apply_cloud_mask: bool = True
         if True, the Sentinel-2 or PlanetScope data is masked for clouds (based on Sentinel-2 QA band). 
-        If False, no masking is applied but the mask band is still created and added to the cube.
-        Note: no effect when 'mask_scl_dilation' parameter is set to None.     
+        If False, no masking is applied but the mask band is still created and added to the cube. (Note: the cloud 
+        mask band is removed from the feature cube as soon the time domain is aggregated.)
+        Note: no effect when 'mask_scl_dilation' parameter is set to None.
 
-append : bool = True
+get_NOBSperc: bool = False 
+        if True, the number of observations per pixel is calculated and added to the feature cube.
+        Note: this flag is only relevant for Sentinel-2 data as well as the 'band' NOBSperc is only added 
+        to cubes with time domain aggregation. 
+        Note: 'apply_cloud_mask' has to set to 'True' AND 'SLC_masking_algo' has to be 'mask_scl_dilation' 
+              for this flag to work.
+
+append: bool = True
         if the VI's are appended to the reflectance/radar time series cube OR replace them
 
 S2_scaling: list = [0, 10000, 0, 1.0]

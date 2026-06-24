@@ -107,7 +107,7 @@ def extract_S1_datacube(
 
     # fix no-VH-data issue
     properties.update({"polarisation": lambda pol: pol == "VV&VH"})
-
+    
     # Load collection
     bands = connection.load_collection(S1_collection,
                                        bands=['VH', 'VV'],
@@ -289,7 +289,7 @@ def extract_S2_datacube(
 
             if get_NOBSperc:
                 # get temporal count after applying cloud mask = nobs
-                nobs = bands.count_time().rename_labels("bands", ["nobs"]).convert_data_type('float32')
+                nobs = bands.filter_bands(S2_bands[0]).count_time().rename_labels("bands", ["nobs"]).convert_data_type('float32')
                 # make sure TOBS is in right projection/resolution
                 tobs = tobs.resample_cube_spatial(target=nobs, method="near")
                 # calculate nobs_perc

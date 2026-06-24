@@ -107,7 +107,7 @@ def extract_S1_datacube(
 
     # fix no-VH-data issue
     properties.update({"polarisation": lambda pol: pol == "VV&VH"})
-    
+
     # Load collection
     bands = connection.load_collection(S1_collection,
                                        bands=['VH', 'VV'],
@@ -295,8 +295,7 @@ def extract_S2_datacube(
                 # calculate nobs_perc
                 nobs_perc_band = nobs.divide(tobs).multiply(100.).rename_labels("bands", ["nobs_perc"])
         else:
-            scl_dilated_mask = scl_dilated_mask.resample_cube_spatial(target=bands, method="near")
-            bands = bands.merge_cubes(scl_dilated_mask)
+            bands = bands.merge_cubes(scl_dilated_mask) #cubes are automatically resampled if needed
     elif masking == 'satio':
         # Apply satio-based mask
         mask = scl_mask_erode_dilate(
@@ -310,8 +309,7 @@ def extract_S2_datacube(
         if apply_mask:
             bands = bands.mask(mask) # masks are automatically resampled/warped
         else:
-            mask = mask.resample_cube_spatial(target=bands, method="near")
-            bands = bands.merge_cubes(mask)
+            bands = bands.merge_cubes(mask) #cubes are automatically resampled if needed
 
     # time aggregation if wished
     if ts_interval is not None:

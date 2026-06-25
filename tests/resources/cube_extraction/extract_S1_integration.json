@@ -16,7 +16,7 @@
         },
         "id": "SENTINEL1_GRD",
         "properties": {
-          "polarisation": {
+          "sar:polarizations": {
             "process_graph": {
               "eq1": {
                 "process_id": "eq",
@@ -24,7 +24,10 @@
                   "x": {
                     "from_parameter": "value"
                   },
-                  "y": "VV&VH"
+                  "y": [
+                    "VV",
+                    "VH"
+                  ],
                 },
                 "result": true
               }

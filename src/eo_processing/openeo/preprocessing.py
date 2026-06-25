@@ -8,7 +8,8 @@ from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_c
                                                  catalogue_check_CDSE_S1, catalogue_check_CDSE_S2)
 from eo_processing.config.settings import S2_BANDS, PLANET_BANDS, CHUNK_SIZE
 
-from typing import Optional, Dict, Union, List, TYPE_CHECKING, Tuple
+from typing import Optional, Dict, Union, List, TYPE_CHECKING, Any, Tuple
+
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import openEO_bbox_format
 
@@ -16,7 +17,7 @@ def ts_datacube_extraction(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         S2_collection: str ='SENTINEL2_L2A',
         S1_collection: Optional[str] ='SENTINEL1_GRD',
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]]) -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -29,13 +30,13 @@ def ts_datacube_extraction(
             resolution, ts_interval, time_interpolation, SLC_masking_algo, s1_orbitdirection, S2_bands)
     :return: DataCube
     """
-    # Note: for cubes with a time dimension, no nobs_perc band can be attached
-    get_NOBSperc: bool = processing_options.get("get_NOBSperc", False)
-    if get_NOBSperc:
-        processing_options["get_NOBSperc"] = False
+    # Note: for cubes with a time dimension, no S2_NVBT band can be attached
+    get_NVBT:bool = processing_options.get("get_NVBT", False)
+    if get_NVBT:
+        processing_options["get_NVBT"] = False
 
     # get the Sentinel-2 datacube as starting point
-    bands: DataCube = extract_S2_datacube(connection, bbox, start, end,
+    bands = extract_S2_datacube(connection, bbox, start, end,
                                           S2_collection=S2_collection,
                                           **processing_options)
     # add the Sentinel-1 data
@@ -53,7 +54,7 @@ def ts_datacube_extraction(
 def extract_S1_datacube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         S1_collection: str = 'SENTINEL1_GRD',
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]]) -> DataCube:
     """ extract the Sentinel-1 data for requested time period and preprocess the data
 
     :param connection: active openEO connection object
@@ -106,7 +107,7 @@ def extract_S1_datacube(
         properties = {}
 
     # fix no-VH-data issue
-    properties.update({"polarisation": lambda pol: pol == "VV&VH"})
+    properties.update({"sar:polarizations": lambda pol: pol == ["VV", "VH"]})
 
     # Load collection
     bands = connection.load_collection(S1_collection,
@@ -174,8 +175,8 @@ def extract_S1_datacube(
 def extract_S2_datacube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         S2_collection: str='SENTINEL2_L2A',
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) \
-        -> tuple[DataCube, DataCube | None] | DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]])\
+        -> Union[DataCube, Tuple[DataCube, Optional[DataCube]]]:
     """ extract the Sentinel-2 data for requested time period and preprocess the data
 
     :param connection: active openEO connection object
@@ -208,7 +209,7 @@ def extract_S2_datacube(
     max_cloud_max: int = processing_options.get("S2_max_cloud_cover", 95)
     chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
     s2_tileid_list: Optional[List[str]] = processing_options.get("s2_tileid_list", None)
-    get_NOBSperc: bool = processing_options.get("get_NOBSperc", False)
+    get_NVBT: bool = processing_options.get("get_NVBT", False)
 
     # check if the masking parameter is valid
     if masking not in ['satio', 'mask_scl_dilation', None]:
@@ -246,9 +247,6 @@ def extract_S2_datacube(
     else:
         bands = bands.resample_spatial(resolution=target_res)
 
-    # for the NOBSperc to work we need to init the cube as None
-    nobs_perc_band = None
-
     # apply cloud masking
     if masking == 'mask_scl_dilation':
         # we have to load the SCL mask as an extra cube to get it correctly working
@@ -280,20 +278,8 @@ def extract_S2_datacube(
         ).rename_labels("bands", ["S2-CLOUD-MASK"])
 
         if apply_mask:
-            if get_NOBSperc:
-                # get temporal count of valid pixels before masking
-                tobs = sub_collection.count_time().rename_labels("bands", ["tobs"]).convert_data_type('float32')
-
             # apply the cloud mask to the reference data
             bands = bands.mask(scl_dilated_mask) # here I do trust the automatic resampling of the mask
-
-            if get_NOBSperc:
-                # get temporal count after applying cloud mask = nobs
-                nobs = bands.filter_bands(S2_bands[0]).count_time().rename_labels("bands", ["nobs"]).convert_data_type('float32')
-                # make sure TOBS is in right projection/resolution
-                tobs = tobs.resample_cube_spatial(target=nobs, method="near")
-                # calculate nobs_perc
-                nobs_perc_band = nobs.divide(tobs).multiply(100.).rename_labels("bands", ["nobs_perc"])
         else:
             bands = bands.merge_cubes(scl_dilated_mask) #cubes are automatically resampled if needed
     elif masking == 'satio':
@@ -315,6 +301,10 @@ def extract_S2_datacube(
     if ts_interval is not None:
         bands = bands.aggregate_temporal_period(period=ts_interval,  reducer=ts_reducer)
 
+    # here we have to add the calculation of the NVBT (Number of Valid Binned Timesteps)
+    if get_NVBT:
+        nvbt_band = bands.filter_bands(S2_bands[0]).count_time().rename_labels("bands", ["S2-NVBT"])
+
     # Linearly interpolate missing values if wished
     if ts_interpolation:
         bands = bands.apply_dimension(dimension="t",
@@ -323,8 +313,8 @@ def extract_S2_datacube(
     bands = bands.linear_scale_range(0, 65534, 0, 65534)
     
     # the return is tricky since we have to be backwards compatible and still get nobs_perc working
-    if get_NOBSperc:
-        return bands, nobs_perc_band
+    if get_NVBT:
+        return bands, nvbt_band
     else:
         return bands
 

@@ -87,12 +87,14 @@ apply_cloud_mask: bool = True
         mask band is removed from the feature cube as soon the time domain is aggregated.)
         Note: no effect when 'mask_scl_dilation' parameter is set to None.
 
-get_NOBSperc: bool = False 
-        if True, the number of observations per pixel is calculated and added to the feature cube.
-        Note: this flag is only relevant for Sentinel-2 data as well as the 'band' NOBSperc is only added 
-        to cubes with time domain aggregation. 
-        Note: 'apply_cloud_mask' has to set to 'True' AND 'SLC_masking_algo' has to be 'mask_scl_dilation' 
-              for this flag to work.
+get_NVBT: bool = False 
+        Number of Valid Binned Timesteps: Specifies the count of valid timesteps after temporal binning. 
+        This can be used as an input data quality indicator.
+        if True, NVBT is calculated for optical data after cloud masking and temporal aggregation 
+        (if both were activated) but without linear interpolation (if activated).
+        Note: this flag is only relevant for Sentinel-2 data as well as the 'band' S2_NVBT is only added 
+        to cubes with removed time domain (feature cubes). 
+        Note: algorithm is applied even when cloud masking was deactivated or temporal aggregation was skipped.
 
 append: bool = True
         if the VI's are appended to the reflectance/radar time series cube OR replace them

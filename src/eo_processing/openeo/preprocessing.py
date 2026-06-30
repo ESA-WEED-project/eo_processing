@@ -302,6 +302,8 @@ def extract_S2_datacube(
         bands = bands.aggregate_temporal_period(period=ts_interval,  reducer=ts_reducer)
 
     # here we have to add the calculation of the NVBT (Number of Valid Binned Timesteps)
+    # Note: we want to create the NVBT here before any possible linear interpolation is done
+    #       therefore, the integration has to be this ugly and not only in the final warper functions
     if get_NVBT:
         nvbt_band = bands.filter_bands(S2_bands[0]).count_time().rename_labels("bands", ["S2-NVBT"])
 

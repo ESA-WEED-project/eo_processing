@@ -289,7 +289,7 @@ class WeedJobManager(MultiBackendJobManager):
             if file_ext in ['netcdf','gtiff']:
                 results.download_files(job_dir, include_stac_metadata=False)
             else :
-                results.download_file(job_dir / f"{title}.{file_ext}", name=f"timeseries.{file_ext}")
+                results.download_file(job_dir / f"{title}.{file_ext}")
 
 
         with open(metadata_path, "w", encoding='utf8') as f:

@@ -134,8 +134,7 @@ def generate_S2_indices(
         processing_options["get_NVBT"] = False
 
     # get the Sentinel-2 datacube as starting point
-    input_cube = extract_S2_datacube(connection, bbox, start, end, S2_collection=S2_collection,
-                                               **processing_options)
+    input_cube = extract_S2_datacube(connection, bbox, start, end, S2_collection=S2_collection, **processing_options)
     # call the VI generator
     result_cube = optical_indices(input_cube, collection=S2_collection, **processing_options)
 
@@ -275,8 +274,7 @@ def generate_S1_feature_cube(
     chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
 
     # get the natural values and VI time series cube
-    input_data = generate_S1_indices(connection, bbox, start, end, S1_collection=S1_collection,
-                                     **processing_options)
+    input_data = generate_S1_indices(connection, bbox, start, end, S1_collection=S1_collection, **processing_options)
     # get features
     features_cube = calculate_features_cube(input_data, chunk_size=chunk_size)
 
@@ -305,7 +303,7 @@ def generate_S2_feature_cube(
     if get_NVBT:
         # get the reflectance and VI time series cube PLUS NOBS_perc
         input_cube, nvbt_band = extract_S2_datacube(connection, bbox, start, end, S2_collection=S2_collection,
-                                                         **processing_options)
+                                                    **processing_options)
         # call the VI generator
         indices_cube = optical_indices(input_cube, collection=S2_collection, **processing_options)
     else:

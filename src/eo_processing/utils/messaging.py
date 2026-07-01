@@ -6,8 +6,7 @@ from typing import List, Tuple
 # Constants
 SMTP_SERVER = 'mail.vgt.vito.be'
 SENDER_NAME = 'WEED openEO processing cluster'
-SENDER_EMAIL = 'esa.weed.project@vito.be'
-
+SENDER_EMAIL = 'esa.weed.project@vgt.vito.be'
 
 def format_email_address(name_email_pair: Tuple[str, str]) -> str:
     """

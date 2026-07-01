@@ -81,6 +81,21 @@ def init_connection(provider: str, storage: Optional[WEED_storage]=None) -> open
             client_secret=storage.service_account['CLIENT_SECRET'])
     return connection
 
+def purge_jobs(conn: openeo.Connection) -> None:
+    """
+    Purges all jobs from the given openEO connection.
+
+    :param conn: The openEO connection object.
+    """
+    jobs = conn.list_jobs(limit=1000)
+
+    for job_metadata in jobs:
+        if job_metadata.get("status", None) in ["queued", "running", "queued_for_start"]:
+            job = conn.job(job_metadata["id"])
+            print(f"Cancelling job {job.job_id} with status {job.status()}")
+            job.stop()
+    print("All jobs purged if needed.")
+
 def location_visu(aoi_object: openEO_bbox_format | gpd.GeoDataFrame, zoom: bool = False, region: str = 'EU',
                   label: bool = True) -> None:
     """

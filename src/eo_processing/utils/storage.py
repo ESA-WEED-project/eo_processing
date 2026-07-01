@@ -1810,19 +1810,25 @@ def get_credentials(user :str ) -> Dict[str, str]:
         client = hvac.Client(url='https://vault.vgt.vito.be')
         if user == "VAULT_TOKEN":
             client.token = vault_token
+            if not client.is_authenticated():
+                raise Exception('Your token is expired. Please re-authenticate.')
         else:
             client.auth.ldap.login(
                 username=user,
                 password=service_account_password,
                 mount_point='ldap'
             )
+
+            if not client.is_authenticated():
+                raise Exception('Your credentials are invalid. Please re-authenticate.')
+
         secret_version_response = client.secrets.kv.v2.read_secret_version(mount_point='kv',
                                                                            path='TAP/apps/WEED',
                                                                            raise_on_deleted_version=True)
         client.logout()
     except:
         raise Exception('Could not retrieve WEED credentials from Terrascope VAULT. '
-                        'Are you connected to the VITO VPN?')
+                        'Are you connected to the VITO VPN? Check your password or renew your token!')
     return secret_version_response['data']['data']
 
 def read_credential_file(file_path: str = '~/.sonata_credentials') -> Dict[str, str]:

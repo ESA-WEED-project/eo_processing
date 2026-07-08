@@ -69,7 +69,6 @@ def radar_indices(
     vi_list: List = processing_options.get("radar_vi_list", RADAR_LIST)
     db_rescaling = processing_options.get("S1_db_rescale", True)
     append = processing_options.get("append", True)
-    chunk_size = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
     platform = "sentinel1"
 
     # convert input DataCube into float (db)
@@ -86,6 +85,9 @@ def radar_indices(
         vi_cube = append_indices(datacube=input_cube, indices=vi_list, platform=platform)
     else:
         vi_cube = compute_indices(datacube=input_cube, indices=vi_list, platform=platform, append=False)
+
+    # TODO: convert the datacube back to int16 - using the output scaling functionality tested in one
+    #  of the example notebooks
     return vi_cube
 
 def generate_S1_indices(
@@ -104,6 +106,11 @@ def generate_S1_indices(
             resolution, ts_interval, time_interpolation, s1_orbitdirection, radar_vi_list, S1_db_rescale, append)
     :return: DataCube
     """
+    # Note: for cubes with a time dimension, no s1-nvbt band can be attached
+    get_NVBT: bool = processing_options.get("get_NVBT", False)
+    if get_NVBT:
+        processing_options["get_NVBT"] = False
+
     # get the S1 input data pre-processed
     input_cube = extract_S1_datacube(connection, bbox, start, end, S1_collection=S1_collection, **processing_options)
 
@@ -135,6 +142,7 @@ def generate_S2_indices(
 
     # get the Sentinel-2 datacube as starting point
     input_cube = extract_S2_datacube(connection, bbox, start, end, S2_collection=S2_collection, **processing_options)
+
     # call the VI generator
     result_cube = optical_indices(input_cube, collection=S2_collection, **processing_options)
 
@@ -158,11 +166,11 @@ def generate_indices_master_cube(
             S2_scaling, append, S2_bands, radar_vi_list, S1_db_rescale)
     :return: DataCube
     """
-    # get S2 indices cube - no nobs_perc band needed
+    # get S2 indices cube - no NVBT band needed
     indices_cube = generate_S2_indices(connection, bbox, start, end, S2_collection=S2_collection,
                                        **processing_options)
 
-    # merge the S1 indices
+    # merge the S1 indices (the called warper makes sure no NVBT band is generated)
     if S1_collection is not None:
         indices_cube = indices_cube.merge_cubes(generate_S1_indices(connection, bbox, start, end,
                                                                     S1_collection=S1_collection,
@@ -273,10 +281,23 @@ def generate_S1_feature_cube(
     """
     chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
 
-    # get the natural values and VI time series cube
-    input_data = generate_S1_indices(connection, bbox, start, end, S1_collection=S1_collection, **processing_options)
+    get_NVBT: bool = processing_options.get("get_NVBT", False)
+    # feature cubes have no time dimension, so we can add the s1-nvbt band to the cube
+    if get_NVBT:
+        # get the sigma-naught and VI time series cube PLUS the S1-NVBT band
+        input_cube, nvbt_band = extract_S1_datacube(connection, bbox, start, end, S1_collection=S1_collection,
+                                                    **processing_options)
+        # call the VI generator
+        indices_cube = radar_indices(input_cube, **processing_options)
+    else:
+        indices_cube = generate_S1_indices(connection, bbox, start, end, S1_collection=S1_collection,
+                                           **processing_options)
     # get features
-    features_cube = calculate_features_cube(input_data, chunk_size=chunk_size)
+    features_cube = calculate_features_cube(indices_cube, chunk_size=chunk_size)
+
+    # add the S1-NVBT band to cube if needed
+    if get_NVBT:
+        features_cube = features_cube.merge_cubes(nvbt_band)
 
     return features_cube
 
@@ -301,7 +322,7 @@ def generate_S2_feature_cube(
     get_NVBT: bool = processing_options.get("get_NVBT", False)
     # feature cubes have no time dimension, so we can add the s2-nvbt band to the cube
     if get_NVBT:
-        # get the reflectance and VI time series cube PLUS NOBS_perc
+        # get the reflectance and VI time series cube PLUS S2-NVBT band
         input_cube, nvbt_band = extract_S2_datacube(connection, bbox, start, end, S2_collection=S2_collection,
                                                     **processing_options)
         # call the VI generator
@@ -314,7 +335,7 @@ def generate_S2_feature_cube(
     # get features
     features_cube = calculate_features_cube(indices_cube, chunk_size=chunk_size)
 
-    # add the nobs_perc_band to the cube if needed
+    # add the S2-NVBT band to the cube if needed
     if get_NVBT:
         features_cube = features_cube.merge_cubes(nvbt_band)
 
@@ -365,35 +386,14 @@ def generate_master_feature_cube(
             S2_scaling, append, S2_bands, radar_vi_list, S1_db_rescale)
     :return: DataCube with only features
     """
-    chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
-
-    ### create the full master indices cube
-    get_NVBT: bool = processing_options.get("get_NVBT", False)
-    # feature cubes have no time dimension, so we can add the nobs_perc band to the cube
-    if get_NVBT:
-        # get the reflectance and VI time series cube PLUS NOBS_perc
-        input_cube, nvbt_band = extract_S2_datacube(connection, bbox, start, end, S2_collection=S2_collection,
-                                                    **processing_options)
-        # call the VI generator
-        indices_cube = optical_indices(input_cube, collection=S2_collection, **processing_options)
-    else:
-        # get the reflectance and VI time series cube
-        indices_cube = generate_S2_indices(connection, bbox, start, end, S2_collection=S2_collection,
-                                           **processing_options)
-
-    # merge the S1 indices
+    # optimized pipeline were we run the feature generation per sensor and only merge in the end
+    feature_cube = generate_S2_feature_cube(connection, bbox, start, end, S2_collection=S2_collection,
+                                            **processing_options)
     if S1_collection is not None:
-        indices_cube = indices_cube.merge_cubes(generate_S1_indices(connection, bbox, start, end,
-                                                                    S1_collection=S1_collection,
-                                                                    **processing_options))
-    # get features
-    features_cube = calculate_features_cube(indices_cube, chunk_size=chunk_size)
-
-    # add the nobs_perc_band to the cube if needed
-    if get_NVBT:
-        features_cube = features_cube.merge_cubes(nvbt_band)
-
-    return features_cube
+        feature_cube = feature_cube.merge_cubes(generate_S1_feature_cube(connection, bbox, start, end,
+                                                                          S1_collection=S1_collection,
+                                                                          **processing_options))
+    return feature_cube
 
 def create_collections_list_from_bands(input_bands : List[str]):
     """

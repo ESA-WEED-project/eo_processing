@@ -30,7 +30,7 @@ def ts_datacube_extraction(
             resolution, ts_interval, time_interpolation, SLC_masking_algo, s1_orbitdirection, S2_bands)
     :return: DataCube
     """
-    # Note: for cubes with a time dimension, no S2_NVBT band can be attached
+    # Note: for cubes with a time dimension, no S1_NVBT or S2_NVBT band can be attached
     get_NVBT:bool = processing_options.get("get_NVBT", False)
     if get_NVBT:
         processing_options["get_NVBT"] = False
@@ -54,7 +54,8 @@ def ts_datacube_extraction(
 def extract_S1_datacube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         S1_collection: str = 'SENTINEL1_GRD',
-        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]]) -> DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]]) \
+        -> Union[DataCube, Tuple[DataCube, Optional[DataCube]]]:
     """ extract the Sentinel-1 data for requested time period and preprocess the data
 
     :param connection: active openEO connection object
@@ -76,7 +77,6 @@ def extract_S1_datacube(
     if processing_options.get('skip_check_S1', False):
         catalogue_check = False
 
-    isCreo = "creo" in processing_options.get("provider", "").lower()
     orbit_direction: Optional[str] = processing_options.get('s1_orbitdirection', None)
     target_crs: Optional[str] = processing_options.get("target_crs", None)
     target_res: float = processing_options.get("resolution", 10.)
@@ -84,7 +84,9 @@ def extract_S1_datacube(
     ts_reducer: str = processing_options.get("S1_temporal_reducer", "mean")
     ts_interpolation: bool = processing_options.get("time_interpolation", False)
     chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
+    get_NVBT: bool = processing_options.get("get_NVBT", False)
 
+    # set the correct DEM for SAR backscatter correction based on platform
     if ("creo" in processing_options.get("provider", "").lower()) or \
             (processing_options.get("provider", "").lower() == "terrascope") or \
             (processing_options.get("provider", "").lower() == "development") or \
@@ -143,11 +145,19 @@ def extract_S1_datacube(
     if ts_interval is not None:
         bands = bands.aggregate_temporal_period(period=ts_interval, reducer=ts_reducer)
 
+    # here we have to add the calculation of the NVBT (Number of Valid Binned Timesteps)
+    # Note: we want to create the NVBT here before any possible linear interpolation is done
+    #       therefore, the integration has to be this ugly and not only in the final warper functions
+    if get_NVBT:
+        nvbt_band = bands.filter_bands(bands.metadata.band_names[0]).count_time().rename_labels("bands",
+                                                                                                ["S1-NVBT"])
+        nvbt_band = nvbt_band.apply(lambda x: if_(x.is_nodata(), 0, x))
+
     # Linearly interpolate missing values if wished
     if ts_interpolation:
         bands = bands.apply_dimension(dimension="t", process="array_interpolate_linear")
 
-    # Scale to Uint16 range
+    # Scale to Uint16 range from dB to natural values
     if check_flag:
         # for CREO, rescaling also replaces nodata introduced by orfeo
         # with a low value
@@ -170,7 +180,11 @@ def extract_S1_datacube(
     # Force a linear scale removing values not expected
     bands = bands.linear_scale_range(1, 65534, 1, 65534)
 
-    return bands
+    # the return is tricky since we have to be backwards compatible and still get NVBT calculation working
+    if get_NVBT:
+        return bands, nvbt_band
+    else:
+        return bands
 
 def extract_S2_datacube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
@@ -306,6 +320,7 @@ def extract_S2_datacube(
     #       therefore, the integration has to be this ugly and not only in the final warper functions
     if get_NVBT:
         nvbt_band = bands.filter_bands(S2_bands[0]).count_time().rename_labels("bands", ["S2-NVBT"])
+        nvbt_band = nvbt_band.apply(lambda x: if_(x.is_nodata(), 0, x))
 
     # Linearly interpolate missing values if wished
     if ts_interpolation:
@@ -314,7 +329,7 @@ def extract_S2_datacube(
     # forcing 16bit --> UInt16
     bands = bands.linear_scale_range(0, 65534, 0, 65534)
     
-    # the return is tricky since we have to be backwards compatible and still get nobs_perc working
+    # the return is tricky since we have to be backwards compatible and still get NVBT calculation working
     if get_NVBT:
         return bands, nvbt_band
     else:

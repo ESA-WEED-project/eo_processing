@@ -90,10 +90,10 @@ apply_cloud_mask: bool = True
 get_NVBT: bool = False 
         Number of Valid Binned Timesteps: Specifies the count of valid timesteps after temporal binning. 
         This can be used as an input data quality indicator.
-        if True, NVBT is calculated for optical data after cloud masking and temporal aggregation 
+        if True, NVBT is calculated for optical data after cloud masking and temporal binning and radar data after
+        sar_backscatter correction and temporal binning.
         (if both were activated) but without linear interpolation (if activated).
-        Note: this flag is only relevant for Sentinel-2 data as well as the 'band' S2_NVBT is only added 
-        to cubes with removed time domain (feature cubes). 
+        Note: 'band' S1_NVBT and/or S2_NVBT is only added to cubes with removed time domain (feature cubes). 
         Note: algorithm is applied even when cloud masking was deactivated or temporal aggregation was skipped.
 
 append: bool = True

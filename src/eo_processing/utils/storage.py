@@ -760,6 +760,9 @@ class SQL_storage:
         #at the moment we initialize with hadoop false. Not sure if it's need to have?
         self.hadoop = False
 
+    def get_info(self):
+        return self.sql_credentials['host'], self.sql_credentials['port'], self.sql_credentials['dbname'], self.sql_credentials['schema'], self.sql_credentials['password']
+
     def create_connection(self) -> psycopg.Connection:
         """
         Establishes a connection to a PostgreSQL database using the provided credentials. 
@@ -975,7 +978,7 @@ class SQL_storage:
 
         return lresults
 
-    def StatusUpdateTiles(self, table: str, tileid: int, lcolumns: List[str], lmsg: List[str]) -> bool:
+    def StatusUpdateTiles(self, table: str, PK: tuple(str, int), lcolumns: List[str], lmsg: List[str]) -> bool:
         """
         Updates specific columns in a particular database table for a given tile ID with new values.
 
@@ -986,7 +989,7 @@ class SQL_storage:
         database connection cleanup.
 
         :param table: The name of the database table to be updated.
-        :param tileid: The identifier of the tile for which data is to be updated.
+        :param PK: The identifier  for which data is to be updated.
         :param lcolumns: A list of column names that need to be updated.
         :param lmsg: A list of new values corresponding to the specified columns.
         :return: True if the update operation completes successfully, otherwise False.
@@ -1002,8 +1005,8 @@ class SQL_storage:
             # prepare UPDATE statement
             print('** update the tile status...')
             for i in range(0, len(lcolumns)):
-                sql_statement = "UPDATE %s SET %s = %%s WHERE tile_id = %%s;" % (table, lcolumns[i])
-                cur.execute(sql_statement, (lmsg[i], tileid))
+                sql_statement = 'UPDATE %s SET "%s" = %%s WHERE (mgrsid10, year) = %%s;' % (table, lcolumns[i])
+                cur.execute(sql_statement, (lmsg[i], PK))
 
             # commit transactions
             conn.commit()

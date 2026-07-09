@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import json
+import geojson
 import logging
 import geopandas as gpd
 from threading import Thread, active_count
@@ -27,7 +28,8 @@ from typing import Optional, Mapping, Union, Dict, Tuple, TYPE_CHECKING, List
 import openeo
 import warnings
 from eo_processing.utils.helper import string_to_dict
-from eo_processing.utils.geoprocessing import create_feature_extraction_processing_grid, get_point_number
+from eo_processing.utils.geoprocessing import (create_feature_extraction_processing_grid, get_point_number,
+                                               bbox_of_PointsFeatureCollection, reproj_bbox_to_ll)
 from eo_processing.utils.mgrs import gridID_2_epsg
 
 if TYPE_CHECKING:
@@ -959,8 +961,14 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
         # merge in the needed Polygons and convert to GeoDataFrame
         job_df = pd.merge(df, gdf_grid[['tile_name', 'geometry']], left_on='name', right_on='tile_name',
                           how='left')
-        # remove row which have no  polygon assigned due to fact that this grid is not in openEO processing extent
-        job_df = job_df.dropna(subset=["geometry"])
+        # we have to fix rows which did not get a valid geometry
+        missing_geometry_row = job_df[job_df['geometry'].isna()].index
+        #print(missing_geometry_row)
+        for row in missing_geometry_row:
+            job_df.at[row, 'geometry'] = reproj_bbox_to_ll(bbox_of_PointsFeatureCollection(geojson.loads(job_df.loc[row, 'FeatureCollection'])))
+            job_df.at[row, 'tile_name'] = job_df.loc[row, 'name']
+        #job_df = job_df.dropna(subset=["geometry"])
+
         # convert to GeoPandas GeoDataFrame
         job_df = gpd.GeoDataFrame(job_df, geometry='geometry')
         job_df.reset_index(inplace=True)
@@ -970,8 +978,17 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
         job_df['end_date'] = (
                     pd.to_datetime(job_df['end_date'], format='%Y-%m-%d') - pd.Timedelta(seconds=1)).dt.strftime(
             '%Y-%m-%dT%H:%M:%SZ')
-        job_df['export_workspace'] = None
-        job_df['s3_prefix'] = None
+        # set the s3_prefix which is needed for the path to S3 storage relative to bucket if we export
+        if storage_options:
+            job_df['s3_prefix'] = storage_options.get('S3_prefix', None)
+            if storage_options.get('WEED_storage', None):
+                job_df['export_workspace'] = storage_options['WEED_storage'].get_export_workspace()
+            else:
+                job_df['export_workspace'] = None
+        else:
+            job_df['s3_prefix'] = None
+            job_df['export_workspace'] = None
+
         job_df['organization_id'] = organization_id
         job_df['s2_tileid_list'] = None
 

@@ -6,6 +6,7 @@ from eo_processing.utils.geoprocessing import reproj_bbox_to_ll, bbox_of_PointsF
 import geojson
 from typing import TYPE_CHECKING
 import pystac_client
+import time
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import openEO_bbox_format
@@ -217,8 +218,17 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
 
         # get the dates of all found matches
         results = []
-        for item in search.items_as_dicts():
-            results.append(item['properties']['datetime'])
+
+        for attempt in range(3):
+            try:
+                for item in search.items_as_dicts():
+                    results.append(item['properties']['datetime'])
+                break
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
+                else:
+                    raise e
 
         # count the number of unique dates on which we have observations (resolved tile overlap)
         df = pd.DataFrame(results, columns=['date'])
@@ -248,8 +258,16 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
 
     # get the dates of all found matches
     results = []
-    for item in search.items_as_dicts():
-        results.append(item['properties']['datetime'])
+    for attempt in range(3):
+        try:
+            for item in search.items_as_dicts():
+                results.append(item['properties']['datetime'])
+            break
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
+            else:
+                raise e
 
     # count the number of unique dates on which we have observations (resolved tile overlap)
     df = pd.DataFrame(results, columns=['date'])
@@ -322,8 +340,16 @@ def catalogue_check_CDSE_S2(start: str, end: str, bbox: openEO_bbox_format,
 
     # get the dates of all found matches
     results = []
-    for item in search.items_as_dicts():
-        results.append(item['properties']['datetime'])
+    for attempt in range(3):
+        try:
+            for item in search.items_as_dicts():
+                results.append(item['properties']['datetime'])
+            break
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
+            else:
+                raise e
 
     # count the number of unique dates on which we have observations (resolved tile overlap)
     df = pd.DataFrame(results, columns=['date'])

@@ -259,7 +259,10 @@ class WeedJobManager(MultiBackendJobManager):
         job_metadata = job.describe()
 
         job_dir = self.get_job_dir(job.job_id)
-        title = os.path.splitext(job_metadata['title'])[0]
+        #title = os.path.splitext(job_metadata['title'])[0]
+
+        title = row["file_prefix"]
+
         file_ext = job_metadata['process']['process_graph']['saveresult1']['arguments']['format'].lower()
         metadata_path = self.get_job_metadata_path(job.job_id,title)
         job_graph_path = self.get_job_graph_path(job.job_id,title)

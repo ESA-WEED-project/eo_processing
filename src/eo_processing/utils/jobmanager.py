@@ -121,25 +121,19 @@ class WeedJobManager(MultiBackendJobManager):
             return True
         else: return False
 
-    def check_finished(self, job: openeo.BatchJob) -> bool:
+    def check_finished(self, job: openeo.BatchJob, row: pd.Series) -> bool:
         """
-        Check if the metadata file for a given job already exists in the filesystem,
-        indicating whether the job has been completed.
+        Determines if a batch job is finished by checking the existence of its metadata.
 
-        This function extracts the job's metadata and determines the file path for
-        the associated metadata file. It then checks if this file path exists, which
-        would suggest that the job has been processed and the metadata has been saved.
-
-        :param job: The job object whose completion status needs to be verified. It
-                    must provide a 'describe' method that returns a dictionary
-                    containing job metadata, including the job's title.
-        :return: A boolean value where `True` indicates that the job metadata file
-                 exists, and thus the job is finished. `False` signifies that the
-                 metadata file is not found, indicating that the job might not be
-                 complete.
+        :param job: The batch job for which the status needs to be checked.
+        :param row: A pandas Series containing job-related information, including the
+            file_prefix used to identify the metadata file.
+        :return: True if the job's metadata file exists, indicating the job is finished;
+            False otherwise.
         """
-        job_metadata = job.describe()
-        title = os.path.splitext(job_metadata['title'])[0]
+        #job_metadata = job.describe()
+        #title = os.path.splitext(job_metadata['title'])[0]
+        title = row["file_prefix"]
         metadata_path = self.get_job_metadata_path(job.job_id, title)
         return os.path.exists(metadata_path)
 
@@ -225,7 +219,8 @@ class WeedJobManager(MultiBackendJobManager):
         """
         error_logs = job.logs(level="error")
         job_metadata = job.describe_job()
-        title = os.path.splitext(job_metadata['title'])[0]
+        #title = os.path.splitext(job_metadata['title'])[0]
+        title = row["file_prefix"]
         error_log_path = self.get_error_log_path(job.job_id,title)
         job_graph_path = self.get_job_graph_path(job.job_id,title)
 
@@ -285,9 +280,8 @@ class WeedJobManager(MultiBackendJobManager):
             else :
                 s3_client = self.storage_options["WEED_storage"].get_s3_client()
                 bucket_name= self.storage_options["WEED_storage"].get_s3_bucket_name()
-                s3_client.download_file(bucket_name, os.path.join(S3_prefix,f"timeseries.{file_ext}"),
+                s3_client.download_file(bucket_name, os.path.join(S3_prefix,f"{title}.{file_ext}"),
                                         job_dir / f"{title}.{file_ext}")
-
 
         if not self.storage_options.get('workspace_export', False):
             #fix prefix problem for non netcdf or GTiff files
@@ -375,7 +369,7 @@ class WeedJobManager(MultiBackendJobManager):
                     new_status = "downloading"
 
                 if previous_status == "downloading":
-                    if not self.check_finished(the_job):
+                    if not self.check_finished(the_job, active.loc[i]):
                         new_status = "downloading"
 
                 if previous_status != "error" and new_status == "error":

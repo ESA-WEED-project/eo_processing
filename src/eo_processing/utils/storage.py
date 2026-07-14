@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import boto3
+import pandas as pd
 from botocore.exceptions import ClientError
 from getpass import getpass
 import geopandas as gpd
@@ -977,6 +978,77 @@ class SQL_storage:
             if conn.closed == 0: conn.close()
 
         return lresults
+
+    def AddColumns(self, table: str, column_names: lst(str)) -> None:
+        """
+        Adds a new column to a specified table in the database. The method dynamically constructs
+        an SQL ALTER TABLE statement to add the column with the specified name, ensuring
+        compatibility with the existing table structure. If the column already exists, the query
+        does not raise an error.
+
+        Args:
+            table (str): The name of the table to which the column should be added.
+            column_names (str): The names of the new columns.
+
+        Returns:
+            None
+        """
+
+        sql_statement = f"""ALTER TABLE {table}
+            {',\n'.join([f'ADD COLUMN IF NOT EXISTS "{col.lower()}" numeric' for col in column_names])};"""
+
+        self.GenericQueryWithOUTResult(sql_statement)
+
+    def UploadTrainingPointData(self, table: str, df: pd.DataFrame, column_names: List[str]) -> None:
+        """
+        Uploads data to the specified database table by adding missing columns, handling existing
+        data updates, and inserting new data points in bulk or individually.
+
+        This method performs the following steps:
+        1. Checks and ensures all necessary columns in the table.
+        2. Identifies whether existing data points need to be updated or if new points need to be
+           inserted.
+        3. Performs a bulk data insert for new data points if any.
+        4. Updates rows individually for existing data points.
+
+        Parameters:
+            table: str
+                The name of the database table where the data should be uploaded.
+            df: pd.DataFrame
+                A pandas DataFrame containing the data to be uploaded.
+            column_names: List[str]
+                A list of column names that need to be added to the table if they do not exist.
+
+        Raises:
+            None
+
+        Returns:
+            None
+        """
+
+        #First check if all columns are in the table
+        self.AddColumns(table, column_names)
+
+        #First check which points are new and which are not
+        sql_statement = f"""SELECT mgrsid10, year
+                            FROM {table}"""
+
+        available_keys = self.GenericQueryWithResult(sql_statement)
+
+        #split according to PK available are not
+        bulk_df = df[~df.set_index(['MGRSid10', 'year']).index.isin(available_keys)]
+        line_df = df[df.set_index(['MGRSid10', 'year']).index.isin(available_keys)]
+
+        if len(bulk_df) != 0:
+            #upload bulk
+            data = ReadFaker(bulk_df)
+            self.BulkInsert(table, data, tuple([column.lower() for column in df.columns]))
+
+        for index, row in line_df.iterrows():
+            #upload line
+            self.StatusUpdateTiles(table, (row['MGRSid10'], row['year']),
+                                           tuple([column.lower() for column in column_names]),
+                                           row[column_names].to_list())
 
     def StatusUpdateTiles(self, table: str, PK: tuple(str, int), lcolumns: List[str], lmsg: List[str]) -> bool:
         """

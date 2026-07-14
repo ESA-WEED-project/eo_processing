@@ -16,7 +16,7 @@
         },
         "id": "SENTINEL1_GRD",
         "properties": {
-          "polarisation": {
+          "sar:polarizations": {
             "process_graph": {
               "eq1": {
                 "process_id": "eq",
@@ -24,7 +24,10 @@
                   "x": {
                     "from_parameter": "value"
                   },
-                  "y": "VV&VH"
+                  "y": [
+                    "VV",
+                    "VH"
+                  ]
                 },
                 "result": true
               }
@@ -306,7 +309,7 @@
       "python-memory": "4000m",
       "max-executors": 20,
       "udf-dependency-archives": [
-          "https://s3.waw3-1.cloudferro.com/swift/v1/project_dependencies/onnx_deps_python311.zip#onnx_deps"
+          "https://s3.waw3-1.cloudferro.com/project_dependencies/onnx_deps_python311.zip#onnx_deps"
       ]
   },
   "reference_data": {}

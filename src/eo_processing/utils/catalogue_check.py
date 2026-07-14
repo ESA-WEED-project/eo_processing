@@ -2,30 +2,39 @@ from __future__ import annotations
 import requests
 import json
 import pandas as pd
-from eo_processing.utils.geoprocessing import reproj_bbox_to_ll
+from eo_processing.utils.geoprocessing import reproj_bbox_to_ll, bbox_of_PointsFeatureCollection
 import geojson
 from typing import TYPE_CHECKING
 import pystac_client
+import time
 
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import openEO_bbox_format
 
-def catalogue_check_S1(orbit_direction: str, start: str, end: str, bbox: openEO_bbox_format) -> str | None:
+def catalogue_check_S1(orbit_direction: str, start: str, end: str, bbox: openEO_bbox_format,
+                       messages: bool=True, stop_processing: bool=True) -> str | None:
     """
-    Checks the availability of Sentinel-1 images based on the specified orbit direction, date range,
-    and bounding box. Validates the amount of data available against a predefined minimum threshold.
+    Checks the availability of Sentinel-1 imagery within a specified spatiotemporal extent and orbit
+    direction constraints in the given catalog.
 
-    :param orbit_direction: The direction of the orbit, either 'ASCENDING' or 'DESCENDING'. If not
-        specified, the function will check data for both orbit directions. Must comply with the
-        specified format.
-    :param start: The start date of the desired time range in ISO 8601 date format (YYYY-MM-DD) or 'YYYY-MM-DDThh:mm:ss.SSZ'..
-    :param end: The end date of the desired time range in ISO 8601 date format (YYYY-MM-DD) or 'YYYY-MM-DDThh:mm:ss.SSZ'..
-    :param bbox: The bounding box of the area of interest in openEO_bbox_format. It will be reprojected
-        to a latitude and longitude format for API queries.
-    :return: Returns the specified orbit direction if sufficient Sentinel-1 images for the given
-        direction are available. Returns `None` if the checks for both orbit directions combined are
-        sufficient or if orbit direction was not specified. Raises an error if the amount of data
-        does not meet the threshold.
+    This function determines if the number of Sentinel-1 images available in a specified bounding
+    box and temporal range meets an expected threshold. It supports restricting results based on
+    an orbit direction and provides summary messages or raises exceptions if conditions are not met.
+
+    :param orbit_direction: (str) The orbit direction for filtering imagery. Must be 'ASCENDING'
+                            or 'DESCENDING'. If None, both directions are checked.
+    :param start: (str) The start date of the query in ISO 8601 format. Time is appended as 'T00:00:00.00Z'
+                  if not provided.
+    :param end: (str) The end date of the query in ISO 8601 format. Time is appended as 'T00:00:00.00Z'
+                if not provided.
+    :param bbox: (openEO_bbox_format) A bounding box specifying the geographic extent of the query
+                 in the format supported by OpenEO.
+    :param messages: (bool) If True, print messages summarizing the results. Default is True.
+    :param stop_processing: (bool) If True, raises a ValueError when the imagery availability criteria
+                            are not met. Default is True.
+
+    :return: The specific orbit direction ('ASCENDING' or 'DESCENDING') if enough images are found
+             for that orbit direction, otherwise None.
     """
     #standard settigns for amount of expected files per day
     #quickfix on dates that are in date format
@@ -52,31 +61,41 @@ def catalogue_check_S1(orbit_direction: str, start: str, end: str, bbox: openEO_
         json_data = json.loads(results.text)
 
         if len(json_data["value"]) < MIN_VALUE_S1*percentage*temp_extent_days:
-            print(f'Not enough S1 images with orbit {orbit_direction}. \n' + \
-                  f'Found {len(json_data["value"])} images.')
-        else: return orbit_direction
+            if messages:
+                print(f'Not enough S1 images with orbit {orbit_direction}. \n' + \
+                      f'Found {len(json_data["value"])} images.')
+        else:
+            if messages:
+                print(f'Found {len(json_data["value"])} images with orbit direction {orbit_direction}.')
+            return orbit_direction
     #use both orbits
     #check with both directions.
     nbr_files = count_amount_of_files('S1', latlon_box, start, end)
     if nbr_files < MIN_VALUE_S1*percentage*temp_extent_days:
-        raise ValueError(f'not enough S1 without orbit direction selection. \n'+ \
-                         f'Found {nbr_files} images.')
+        if stop_processing:
+            raise ValueError(f'not enough S1 without orbit direction selection. \n'+ \
+                             f'Found {nbr_files} images.')
+    if messages:
+        print(f'Found {nbr_files} images with orbit direction BOTH.')
 
     return None
 
-def catalogue_check_S2(start: str, end: str, bbox: openEO_bbox_format) -> None:
+def catalogue_check_S2(start: str, end: str, bbox: openEO_bbox_format,
+                       messages: bool=True, stop_processing: bool=True) -> None:
     """
-    Check the availability of Sentinel-2 (S2) satellite images for a given time period
-    and bounding box. The function calculates the expected minimum number of images
-    and raises a ValueError if the actual count is insufficient.
+    Checks the availability of Sentinel-2 (S2) satellite images within a given time range and bounding box.
+    The function determines if the number of available images meets the minimum threshold based on the temporal
+    extent and year-specific conditions. If the threshold is not met, it raises an error or optionally prints
+    the count of found images.
 
-    :param start: The start date of the time period, in the format 'YYYY-MM-DD' or 'YYYY-MM-DDThh:mm:ss.SSZ'.
-    :param end: The end date of the time period, in the format 'YYYY-MM-DD'or 'YYYY-MM-DDThh:mm:ss.SSZ'..
-    :param bbox: The bounding box defining the spatial extent, must be in openEO
-        bounding box format.
-    :return: None
-    :raises ValueError: If the number of available Sentinel-2 images is less than the
-        required minimum threshold.
+    :param start: (str) The start date of the search range in ISO 8601 format.
+    :param end: (str) The end date of the search range in ISO 8601 format.
+    :param bbox: (openEO_bbox_format) The bounding box in a geographical coordinate system.
+    :param messages: (bool) Optional flag to print a message with the number of found images. Default is True.
+    :param stop_processing: (bool) Optional flag to raise an exception if the number of images is below the threshold.
+                            Default is True.
+
+    :raises ValueError: If the number of Sentinel-2 images does not meet the minimum threshold and stop_processing is True.
     """
     MIN_VALUE_S2 = 1./5.
     percentage = 0.8
@@ -95,7 +114,10 @@ def catalogue_check_S2(start: str, end: str, bbox: openEO_bbox_format) -> None:
 
     nbr_files = count_amount_of_files('S2', latlon_box, start, end)
     if nbr_files < MIN_VALUE_S2*percentage*temp_extent_days:
-        raise ValueError(f'not enough S2 images. Found {nbr_files} images.')
+        if stop_processing:
+            raise ValueError(f'not enough S2 images. Found {nbr_files} images.')
+    if messages:
+        print(f'Found {nbr_files} S2 images.')
 
 mece_sequence = [[[9], [15], [21], [27], [34], [40], [49], [54], [57], [62], [69], [73], [82]],
                  [[86], [89], [93], [99], [102], [110], [113], [117], [122], [126], [130], [135], [138]],
@@ -132,24 +154,30 @@ def count_amount_of_files(sentinel: str, latlon_box: geojson.Feature, start: str
     json_data = json.loads(results.text)
     return len(json_data["value"])
 
-def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: openEO_bbox_format) -> str | None:
+def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: openEO_bbox_format,
+                            messages: bool=True, stop_processing: bool=True) -> str | None:
     """
-    Executes a query to the Copernicus Data Space Ecosystem (CDSE) Sentinel-1 catalogue
-    to verify the availability of Sentinel-1 imagery over a specified temporal extent
-    and spatial bounding box. The function evaluates whether sufficient Sentinel-1
-    images exist based on certain thresholds and optionally filters by orbit direction.
+    Checks the availability of Sentinel-1 satellite images for a given temporal and spatial extent
+    and optionally filters them by orbit direction. If the specified criteria are not met, the
+    function can optionally raise errors or display messages. VErsion to use with CDSE and pySTAC.
 
-    :param orbit_direction: Direction of the orbit for filtering results. Can be
-        'ASCENDING', 'DESCENDING', or None for both. If provided, it must be one of these values.
-    :param start: Start date of the query temporal extent in ISO 8601 format
-        (YYYY-MM-DD). Time will default to "T00:00:00.00Z" if not specified.
-    :param end: End date of the query temporal extent in ISO 8601 format
-        (YYYY-MM-DD). Time will default to "T00:00:00.00Z" if not specified.
-    :param bbox: Spatial bounding box for the query in openEO_bbox_format. Used to
-        define the region of interest.
+    :param orbit_direction: str. The orbit direction to filter on. Acceptable values are
+                            'ASCENDING' or 'DESCENDING'. If None, both directions are considered.
+    :param start: str. Start date for the temporal extent in ISO 8601 format (e.g., 'YYYY-MM-DD').
+    :param end: str. End date for the temporal extent in ISO 8601 format (e.g., 'YYYY-MM-DD').
+    :param bbox: openEO_bbox_format. Bounding box defining the spatial extent of the search region
+                 in openEO format.
+    :param messages: bool (default=True). Whether to print messages about the results of the search.
+    :param stop_processing: bool (default=True). Whether to raise an error if the number of images
+                            found does not meet the required criteria.
 
-    :return: The orbit direction if sufficient Sentinel-1 images are available for
-        the specified orbit, else None.
+    :return: str | None. The orbit direction that satisfies the criteria if applicable. Returns
+             None if no specific orbit direction was found to meet the requirements or if no orbit
+             direction was specified.
+
+    :raises ValueError: If `orbit_direction` is not one of the acceptable values ('ASCENDING' or
+                        'DESCENDING'), or if not enough Sentinel-1 images are found to meet the
+                        required criteria when `stop_processing` is True.
     """
     #quickfix on dates that are in date format
     if not 'Z' in start:
@@ -184,14 +212,23 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
             datetime=f"{start}/{end}",
             fields=["id", "properties.datetime"],
             query={"sat:orbit_state": {"eq": f"{orbit_direction.lower()}"},
-                   #"sar:polarizations": {"eq": "VV&VH"},
+                   "sar:polarizations": {"eq": ["VV", "VH"]},
                    },
         )
 
         # get the dates of all found matches
         results = []
-        for item in search.items_as_dicts():
-            results.append(item['properties']['datetime'])
+
+        for attempt in range(3):
+            try:
+                for item in search.items_as_dicts():
+                    results.append(item['properties']['datetime'])
+                break
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
+                else:
+                    raise e
 
         # count the number of unique dates on which we have observations (resolved tile overlap)
         df = pd.DataFrame(results, columns=['date'])
@@ -200,9 +237,15 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
         nbr_files = df['date'].nunique()
 
         if nbr_files < MIN_VALUE_S1*percentage*temp_extent_days:
-            print(f'Not enough S1 images with orbit {orbit_direction}. \n' + \
-                  f'Found {nbr_files} images.')
-        else: return orbit_direction
+            if messages:
+                print(f'Not enough S1 images with orbit {orbit_direction}. \n' + \
+                      f'Found {nbr_files} images.')
+            # jump back to check with BOTH orbits
+            pass
+        else:
+            if messages:
+                print(f'Found {nbr_files} images with orbit direction {orbit_direction}.')
+            return orbit_direction
     #use both orbits -> check with both directions.
 
     search = client.search(
@@ -210,13 +253,21 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
         bbox=list(latlon_box.bounds),
         datetime=f"{start}/{end}",
         fields=["id", "properties.datetime"],
-        #query={"sar:polarizations": {"eq": "VV&VH"} },
+        query={"sar:polarizations": {"eq": ["VV", "VH"]} },
     )
 
     # get the dates of all found matches
     results = []
-    for item in search.items_as_dicts():
-        results.append(item['properties']['datetime'])
+    for attempt in range(3):
+        try:
+            for item in search.items_as_dicts():
+                results.append(item['properties']['datetime'])
+            break
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
+            else:
+                raise e
 
     # count the number of unique dates on which we have observations (resolved tile overlap)
     df = pd.DataFrame(results, columns=['date'])
@@ -225,23 +276,34 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
     nbr_files = df['date'].nunique()
 
     if nbr_files < MIN_VALUE_S1*percentage*temp_extent_days:
-        raise ValueError(f'not enough S1 without orbit direction selection. \n'+ \
-                         f'Found {nbr_files} images.')
+        if stop_processing:
+            raise ValueError(f'not enough S1 without orbit direction selection. \n'+ \
+                             f'Found {nbr_files} images.')
+    if messages:
+        print(f'Found {nbr_files} images with orbit direction BOTH.')
 
     return None
 
-def catalogue_check_CDSE_S2(start: str, end: str, bbox: openEO_bbox_format) -> None:
+def catalogue_check_CDSE_S2(start: str, end: str, bbox: openEO_bbox_format,
+                            messages: bool=True, stop_processing: bool=True) -> None:
     """
-    Checks the availability of Sentinel-2 images from the Copernicus Data Space Ecosystem STAC
-    API within a specified temporal and spatial extent. Validates whether the minimum required
-    observation density is met based on temporal extent duration and predefined thresholds.
+    Checks the availability of Sentinel-2 images for a specified temporal and spatial extent
+    using the Copernicus Data Space Ecosystem STAC API.
 
-    :param start: The start date of the temporal extent in ISO 8601 format (e.g., "YYYY-MM-DD").
-    :param end: The end date of the temporal extent in ISO 8601 format (e.g., "YYYY-MM-DD").
-    :param bbox: A bounding box defining the spatial extent in openEO_bbox_format.
+    This function evaluates whether the available number of Sentinel-2 (S2) images falls
+    below a minimum threshold for an expected observation frequency based on the specified
+    temporal extent and spatial bounding box. The function can optionally stop further processing
+    if the images are insufficient or print a message about the number of images found.
 
-    :raises ValueError: If the number of Sentinel-2 images found does not meet the minimum
-        required observation density for the specified bounding box and temporal extent.
+    :param start: (str) The start date of the temporal extent in "YYYY-MM-DD" format.
+    :param end: (str) The end date of the temporal extent in "YYYY-MM-DD" format.
+    :param bbox: (openEO_bbox_format) The spatial bounding box in an openEO-compatible format.
+    :param messages: (bool) A flag to indicate whether to print the number of images found. Defaults to True.
+    :param stop_processing: (bool) A flag to indicate whether to raise an error and halt processing if
+        the number of images is insufficient. Defaults to True.
+
+    :raises ValueError: If the number of available S2 images is less than the required threshold and
+        `stop_processing` is set to True.
     """
     #quickfix on dates that are in date format
     if not 'Z' in start:
@@ -278,8 +340,16 @@ def catalogue_check_CDSE_S2(start: str, end: str, bbox: openEO_bbox_format) -> N
 
     # get the dates of all found matches
     results = []
-    for item in search.items_as_dicts():
-        results.append(item['properties']['datetime'])
+    for attempt in range(3):
+        try:
+            for item in search.items_as_dicts():
+                results.append(item['properties']['datetime'])
+            break
+        except Exception as e:
+            if attempt < 2:
+                time.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
+            else:
+                raise e
 
     # count the number of unique dates on which we have observations (resolved tile overlap)
     df = pd.DataFrame(results, columns=['date'])
@@ -289,4 +359,30 @@ def catalogue_check_CDSE_S2(start: str, end: str, bbox: openEO_bbox_format) -> N
 
     # run the test
     if nbr_files < MIN_VALUE_S2*percentage*temp_extent_days:
-        raise ValueError(f'not enough S2 images. Found {nbr_files} images.')
+        if stop_processing:
+            raise ValueError(f'not enough S2 images. Found {nbr_files} images.')
+    if messages:
+        print(f'Found {nbr_files} S2 images.')
+
+def catalogue_check_CDSE_S1_FeatureCollection(points_geometry: geojson.FeatureCollection, start_orbit: str,
+                                              start: str, end: str) -> str | None:
+    """
+    Checks the availability of satellite data within a defined geometry and time range.
+
+    This function takes a geography feature collection and a time range, then determines
+    satellite data availability by performing an orbit check. It calculates a bounding
+    box from the given feature collection to perform the check.
+
+    :param points_geometry: (geojson.FeatureCollection) The geometry as a feature
+        collection used to define the spatial extent.
+    :param start_orbit: (str) The starting orbit identifier for the data query.
+    :param start: (str) The start of the time range for the data query in ISO 8601 format.
+    :param end: (str) The end of the time range for the data query in ISO 8601 format.
+
+    :return: Returns a string containing the result of the orbit check if data is available.
+        Returns None if no data is found or the check fails.
+    """
+    # need openEO BBOX for orbit check
+    bbox = bbox_of_PointsFeatureCollection(points_geometry)
+    # now we run the orbit check and give result back
+    return catalogue_check_CDSE_S1(start_orbit, start, end, bbox, messages=False, stop_processing=False)

@@ -443,17 +443,17 @@ def generate_nonEO_feature_cube(
         **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
 
     """ Warper to generate the data cube of all nonEO data based on a collections  list of the form [(collection, [band1, band2, ...])]"""
-    temporal_extent = [start, end]
-    temporal_extent = None
 
     chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
 
-    for collection, bands, reproj, year in collections_list:
+    for collection, bands, reproj, year, stac_url in collections_list:
         #first need to distinguish between STAC and collection
         #we assume that they will allways be an url type of link in contrary with a collections which should just be a name
-        if temporal_extent:
+        if year:
             temporal_extent = [f"{year}-01-01T00:00:00Z", f"{year}-12-31T23:59:59Z"]
-        STAC_url = get_stac_collection_url(collection)
+        else:
+            temporal_extent = None
+        STAC_url = get_stac_collection_url(collection, stac_url)
         isSTAC = STAC_url is not None
 
         #secondly we know there are some specific case of reprojection EG DEM should be bilinear iso near
@@ -469,6 +469,7 @@ def generate_nonEO_feature_cube(
             if bands == []:
                 bands = metadata_from_stac(STAC_url).band_names
             #to be checked does the temporal filtering work on eg WERN
+            if
             nonEO_feature_cube = connection.load_stac(STAC_url,
                                                       bands=bands,
                                                       temporal_extent=temporal_extent

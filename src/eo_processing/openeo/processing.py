@@ -1,6 +1,7 @@
 from __future__ import annotations
 import itertools
 import openeo
+import numpy as np
 from openeo.rest.datacube import DataCube
 from openeo.extra.spectral_indices import append_indices, compute_indices
 from openeo.processes import array_create, ProcessBuilder, array_concat, subtract
@@ -449,8 +450,8 @@ def generate_nonEO_feature_cube(
     for collection, bands, reproj, year, stac_url in collections_list:
         #first need to distinguish between STAC and collection
         #we assume that they will allways be an url type of link in contrary with a collections which should just be a name
-        if year:
-            temporal_extent = [f"{year}-01-01T00:00:00Z", f"{year}-12-31T23:59:59Z"]
+        if not np.isnan(year):
+            temporal_extent = [f"{int(year)}-01-01T00:00:00Z", f"{int(year)}-12-31T23:59:59Z"]
         else:
             temporal_extent = None
         STAC_url = get_stac_collection_url(collection, stac_url)

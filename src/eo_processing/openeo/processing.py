@@ -469,7 +469,6 @@ def generate_nonEO_feature_cube(
             if bands == []:
                 bands = metadata_from_stac(STAC_url).band_names
             #to be checked does the temporal filtering work on eg WERN
-            if
             nonEO_feature_cube = connection.load_stac(STAC_url,
                                                       bands=bands,
                                                       temporal_extent=temporal_extent

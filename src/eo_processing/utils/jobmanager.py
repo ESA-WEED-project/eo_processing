@@ -499,6 +499,8 @@ class WeedJobManager(MultiBackendJobManager):
                         # start job if not yet done by callback
                         try:
                             job_con = job.connection
+                            # Proactively refresh bearer token (because task in thread will not be able to do that)
+                            self._refresh_bearer_token(connection=job_con)
                             task = _JobStartTask(
                                 root_url=job_con.root_url,
                                 bearer_token=job_con.auth.bearer if isinstance(job_con.auth, BearerAuth) else None,

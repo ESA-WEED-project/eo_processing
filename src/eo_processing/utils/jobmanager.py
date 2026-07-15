@@ -782,6 +782,7 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
                          discriminator: Optional[str] = None, target_crs: Optional[int] = None,
                          version: Optional[str] = None,
                          model_ID: Optional[str] = None,
+                         nonEO_file: Optional[str] = None,
                          storage_options: Optional[storage_option_format] = None,
                          organization_id : Optional[int] = None, path_global_grid: Optional[str] = None,
                          feature_bbox: Optional[Tuple[float, float, float, float]] = None) -> gpd.GeoDataFrame:
@@ -817,11 +818,11 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
     if isinstance(gdf, gpd.GeoDataFrame):
         # we are preparing a inference or post-processing actions
         columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date','export_workspace',
-                   's3_prefix', 'organization_id', 's2_tileid_list']
+                   's3_prefix', 'organization_id', 's2_tileid_list','nonEO_file']
         dtypes = {'name': 'string', 'tileID': 'string', 'target_epsg': 'UInt16',
                   'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string', 's3_prefix': 'string',
                   'geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16','s2_tileid_list':'string',
-                  'export_workspace':'string'}
+                  'export_workspace':'string','nonEO_file' : 'string'}
 
         job_df = gdf.copy()
 
@@ -862,6 +863,8 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
             job_df['s3_prefix'] = None
             job_df['export_workspace'] = None
 
+        # set no EO list  Should be later replaced by an extraction method straight out of the model metadata.
+        job_df['nonEO_file'] = nonEO_file
         # a fix since the "name" column has to be unique
         job_df['tileID'] = job_df[tile_col].copy()
         if discriminator:

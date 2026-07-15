@@ -217,21 +217,11 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
         )
 
         # get the dates of all found matches
-        results = []
-
-        for attempt in range(3):
-            try:
-                for item in search.items_as_dicts():
-                    results.append(item['properties']['datetime'])
-                break
-            except Exception as e:
-                if attempt < 2:
-                    time.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
-                else:
-                    raise e
+        results_single = []
+        query_retry(search, results_single)
 
         # count the number of unique dates on which we have observations (resolved tile overlap)
-        df = pd.DataFrame(results, columns=['date'])
+        df = pd.DataFrame(results_single, columns=['date'])
         df['date'] = pd.to_datetime(df['date'])
         df['date'] = df['date'].apply(lambda x: x.date())
         nbr_files = df['date'].nunique()
@@ -246,8 +236,8 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
             if messages:
                 print(f'Found {nbr_files} images with orbit direction {orbit_direction}.')
             return orbit_direction
-    #use both orbits -> check with both directions.
 
+    #use both orbits -> check with both directions.
     search = client.search(
         collections=['sentinel-1-grd'],
         bbox=list(latlon_box.bounds),
@@ -257,20 +247,11 @@ def catalogue_check_CDSE_S1(orbit_direction: str, start: str, end: str, bbox: op
     )
 
     # get the dates of all found matches
-    results = []
-    for attempt in range(3):
-        try:
-            for item in search.items_as_dicts():
-                results.append(item['properties']['datetime'])
-            break
-        except Exception as e:
-            if attempt < 2:
-                time.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
-            else:
-                raise e
+    results_both = []
+    query_retry(search, results_both)
 
     # count the number of unique dates on which we have observations (resolved tile overlap)
-    df = pd.DataFrame(results, columns=['date'])
+    df = pd.DataFrame(results_both, columns=['date'])
     df['date'] = pd.to_datetime(df['date'])
     df['date'] = df['date'].apply(lambda x: x.date())
     nbr_files = df['date'].nunique()
@@ -340,16 +321,7 @@ def catalogue_check_CDSE_S2(start: str, end: str, bbox: openEO_bbox_format,
 
     # get the dates of all found matches
     results = []
-    for attempt in range(3):
-        try:
-            for item in search.items_as_dicts():
-                results.append(item['properties']['datetime'])
-            break
-        except Exception as e:
-            if attempt < 2:
-                time.sleep(2 ** attempt)  # exponential backoff: 1s, 2s
-            else:
-                raise e
+    query_retry(search, results)
 
     # count the number of unique dates on which we have observations (resolved tile overlap)
     df = pd.DataFrame(results, columns=['date'])
@@ -386,3 +358,33 @@ def catalogue_check_CDSE_S1_FeatureCollection(points_geometry: geojson.FeatureCo
     bbox = bbox_of_PointsFeatureCollection(points_geometry)
     # now we run the orbit check and give result back
     return catalogue_check_CDSE_S1(start_orbit, start, end, bbox, messages=False, stop_processing=False)
+
+
+def query_retry(search: pystac_client.ItemSearch, results: list, base_waiting_time: int = 20,
+                max_attempts: int = 3) -> list:
+    """
+    Retries a query multiple times with exponential backoff in case of failure.
+
+    This function performs a query using the provided pystac_client.ItemSearch object,
+    attempting to collect datetime properties from each item's dictionary representation.
+    It will retry the query up to a maximum configured number of attempts, applying an
+    exponential backoff between retries. If the maximum number of attempts is reached
+    and the query still fails, it will raise the exception encountered.
+
+    :param search: A pystac_client.ItemSearch object used to perform the item query.
+    :param results: A list where the datetimes from the queried items will be appended.
+    :param base_waiting_time: Initial waiting time in seconds for exponential backoff.
+        Default is 20 seconds.
+    :param max_attempts: Maximum number of retry attempts. Default is 3.
+    :return: A list containing the datetime properties of items retrieved from the query.
+    """
+    for attempt in range(max_attempts):
+        try:
+            for item in search.items_as_dicts():
+                results.append(item['properties']['datetime'])
+        except Exception as e:
+            if attempt < (max_attempts - 1):
+                time.sleep(base_waiting_time * (attempt+1))  # 20s, 40s, 60s...
+            else:
+                raise e
+    return results

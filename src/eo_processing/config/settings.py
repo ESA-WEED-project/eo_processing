@@ -66,7 +66,7 @@ PLANET_VI_LIST: List[str] = ['NDVI',
            'NDWI'
            ]
 PLANET_SCALING: List[Union[int, float]] = [0, 10000, 0, 1.0]
-
+HRVPP_COLLECTION: str = 'copernicus_r_utm-wgs84_10_m_hrvpp-vpp_p_2017-now_v01_direct'  #special case with 2 seasons iso 1 year
 # ---------------------------------------------------
 # Job options for OpenEO
 OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {

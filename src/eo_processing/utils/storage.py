@@ -815,6 +815,7 @@ class SQL_storage:
             print('** get data from request')
             # create cursor
             cur = conn.cursor()
+            cur.itersize = 10000
             cur.execute(sql_statement)
             # get data
             vResult = cur.fetchall()
@@ -1355,7 +1356,7 @@ class stac_storage:
         #get the auth
         auth_token = self.get_bearer_auth()
         #get catalog_url
-        catalog_url = self.get_catalog_url()
+        catalog_url = self.get_catalog_url().rstrip('/')
 
         # load the collection from the created collection.  
         coll = collection.to_dict()
@@ -1371,7 +1372,7 @@ class stac_storage:
             # upload a new collection
             collection_url = f"{catalog_url}/collections/"
             resp = post(collection_url, auth=auth_token, json=coll)
-        if resp.status_code == 201:
+        if resp.status_code == 200 or resp.status_code == 201:
             coll_id = resp.json()["id"]
             if edit_flag:
                 print(f"Collection edited: {coll_id}")
@@ -1401,7 +1402,7 @@ class stac_storage:
         #get the auth
         auth_token = self.get_bearer_auth()
         #get catalog_url
-        catalog_url = self.get_catalog_url()
+        catalog_url = self.get_catalog_url().rstrip('/')
 
         # check if there are items that need to be uploaded only if update is False
         if len(items_to_upload) == 0:

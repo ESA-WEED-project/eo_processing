@@ -245,7 +245,7 @@ def calculate_features_cube(input_data: DataCube, chunk_size: int = CHUNK_SIZE) 
                                                         "TileSize": chunk_size})
     # adapt the band names
     new_band_names = [
-        band + "_" + stat
+        band.lower() + "_" + stat.lower()
         for band in input_data.metadata.band_names
         for stat in ["p2", "p5", "p25", "median", "p75", "p95", "p98", "mean", "sd", "sum", "iqr", "iqr0595"]
     ]
@@ -254,11 +254,16 @@ def calculate_features_cube(input_data: DataCube, chunk_size: int = CHUNK_SIZE) 
 
     # remove some bands which make no sense :)
     # mainly from S2REP --> sd, sum, iqr
+    #bands_keep = [band for band in features_cube.metadata.band_names if
+    #              band not in ['S2REP_sd', 'S2REP_sum', 'S2REP_iqr', 'S2REP_iqr0595' , 'VV_sum', 'VH_sum', 'VHVVD_sum',
+    #                           'S2-CLOUD-MASK_p2', 'S2-CLOUD-MASK_p5', 'S2-CLOUD-MASK_p25', 'S2-CLOUD-MASK_median',
+    #                           'S2-CLOUD-MASK_p75','S2-CLOUD-MASK_p95', 'S2-CLOUD-MASK_p98', 'S2-CLOUD-MASK_mean',
+    #                           'S2-CLOUD-MASK_sd','S2-CLOUD-MASK_iqr','S2-CLOUD-MASK_iqr0595', 'S2-CLOUD-MASK_sum']]
     bands_keep = [band for band in features_cube.metadata.band_names if
-                  band not in ['S2REP_sd', 'S2REP_sum', 'S2REP_iqr', 'S2REP_iqr0595' , 'VV_sum', 'VH_sum', 'VHVVD_sum',
-                               'S2-CLOUD-MASK_p2', 'S2-CLOUD-MASK_p5', 'S2-CLOUD-MASK_p25', 'S2-CLOUD-MASK_median',
-                               'S2-CLOUD-MASK_p75','S2-CLOUD-MASK_p95', 'S2-CLOUD-MASK_p98', 'S2-CLOUD-MASK_mean',
-                               'S2-CLOUD-MASK_sd','S2-CLOUD-MASK_iqr','S2-CLOUD-MASK_iqr0595', 'S2-CLOUD-MASK_sum']]
+                  band not in ['s2rep_sd', 's2rep_sum', 's2rep_iqr', 's2rep_iqr0595' , 'vv_sum', 'vh_sum', 'vhvvd_sum',
+                               's2-could-mask_p2', 's2-could-mask_p5', 's2-could-mask_p25', 's2-could-mask_median',
+                               's2-could-mask_p75','s2-could-mask_p95', 's2-could-mask_p98', 's2-could-mask_mean',
+                               's2-could-mask_sd','s2-could-mask_iqr','s2-could-mask_iqr0595', 's2-could-mask_sum']]
 
     features_cube = features_cube.filter_bands(bands=bands_keep)
 
@@ -492,7 +497,7 @@ def generate_nonEO_feature_cube(
                 # reduce the temporal domain since copernicus_30 collection is "special" and feature only are one time stamp
                 nonEO_feature_cube = nonEO_feature_cube.reduce_dimension(dimension='t', reducer=lambda x: x.last(ignore_nodata=True))
 
-        new_bands = [f"{collection}-{band}" for band in bands]
+        new_bands = [f"{collection.lower()}-{band.lower()}" for band in bands]
 
 
         # resample the cube to 10m and EPSG of corresponding 20x20km grid tile

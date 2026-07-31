@@ -150,7 +150,7 @@ def extract_S1_datacube(
     #       therefore, the integration has to be this ugly and not only in the final warper functions
     if get_NVBT:
         nvbt_band = bands.filter_bands(bands.metadata.band_names[0]).count_time().rename_labels("bands",
-                                                                                                ["S1-NVBT"])
+                                                                                                ["S1-NVBT".lower()])
         nvbt_band = nvbt_band.apply(lambda x: if_(x.is_nodata(), 0, x))
 
     # Linearly interpolate missing values if wished
@@ -319,7 +319,7 @@ def extract_S2_datacube(
     # Note: we want to create the NVBT here before any possible linear interpolation is done
     #       therefore, the integration has to be this ugly and not only in the final warper functions
     if get_NVBT:
-        nvbt_band = bands.filter_bands(S2_bands[0]).count_time().rename_labels("bands", ["S2-NVBT"])
+        nvbt_band = bands.filter_bands(S2_bands[0]).count_time().rename_labels("bands", ["S2-NVBT".lower()])
         nvbt_band = nvbt_band.apply(lambda x: if_(x.is_nodata(), 0, x))
 
     # Linearly interpolate missing values if wished

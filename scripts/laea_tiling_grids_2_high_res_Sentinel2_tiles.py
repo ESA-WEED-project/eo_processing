@@ -28,17 +28,17 @@ def get_epsg(tile_id):
     return target_EPSG
 
 # filter to tiles in UTM zones needed for pan EU
-df2 = pd.read_csv(r'C:\Users\buchhorm\Downloads\new_grids\utm_codes_europe.csv')
-df2['utm'] = df2['ZONE'].astype(str) + df2['ROW_']
-lNeeded = df2['utm'].tolist()
+#df2 = pd.read_csv(r'C:\Users\buchhorm\Downloads\new_grids\utm_codes_europe.csv')
+#df2['utm'] = df2['ZONE'].astype(str) + df2['ROW_']
+#lNeeded = df2['utm'].tolist()
 
 
 ## Start read out everything we need with beautiful soup from Sentinel-2 KML
-xml_file = r'C:\Users\buchhorm\Downloads\new_grids\Sentinel2_tiles.kml'
-soup = bs.BeautifulSoup(open(xml_file), 'xml')
+xml_file = r'C:\Users\buchhorm\Downloads\120x120km_grid\S2_tiles.kml'
+soup = bs.BeautifulSoup(open(xml_file), 'html.parser')
 
 #find all VRTRasterBands in the soup
-tiles = soup.findAll('description')
+tiles = soup.find_all('description')
 
 data = []
 
@@ -57,8 +57,8 @@ for element in tiles:
         cols = [ele.text.strip() for ele in cols]
         if cols[0] == 'TILE_ID': data1 = cols[1]
         if cols[0] == 'UTM_WKT': data2 = cols[1]
-    if data1[:3] in lNeeded:
-        data.append((data1, data2, get_epsg(data1)))
+
+    data.append((data1, data2, get_epsg(data1)))
 
 df = pd.DataFrame(data, columns=['tile_id', 'geometry', 'epsg'])
 data = None
@@ -80,10 +80,10 @@ for tile in lEPSG:
     # add extra points in 250m intervall
     gdf['geometry'] = gdf['geometry'].apply(lambda x: x.segmentize(250))
 
-    gdf2 = gdf.to_crs(epsg=3035)
+    gdf2 = gdf.to_crs(epsg=4326)
     list_results.append(gdf2)
 
 result = gpd.GeoDataFrame(pd.concat(list_results, ignore_index=True), crs=list_results[0].crs)
 
 # write out
-result.to_file(r'C:\Users\buchhorm\Downloads\new_grids\Sentinel2_tiling_grid_EU_high_res_EPSG3035.gpkg', driver='GPKG')
+result.to_file(r'C:\Users\buchhorm\Downloads\120x120km_grid\Sentinel2_tiling_grid_high_res_EPSG4326.gpkg', driver='GPKG')

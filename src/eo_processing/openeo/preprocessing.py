@@ -125,10 +125,10 @@ def extract_S1_datacube(
         bands = bands.sar_backscatter(
             coefficient='sigma0-ellipsoid',
             local_incidence_angle=False,
-            # DO NOT USE MAPZEN
+            # DO NOT USE MAPZEN, removed "otb_memory": 1024 from options on advice of JD,
             elevation_model='COPERNICUS_30' if flag_DEM else None,
             options={"implementation_version": "2",
-                     "tile_size": chunk_size, "otb_memory": 1024, "debug": False,
+                     "tile_size": chunk_size, "debug": False,
                      "elev_geoid": "/opt/openeo-vito-aux-data/egm96.tif"}
         )
         check_flag = True

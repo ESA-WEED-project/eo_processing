@@ -518,7 +518,6 @@
       "process_id": "apply_dimension",
       "arguments": {
         "context": {
-          "parallel": true,
           "TileSize": 128
         },
         "data": {

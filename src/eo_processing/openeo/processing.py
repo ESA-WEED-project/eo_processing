@@ -241,8 +241,7 @@ def calculate_features_cube(input_data: DataCube, chunk_size: int = CHUNK_SIZE) 
     features_cube = input_data.apply_dimension(dimension='t',
                                                process=_compute_features,
                                                target_dimension='bands',
-                                               context={"parallel": True,
-                                                        "TileSize": chunk_size})
+                                               context={"TileSize": chunk_size})
     # adapt the band names
     new_band_names = [
         band.lower() + "_" + stat.lower()
@@ -443,10 +442,10 @@ def create_collections_list_from_bands(input_bands : List[str]):
     return collections_list
 
 def generate_nonEO_feature_cube(
-        connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
-        collections_list: List[str],
+        connection: openeo.Connection, bbox: openEO_bbox_format | None, start: str, end: str,
+        collections_list: list[str],
         base_cube : DataCube,
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: dict[str, str | bool | (int | float) | list[str] | list[int | float]]) -> DataCube:
 
     """ Warper to generate the data cube of all nonEO data based on a collections  list of the form [(collection, [band1, band2, ...])]"""
 
@@ -480,6 +479,9 @@ def generate_nonEO_feature_cube(
                                                       temporal_extent=temporal_extent
                                                       )
             nonEO_feature_cube.result_node().update_arguments(featureflags={'tilesize': chunk_size})
+            # TODO add all the collections that are allowed to be empty
+            if collection in ["DEM_aspec_30m"]:
+                nonEO_feature_cube.result_node().update_arguments(featureflags={'allow_empty_cube': True})
 
         else:
             #if openeo the -v1 should be split off of the collection

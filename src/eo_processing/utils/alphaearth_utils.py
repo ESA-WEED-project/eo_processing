@@ -475,7 +475,7 @@ def filter_files_on_s3(storage: WEED_storage, s3_root: str, df: pd.DataFrame) ->
     all_files = [f["Key"] for f in list_all if f["Key"].endswith(".tif")]
     # Build a list of dicts as before
     result = [
-        {"year": f.split("/")[1], "zone": f.split("/")[2], "filename": f.split("/")[3].split("_")[0]}
+        {"year": f.split("/")[-3], "zone": f.split("/")[-2], "filename": f.split("/")[-1].split("_")[0]}
         for f in all_files
     ]
 

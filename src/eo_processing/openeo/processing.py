@@ -1,6 +1,7 @@
 from __future__ import annotations
 import itertools
 import openeo
+import numpy as np
 from openeo.rest.datacube import DataCube
 from openeo.extra.spectral_indices import append_indices, compute_indices
 from openeo.processes import array_create, ProcessBuilder, array_concat, subtract
@@ -11,14 +12,15 @@ from eo_processing.utils.stac_helper import get_stac_collection_url
 from eo_processing.config.settings import VI_LIST, RADAR_LIST, S2_SCALING, \
     PLANET_VI_LIST, PLANET_SCALING, CHUNK_SIZE
 
-from typing import Optional, Dict, Union, List, Literal, TYPE_CHECKING
+from typing import Optional, Dict, Union, List, TYPE_CHECKING
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import openEO_bbox_format
 
 def optical_indices(
         input_cube: DataCube,
         collection: str ='SENTINEL2_L2A',
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]])\
+        -> DataCube:
     """creates vegetation indices times series cube from given datacube of optical EO data.
        Currently Sentinel-2 and PlanetScope are supported
 
@@ -29,12 +31,12 @@ def optical_indices(
     """
     # evaluate additional processing_options
     if collection == 'SENTINEL2_L2A':
-        vi_list = processing_options.get("optical_vi_list", VI_LIST)
+        vi_list: List = processing_options.get("optical_vi_list", VI_LIST)
         input_scaling = processing_options.get("S2_scaling", S2_SCALING)
         append = processing_options.get("append", True)
         platform = 'Sentinel-2A'
     elif collection == 'PlanetScope':
-        vi_list = processing_options.get("optical_vi_list", PLANET_VI_LIST)
+        vi_list: List = processing_options.get("optical_vi_list", PLANET_VI_LIST)
         input_scaling = processing_options.get("planet_scaling", PLANET_SCALING)
         append = processing_options.get("append", True)
         platform = 'PlanetScope'
@@ -52,12 +54,12 @@ def optical_indices(
 
     # TODO: convert the datacube back to int16 - using the output scaling functionality tested in one
     #  of the example notebooks
-
     return vi_cube
 
 def radar_indices(
         input_cube: DataCube,
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]])\
+        -> DataCube:
     """creates radar indices times series cube from given datacube of radar EO data
 
     :param input_cube: openEO DataCube
@@ -65,10 +67,9 @@ def radar_indices(
     :return: VI datacube merged of input_cube and vi results
     """
     # evaluate additional processing_options
-    vi_list = processing_options.get("radar_vi_list", RADAR_LIST)
+    vi_list: List = processing_options.get("radar_vi_list", RADAR_LIST)
     db_rescaling = processing_options.get("S1_db_rescale", True)
     append = processing_options.get("append", True)
-    chunk_size = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
     platform = "sentinel1"
 
     # convert input DataCube into float (db)
@@ -80,20 +81,21 @@ def radar_indices(
                  (20. * x[1].log(base=10)) - 83.])
         )
 
-
     # calculate VI's
     if append:
         vi_cube = append_indices(datacube=input_cube, indices=vi_list, platform=platform)
     else:
         vi_cube = compute_indices(datacube=input_cube, indices=vi_list, platform=platform, append=False)
 
-
+    # TODO: convert the datacube back to int16 - using the output scaling functionality tested in one
+    #  of the example notebooks
     return vi_cube
 
 def generate_S1_indices(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         S1_collection: str ='SENTINEL1_GRD',
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]])\
+        -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -105,6 +107,11 @@ def generate_S1_indices(
             resolution, ts_interval, time_interpolation, s1_orbitdirection, radar_vi_list, S1_db_rescale, append)
     :return: DataCube
     """
+    # Note: for cubes with a time dimension, no s1-nvbt band can be attached
+    get_NVBT: bool = processing_options.get("get_NVBT", False)
+    if get_NVBT:
+        processing_options["get_NVBT"] = False
+
     # get the S1 input data pre-processed
     input_cube = extract_S1_datacube(connection, bbox, start, end, S1_collection=S1_collection, **processing_options)
 
@@ -116,7 +123,8 @@ def generate_S1_indices(
 def generate_S2_indices(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         S2_collection: str ='SENTINEL2_L2A',
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]])\
+        -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -128,9 +136,14 @@ def generate_S2_indices(
             resolution, ts_interval, time_interpolation, SLC_masking_algo, optical_vi_list, S2_scaling, append, S2_bands)
     :return: DataCube
     """
-    # get the S2 input data pre-processed
-    input_cube = extract_S2_datacube(connection, bbox, start, end, S2_collection=S2_collection,
-                                     **processing_options)
+    # Note: for cubes with a time dimension, no s2-nvbt band can be attached
+    get_NVBT: bool = processing_options.get("get_NVBT", False)
+    if get_NVBT:
+        processing_options["get_NVBT"] = False
+
+    # get the Sentinel-2 datacube as starting point
+    input_cube = extract_S2_datacube(connection, bbox, start, end, S2_collection=S2_collection, **processing_options)
+
     # call the VI generator
     result_cube = optical_indices(input_cube, collection=S2_collection, **processing_options)
 
@@ -138,8 +151,9 @@ def generate_S2_indices(
 
 def generate_indices_master_cube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
-        S2_collection: str ='SENTINEL2_L2A', S1_collection: str ='SENTINEL1_GRD',
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        S2_collection: str ='SENTINEL2_L2A', S1_collection: Optional[str] ='SENTINEL1_GRD',
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]])\
+        -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -153,10 +167,11 @@ def generate_indices_master_cube(
             S2_scaling, append, S2_bands, radar_vi_list, S1_db_rescale)
     :return: DataCube
     """
-    # get the S2 indices
+    # get S2 indices cube - no NVBT band needed
     indices_cube = generate_S2_indices(connection, bbox, start, end, S2_collection=S2_collection,
                                        **processing_options)
-    # merge the S1 indices
+
+    # merge the S1 indices (the called warper makes sure no NVBT band is generated)
     if S1_collection is not None:
         indices_cube = indices_cube.merge_cubes(generate_S1_indices(connection, bbox, start, end,
                                                                     S1_collection=S1_collection,
@@ -166,7 +181,8 @@ def generate_indices_master_cube(
 def generate_indices_planet_cube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         planet_collection: str = 'PlanetScope',
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]])\
+        -> DataCube:
     """ Warper to extract a full data cube of preprocessed PlanetScope data
 
     :param connection: active openEO connection object
@@ -225,26 +241,28 @@ def calculate_features_cube(input_data: DataCube, chunk_size: int = CHUNK_SIZE) 
     features_cube = input_data.apply_dimension(dimension='t',
                                                process=_compute_features,
                                                target_dimension='bands',
-                                               context={"parallel": True,
-                                                        "TileSize": chunk_size})
+                                               context={"TileSize": chunk_size})
     # adapt the band names
     new_band_names = [
-        band + "_" + stat
+        band.lower() + "_" + stat.lower()
         for band in input_data.metadata.band_names
         for stat in ["p2", "p5", "p25", "median", "p75", "p95", "p98", "mean", "sd", "sum", "iqr", "iqr0595"]
     ]
-    #rename 'S2-CLOUD-MASK_sum'
-    new_band_names = ['valid_obs' if x == 'S2-CLOUD-MASK_sum' else x for x in new_band_names]
 
     features_cube = features_cube.rename_labels('bands', new_band_names)
 
     # remove some bands which make no sense :)
     # mainly from S2REP --> sd, sum, iqr
+    #bands_keep = [band for band in features_cube.metadata.band_names if
+    #              band not in ['S2REP_sd', 'S2REP_sum', 'S2REP_iqr', 'S2REP_iqr0595' , 'VV_sum', 'VH_sum', 'VHVVD_sum',
+    #                           'S2-CLOUD-MASK_p2', 'S2-CLOUD-MASK_p5', 'S2-CLOUD-MASK_p25', 'S2-CLOUD-MASK_median',
+    #                           'S2-CLOUD-MASK_p75','S2-CLOUD-MASK_p95', 'S2-CLOUD-MASK_p98', 'S2-CLOUD-MASK_mean',
+    #                           'S2-CLOUD-MASK_sd','S2-CLOUD-MASK_iqr','S2-CLOUD-MASK_iqr0595', 'S2-CLOUD-MASK_sum']]
     bands_keep = [band for band in features_cube.metadata.band_names if
-                  band not in ['S2REP_sd', 'S2REP_sum', 'S2REP_iqr', 'S2REP_iqr0595' , 'VV_sum', 'VH_sum', 'VHVVD_sum',
-                               'S2-CLOUD-MASK_p2', 'S2-CLOUD-MASK_p5', 'S2-CLOUD-MASK_p25', 'S2-CLOUD-MASK_median',
-                               'S2-CLOUD-MASK_p75','S2-CLOUD-MASK_p95', 'S2-CLOUD-MASK_p98', 'S2-CLOUD-MASK_mean',
-                               'S2-CLOUD-MASK_sd','S2-CLOUD-MASK_iqr','S2-CLOUD-MASK_iqr0595']]
+                  band not in ['s2rep_sd', 's2rep_sum', 's2rep_iqr', 's2rep_iqr0595' , 'vv_sum', 'vh_sum', 'vhvvd_sum',
+                               's2-could-mask_p2', 's2-could-mask_p5', 's2-could-mask_p25', 's2-could-mask_median',
+                               's2-could-mask_p75','s2-could-mask_p95', 's2-could-mask_p98', 's2-could-mask_mean',
+                               's2-could-mask_sd','s2-could-mask_iqr','s2-could-mask_iqr0595', 's2-could-mask_sum']]
 
     features_cube = features_cube.filter_bands(bands=bands_keep)
 
@@ -253,7 +271,8 @@ def calculate_features_cube(input_data: DataCube, chunk_size: int = CHUNK_SIZE) 
 def generate_S1_feature_cube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         S1_collection: str ='SENTINEL1_GRD',
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]])\
+        -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -267,18 +286,31 @@ def generate_S1_feature_cube(
     """
     chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
 
-    # get the reflectance and VI time series cube
-    input_data = generate_S1_indices(connection, bbox, start, end, S1_collection=S1_collection,
-                                     **processing_options)
+    get_NVBT: bool = processing_options.get("get_NVBT", False)
+    # feature cubes have no time dimension, so we can add the s1-nvbt band to the cube
+    if get_NVBT:
+        # get the sigma-naught and VI time series cube PLUS the S1-NVBT band
+        input_cube, nvbt_band = extract_S1_datacube(connection, bbox, start, end, S1_collection=S1_collection,
+                                                    **processing_options)
+        # call the VI generator
+        indices_cube = radar_indices(input_cube, **processing_options)
+    else:
+        indices_cube = generate_S1_indices(connection, bbox, start, end, S1_collection=S1_collection,
+                                           **processing_options)
     # get features
-    features_cube = calculate_features_cube(input_data, chunk_size=chunk_size)
+    features_cube = calculate_features_cube(indices_cube, chunk_size=chunk_size)
+
+    # add the S1-NVBT band to cube if needed
+    if get_NVBT:
+        features_cube = features_cube.merge_cubes(nvbt_band)
 
     return features_cube
 
 def generate_S2_feature_cube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         S2_collection: str ='SENTINEL2_L2A',
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]])\
+        -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -291,19 +323,34 @@ def generate_S2_feature_cube(
     :return: DataCube with only features
     """
     chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
-    # get the reflectance and VI time series cube
-    input_data = generate_S2_indices(connection, bbox, start, end, S2_collection=S2_collection,
-                                     **processing_options)
+
+    get_NVBT: bool = processing_options.get("get_NVBT", False)
+    # feature cubes have no time dimension, so we can add the s2-nvbt band to the cube
+    if get_NVBT:
+        # get the reflectance and VI time series cube PLUS S2-NVBT band
+        input_cube, nvbt_band = extract_S2_datacube(connection, bbox, start, end, S2_collection=S2_collection,
+                                                    **processing_options)
+        # call the VI generator
+        indices_cube = optical_indices(input_cube, collection=S2_collection, **processing_options)
+    else:
+        # get the reflectance and VI time series cube
+        indices_cube = generate_S2_indices(connection, bbox, start, end, S2_collection=S2_collection,
+                                           **processing_options)
+
     # get features
-    features_cube = calculate_features_cube(input_data, chunk_size=chunk_size)
+    features_cube = calculate_features_cube(indices_cube, chunk_size=chunk_size)
+
+    # add the S2-NVBT band to the cube if needed
+    if get_NVBT:
+        features_cube = features_cube.merge_cubes(nvbt_band)
 
     return features_cube
-
 
 def generate_planet_feature_cube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         planet_collection: str ='PlanetScope',
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]])\
+        -> DataCube:
     """ Warper to extract a full data cube of preprocessed Planet data
 
     :param connection: active openEO connection object
@@ -329,7 +376,8 @@ def generate_planet_feature_cube(
 def generate_master_feature_cube(
         connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
         S2_collection: str ='SENTINEL2_L2A', S1_collection: str ='SENTINEL1_GRD',
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: Dict[str, Union[str, int, float, bool, List[str], List[Union[int, float]], None]])\
+        -> DataCube:
     """ Warper to extract a full data cube of preprocessed data
 
     :param connection: active openEO connection object
@@ -343,14 +391,14 @@ def generate_master_feature_cube(
             S2_scaling, append, S2_bands, radar_vi_list, S1_db_rescale)
     :return: DataCube with only features
     """
-    chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
-    # get the reflectance and VI time series cube
-    input_data = generate_indices_master_cube(connection, bbox, start, end, S2_collection=S2_collection,
-                                              S1_collection=S1_collection, **processing_options)
-    # get features
-    features_cube = calculate_features_cube(input_data, chunk_size=chunk_size)
-
-    return features_cube
+    # optimized pipeline were we run the feature generation per sensor and only merge in the end
+    feature_cube = generate_S2_feature_cube(connection, bbox, start, end, S2_collection=S2_collection,
+                                            **processing_options)
+    if S1_collection is not None:
+        feature_cube = feature_cube.merge_cubes(generate_S1_feature_cube(connection, bbox, start, end,
+                                                                          S1_collection=S1_collection,
+                                                                          **processing_options))
+    return feature_cube
 
 def create_collections_list_from_bands(input_bands : List[str]):
     """
@@ -394,23 +442,23 @@ def create_collections_list_from_bands(input_bands : List[str]):
     return collections_list
 
 def generate_nonEO_feature_cube(
-        connection: openeo.Connection, bbox: Optional[openEO_bbox_format], start: str, end: str,
-        collections_list: List[str],
+        connection: openeo.Connection, bbox: openEO_bbox_format | None, start: str, end: str,
+        collections_list: list[str],
         base_cube : DataCube,
-        **processing_options: Dict[str, Union[str, bool, int | float, List[str], List[int | float]]]) -> DataCube:
+        **processing_options: dict[str, str | bool | (int | float) | list[str] | list[int | float]]) -> DataCube:
 
     """ Warper to generate the data cube of all nonEO data based on a collections  list of the form [(collection, [band1, band2, ...])]"""
-    temporal_extent = [start, end]
-    temporal_extent = None
 
     chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
 
-    for collection, bands, reproj, year in collections_list:
+    for collection, bands, reproj, year, stac_url in collections_list:
         #first need to distinguish between STAC and collection
         #we assume that they will allways be an url type of link in contrary with a collections which should just be a name
-        if temporal_extent:
-            temporal_extent = [f"{year}-01-01T00:00:00Z", f"{year}-12-31T23:59:59Z"]
-        STAC_url = get_stac_collection_url(collection)
+        if not np.isnan(year):
+            temporal_extent = [f"{int(year)}-01-01T00:00:00Z", f"{int(year)}-12-31T23:59:59Z"]
+        else:
+            temporal_extent = None
+        STAC_url = get_stac_collection_url(collection, stac_url)
         isSTAC = STAC_url is not None
 
         #secondly we know there are some specific case of reprojection EG DEM should be bilinear iso near
@@ -431,6 +479,9 @@ def generate_nonEO_feature_cube(
                                                       temporal_extent=temporal_extent
                                                       )
             nonEO_feature_cube.result_node().update_arguments(featureflags={'tilesize': chunk_size})
+            # TODO add all the collections that are allowed to be empty
+            if collection in ["DEM_aspec_30m"]:
+                nonEO_feature_cube.result_node().update_arguments(featureflags={'allow_empty_cube': True})
 
         else:
             #if openeo the -v1 should be split off of the collection
@@ -448,7 +499,7 @@ def generate_nonEO_feature_cube(
                 # reduce the temporal domain since copernicus_30 collection is "special" and feature only are one time stamp
                 nonEO_feature_cube = nonEO_feature_cube.reduce_dimension(dimension='t', reducer=lambda x: x.last(ignore_nodata=True))
 
-        new_bands = [f"{collection}-{band}" for band in bands]
+        new_bands = [f"{collection.lower()}-{band.lower()}" for band in bands]
 
 
         # resample the cube to 10m and EPSG of corresponding 20x20km grid tile
@@ -471,4 +522,3 @@ def generate_nonEO_feature_cube(
         base_cube = base_cube.merge_cubes(nonEO_feature_cube)
 
     return base_cube
-

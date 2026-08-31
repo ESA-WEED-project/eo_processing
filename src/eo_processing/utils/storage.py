@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import boto3
+import pandas as pd
 from botocore.exceptions import ClientError
 from getpass import getpass
 import geopandas as gpd
@@ -760,6 +761,9 @@ class SQL_storage:
         #at the moment we initialize with hadoop false. Not sure if it's need to have?
         self.hadoop = False
 
+    def get_info(self):
+        return self.sql_credentials['host'], self.sql_credentials['port'], self.sql_credentials['dbname'], self.sql_credentials['schema'], self.sql_credentials['password']
+
     def create_connection(self) -> psycopg.Connection:
         """
         Establishes a connection to a PostgreSQL database using the provided credentials. 
@@ -811,6 +815,7 @@ class SQL_storage:
             print('** get data from request')
             # create cursor
             cur = conn.cursor()
+            cur.itersize = 10000
             cur.execute(sql_statement)
             # get data
             vResult = cur.fetchall()
@@ -975,7 +980,78 @@ class SQL_storage:
 
         return lresults
 
-    def StatusUpdateTiles(self, table: str, tileid: int, lcolumns: List[str], lmsg: List[str]) -> bool:
+    def AddColumns(self, table: str, column_names: lst(str)) -> None:
+        """
+        Adds a new column to a specified table in the database. The method dynamically constructs
+        an SQL ALTER TABLE statement to add the column with the specified name, ensuring
+        compatibility with the existing table structure. If the column already exists, the query
+        does not raise an error.
+
+        Args:
+            table (str): The name of the table to which the column should be added.
+            column_names (str): The names of the new columns.
+
+        Returns:
+            None
+        """
+
+        sql_statement = f"""ALTER TABLE {table}
+            {',\n'.join([f'ADD COLUMN IF NOT EXISTS "{col.lower()}" numeric' for col in column_names])};"""
+
+        self.GenericQueryWithOUTResult(sql_statement)
+
+    def UploadTrainingPointData(self, table: str, df: pd.DataFrame, column_names: List[str]) -> None:
+        """
+        Uploads data to the specified database table by adding missing columns, handling existing
+        data updates, and inserting new data points in bulk or individually.
+
+        This method performs the following steps:
+        1. Checks and ensures all necessary columns in the table.
+        2. Identifies whether existing data points need to be updated or if new points need to be
+           inserted.
+        3. Performs a bulk data insert for new data points if any.
+        4. Updates rows individually for existing data points.
+
+        Parameters:
+            table: str
+                The name of the database table where the data should be uploaded.
+            df: pd.DataFrame
+                A pandas DataFrame containing the data to be uploaded.
+            column_names: List[str]
+                A list of column names that need to be added to the table if they do not exist.
+
+        Raises:
+            None
+
+        Returns:
+            None
+        """
+
+        #First check if all columns are in the table
+        self.AddColumns(table, column_names)
+
+        #First check which points are new and which are not
+        sql_statement = f"""SELECT mgrsid10, year
+                            FROM {table}"""
+
+        available_keys = self.GenericQueryWithResult(sql_statement)
+
+        #split according to PK available are not
+        bulk_df = df[~df.set_index(['MGRSid10', 'year']).index.isin(available_keys)]
+        line_df = df[df.set_index(['MGRSid10', 'year']).index.isin(available_keys)]
+
+        if len(bulk_df) != 0:
+            #upload bulk
+            data = ReadFaker(bulk_df)
+            self.BulkInsert(table, data, tuple([column.lower() for column in df.columns]))
+
+        for index, row in line_df.iterrows():
+            #upload line
+            self.StatusUpdateTiles(table, (row['MGRSid10'], row['year']),
+                                           tuple([column.lower() for column in column_names]),
+                                           row[column_names].to_list())
+
+    def StatusUpdateTiles(self, table: str, PK: tuple(str, int), lcolumns: List[str], lmsg: List[str]) -> bool:
         """
         Updates specific columns in a particular database table for a given tile ID with new values.
 
@@ -986,7 +1062,7 @@ class SQL_storage:
         database connection cleanup.
 
         :param table: The name of the database table to be updated.
-        :param tileid: The identifier of the tile for which data is to be updated.
+        :param PK: The identifier  for which data is to be updated.
         :param lcolumns: A list of column names that need to be updated.
         :param lmsg: A list of new values corresponding to the specified columns.
         :return: True if the update operation completes successfully, otherwise False.
@@ -1002,8 +1078,8 @@ class SQL_storage:
             # prepare UPDATE statement
             print('** update the tile status...')
             for i in range(0, len(lcolumns)):
-                sql_statement = "UPDATE %s SET %s = %%s WHERE tile_id = %%s;" % (table, lcolumns[i])
-                cur.execute(sql_statement, (lmsg[i], tileid))
+                sql_statement = 'UPDATE %s SET "%s" = %%s WHERE (mgrsid10, year) = %%s;' % (table, lcolumns[i])
+                cur.execute(sql_statement, (lmsg[i], PK))
 
             # commit transactions
             conn.commit()
@@ -1280,7 +1356,7 @@ class stac_storage:
         #get the auth
         auth_token = self.get_bearer_auth()
         #get catalog_url
-        catalog_url = self.get_catalog_url()
+        catalog_url = self.get_catalog_url().rstrip('/')
 
         # load the collection from the created collection.  
         coll = collection.to_dict()
@@ -1296,7 +1372,7 @@ class stac_storage:
             # upload a new collection
             collection_url = f"{catalog_url}/collections/"
             resp = post(collection_url, auth=auth_token, json=coll)
-        if resp.status_code == 201:
+        if resp.status_code == 200 or resp.status_code == 201:
             coll_id = resp.json()["id"]
             if edit_flag:
                 print(f"Collection edited: {coll_id}")
@@ -1326,7 +1402,7 @@ class stac_storage:
         #get the auth
         auth_token = self.get_bearer_auth()
         #get catalog_url
-        catalog_url = self.get_catalog_url()
+        catalog_url = self.get_catalog_url().rstrip('/')
 
         # check if there are items that need to be uploaded only if update is False
         if len(items_to_upload) == 0:
@@ -1588,7 +1664,7 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage, MLFlow
         S3 bucket and ML Flow uri. It also initializes necessary credentials and configurations for using
         Google Drive and S3 storage services.
 
-        :param username: A username string used for accessing credentials.
+        :param username: A username string used for accessing credentials. NOTE use "VAULT_TOKEN" to use token saved in environment variable.
         :param gdrive_entry_point: The entry point ID of the Google Drive folder.
         :param s3_bucket: The name of the S3 bucket to be used.
         :param stac_env: The environment name for the STAC catalog.
@@ -1609,6 +1685,7 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage, MLFlow
         self._set_gdrive_credentials(gdrive_entry_point=gdrive_entry_point)
         self._set_stac_credentials(stac_env=stac_env)
         self._set_mlflow_credentials()
+        self._set_service_account()
 
     def _get_credentials(self):
         """warper to get the credentials."""
@@ -1664,6 +1741,17 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage, MLFlow
         if self.s3_client is not None:
             self.s3_client.close()
             self._init_boto3()
+
+    def _set_service_account(self) -> None:
+        """
+        Sets the service account based on provided credentials.
+
+        This method retrieves the service account information from the
+        credentials dictionary and assigns it to the service_account attribute.
+
+        :return: None
+        """
+        self.service_account = string_to_dict(self.credentials['weed-service-account'])
 
     def _set_sql_credentials(self) -> None:
         """
@@ -1766,30 +1854,57 @@ class WEED_storage(S3_storage, SQL_storage, gdrive_storage, stac_storage, MLFlow
 
 def get_credentials(user :str ) -> Dict[str, str]:
     """
-    Retrieves WEED access credentials from Terrascope VAULT using LDAP authentication.
+    Gets the credentials of a specified user from the Terrascope VAULT.
 
-    This method prompts the user to enter their password for Terrascope VAULT, authenticates
-    with the VAULT using LDAP, and fetches credentials from the WEED KV storage path.
+    This function prompts the user to enter their password and then
+    authenticates with the Terrascope VAULT service using the LDAP method.
+    Once authenticated, it attempts to retrieve the secret for the TAP apps
+    under the WEED path from the Vault. If unsuccessful, an exception is raised.
 
-    :return: credentials as a dictionary
+    Parameters:
+    :param user: (str) The username of the account to authenticate against the VAULT. NOTE use "VAULT_TOKEN" to use token saved in environment variable.
+
+    Returns:
+    :returns: Dictionary containing the retrieved secret credentials.
+
+    Raises:
+    :raises Exception: If the credentials cannot be retrieved (e.g., not connected
+                       to the VITO VPN or authentication failure).
     """
-    password_prompt = 'Please enter your password for the Terrascope VAULT: '
-    service_account_password = getpass(prompt=password_prompt)
+    # first a check if username is "VAULT_TOKEN"
+    if user == "VAULT_TOKEN":
+        # we run the auth via token from environment variable
+        # check if TOKEN is set
+        vault_token = os.environ.get('VAULT_TOKEN')
+        if vault_token is None:
+            raise Exception('VAULT_TOKEN environment variable is not set. Please set it and try again. Or use a different username.')
+    else:
+        password_prompt = 'Please enter your password for the Terrascope VAULT: '
+        service_account_password = getpass(prompt=password_prompt)
 
     try:
         client = hvac.Client(url='https://vault.vgt.vito.be')
-        client.auth.ldap.login(
-            username=user,
-            password=service_account_password,
-            mount_point='ldap'
-        )
+        if user == "VAULT_TOKEN":
+            client.token = vault_token
+            if not client.is_authenticated():
+                raise Exception('Your token is expired. Please re-authenticate.')
+        else:
+            client.auth.ldap.login(
+                username=user,
+                password=service_account_password,
+                mount_point='ldap'
+            )
+
+            if not client.is_authenticated():
+                raise Exception('Your credentials are invalid. Please re-authenticate.')
+
         secret_version_response = client.secrets.kv.v2.read_secret_version(mount_point='kv',
                                                                            path='TAP/apps/WEED',
                                                                            raise_on_deleted_version=True)
         client.logout()
     except:
         raise Exception('Could not retrieve WEED credentials from Terrascope VAULT. '
-                        'Are you connected to the VITO VPN?')
+                        'Are you connected to the VITO VPN? Check your password or renew your token!')
     return secret_version_response['data']['data']
 
 def read_credential_file(file_path: str = '~/.sonata_credentials') -> Dict[str, str]:

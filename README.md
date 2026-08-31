@@ -81,12 +81,22 @@ SLC_masking_algo: str = 'mask_scl_dilation'
         Masking method for Sentinel-2 optical data ('satio', 'mask_scl_dilation', None)
         Note: if set to None, no masking is applied and the S2 L2A data is used as is.
 
-apply_cloud_mask : bool = True
+apply_cloud_mask: bool = True
         if True, the Sentinel-2 or PlanetScope data is masked for clouds (based on Sentinel-2 QA band). 
-        If False, no masking is applied but the mask band is still created and added to the cube.
-        Note: no effect when 'mask_scl_dilation' parameter is set to None.     
+        If False, no masking is applied but the mask band is still created and added to the cube. (Note: the cloud 
+        mask band is removed from the feature cube as soon the time domain is aggregated.)
+        Note: no effect when 'mask_scl_dilation' parameter is set to None.
 
-append : bool = True
+get_NVBT: bool = False 
+        Number of Valid Binned Timesteps: Specifies the count of valid timesteps after temporal binning. 
+        This can be used as an input data quality indicator.
+        if True, NVBT is calculated for optical data after cloud masking and temporal binning and radar data after
+        sar_backscatter correction and temporal binning.
+        (if both were activated) but without linear interpolation (if activated).
+        Note: 'band' S1_NVBT and/or S2_NVBT is only added to cubes with removed time domain (feature cubes). 
+        Note: algorithm is applied even when cloud masking was deactivated or temporal aggregation was skipped.
+
+append: bool = True
         if the VI's are appended to the reflectance/radar time series cube OR replace them
 
 S2_scaling: list = [0, 10000, 0, 1.0]

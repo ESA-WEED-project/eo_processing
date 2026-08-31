@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os
 import json
+import geojson
 import logging
 import geopandas as gpd
 from threading import Thread, active_count
@@ -27,7 +28,8 @@ from typing import Optional, Mapping, Union, Dict, Tuple, TYPE_CHECKING, List
 import openeo
 import warnings
 from eo_processing.utils.helper import string_to_dict
-from eo_processing.utils.geoprocessing import create_feature_extraction_processing_grid, get_point_number
+from eo_processing.utils.geoprocessing import (create_feature_extraction_processing_grid, get_point_number,
+                                               bbox_of_PointsFeatureCollection, reproj_bbox_to_ll)
 from eo_processing.utils.mgrs import gridID_2_epsg
 
 if TYPE_CHECKING:
@@ -119,25 +121,19 @@ class WeedJobManager(MultiBackendJobManager):
             return True
         else: return False
 
-    def check_finished(self, job: openeo.BatchJob) -> bool:
+    def check_finished(self, job: openeo.BatchJob, row: pd.Series) -> bool:
         """
-        Check if the metadata file for a given job already exists in the filesystem,
-        indicating whether the job has been completed.
+        Determines if a batch job is finished by checking the existence of its metadata.
 
-        This function extracts the job's metadata and determines the file path for
-        the associated metadata file. It then checks if this file path exists, which
-        would suggest that the job has been processed and the metadata has been saved.
-
-        :param job: The job object whose completion status needs to be verified. It
-                    must provide a 'describe' method that returns a dictionary
-                    containing job metadata, including the job's title.
-        :return: A boolean value where `True` indicates that the job metadata file
-                 exists, and thus the job is finished. `False` signifies that the
-                 metadata file is not found, indicating that the job might not be
-                 complete.
+        :param job: The batch job for which the status needs to be checked.
+        :param row: A pandas Series containing job-related information, including the
+            file_prefix used to identify the metadata file.
+        :return: True if the job's metadata file exists, indicating the job is finished;
+            False otherwise.
         """
-        job_metadata = job.describe()
-        title = os.path.splitext(job_metadata['title'])[0]
+        #job_metadata = job.describe()
+        #title = os.path.splitext(job_metadata['title'])[0]
+        title = row["file_prefix"]
         metadata_path = self.get_job_metadata_path(job.job_id, title)
         return os.path.exists(metadata_path)
 
@@ -223,7 +219,8 @@ class WeedJobManager(MultiBackendJobManager):
         """
         error_logs = job.logs(level="error")
         job_metadata = job.describe_job()
-        title = os.path.splitext(job_metadata['title'])[0]
+        #title = os.path.splitext(job_metadata['title'])[0]
+        title = row["file_prefix"]
         error_log_path = self.get_error_log_path(job.job_id,title)
         job_graph_path = self.get_job_graph_path(job.job_id,title)
 
@@ -257,7 +254,10 @@ class WeedJobManager(MultiBackendJobManager):
         job_metadata = job.describe()
 
         job_dir = self.get_job_dir(job.job_id)
-        title = os.path.splitext(job_metadata['title'])[0]
+        #title = os.path.splitext(job_metadata['title'])[0]
+
+        title = row["file_prefix"]
+
         file_ext = job_metadata['process']['process_graph']['saveresult1']['arguments']['format'].lower()
         metadata_path = self.get_job_metadata_path(job.job_id,title)
         job_graph_path = self.get_job_graph_path(job.job_id,title)
@@ -280,16 +280,15 @@ class WeedJobManager(MultiBackendJobManager):
             else :
                 s3_client = self.storage_options["WEED_storage"].get_s3_client()
                 bucket_name= self.storage_options["WEED_storage"].get_s3_bucket_name()
-                s3_client.download_file(bucket_name, os.path.join(S3_prefix,f"timeseries.{file_ext}"),
+                s3_client.download_file(bucket_name, os.path.join(S3_prefix,f"{title}.{file_ext}"),
                                         job_dir / f"{title}.{file_ext}")
-
 
         if not self.storage_options.get('workspace_export', False):
             #fix prefix problem for non netcdf or GTiff files
             if file_ext in ['netcdf','gtiff']:
                 results.download_files(job_dir, include_stac_metadata=False)
             else :
-                results.download_file(job_dir / f"{title}.{file_ext}", name=f"timeseries.{file_ext}")
+                results.download_file(job_dir / f"{title}.{file_ext}")
 
 
         with open(metadata_path, "w", encoding='utf8') as f:
@@ -370,7 +369,7 @@ class WeedJobManager(MultiBackendJobManager):
                     new_status = "downloading"
 
                 if previous_status == "downloading":
-                    if not self.check_finished(the_job):
+                    if not self.check_finished(the_job, active.loc[i]):
                         new_status = "downloading"
 
                 if previous_status != "error" and new_status == "error":
@@ -500,6 +499,8 @@ class WeedJobManager(MultiBackendJobManager):
                         # start job if not yet done by callback
                         try:
                             job_con = job.connection
+                            # Proactively refresh bearer token (because task in thread will not be able to do that)
+                            self._refresh_bearer_token(connection=job_con)
                             task = _JobStartTask(
                                 root_url=job_con.root_url,
                                 bearer_token=job_con.auth.bearer if isinstance(job_con.auth, BearerAuth) else None,
@@ -781,6 +782,7 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
                          discriminator: Optional[str] = None, target_crs: Optional[int] = None,
                          version: Optional[str] = None,
                          model_ID: Optional[str] = None,
+                         nonEO_file: Optional[str] = None,
                          storage_options: Optional[storage_option_format] = None,
                          organization_id : Optional[int] = None, path_global_grid: Optional[str] = None,
                          feature_bbox: Optional[Tuple[float, float, float, float]] = None) -> gpd.GeoDataFrame:
@@ -816,11 +818,11 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
     if isinstance(gdf, gpd.GeoDataFrame):
         # we are preparing a inference or post-processing actions
         columns = ['name', 'tileID', 'target_epsg', 'bbox', 'file_prefix', 'start_date', 'end_date','export_workspace',
-                   's3_prefix', 'organization_id', 's2_tileid_list']
+                   's3_prefix', 'organization_id', 's2_tileid_list','nonEO_file']
         dtypes = {'name': 'string', 'tileID': 'string', 'target_epsg': 'UInt16',
                   'file_prefix': 'string', 'start_date': 'string', 'end_date': 'string', 's3_prefix': 'string',
                   'geometry': 'geometry', 'bbox': 'string', 'organization_id':'UInt16','s2_tileid_list':'string',
-                  'export_workspace':'string'}
+                  'export_workspace':'string','nonEO_file' : 'string'}
 
         job_df = gdf.copy()
 
@@ -861,6 +863,8 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
             job_df['s3_prefix'] = None
             job_df['export_workspace'] = None
 
+        # set no EO list  Should be later replaced by an extraction method straight out of the model metadata.
+        job_df['nonEO_file'] = nonEO_file
         # a fix since the "name" column has to be unique
         job_df['tileID'] = job_df[tile_col].copy()
         if discriminator:
@@ -959,8 +963,14 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
         # merge in the needed Polygons and convert to GeoDataFrame
         job_df = pd.merge(df, gdf_grid[['tile_name', 'geometry']], left_on='name', right_on='tile_name',
                           how='left')
-        # remove row which have no  polygon assigned due to fact that this grid is not in openEO processing extent
-        job_df = job_df.dropna(subset=["geometry"])
+        # we have to fix rows which did not get a valid geometry
+        missing_geometry_row = job_df[job_df['geometry'].isna()].index
+        #print(missing_geometry_row)
+        for row in missing_geometry_row:
+            job_df.at[row, 'geometry'] = reproj_bbox_to_ll(bbox_of_PointsFeatureCollection(geojson.loads(job_df.loc[row, 'FeatureCollection'])))
+            job_df.at[row, 'tile_name'] = job_df.loc[row, 'name']
+        #job_df = job_df.dropna(subset=["geometry"])
+
         # convert to GeoPandas GeoDataFrame
         job_df = gpd.GeoDataFrame(job_df, geometry='geometry')
         job_df.reset_index(inplace=True)
@@ -970,8 +980,17 @@ def create_job_dataframe(gdf: Union[gpd.GeoDataFrame, List], year: int, file_nam
         job_df['end_date'] = (
                     pd.to_datetime(job_df['end_date'], format='%Y-%m-%d') - pd.Timedelta(seconds=1)).dt.strftime(
             '%Y-%m-%dT%H:%M:%SZ')
-        job_df['export_workspace'] = None
-        job_df['s3_prefix'] = None
+        # set the s3_prefix which is needed for the path to S3 storage relative to bucket if we export
+        if storage_options:
+            job_df['s3_prefix'] = storage_options.get('S3_prefix', None)
+            if storage_options.get('WEED_storage', None):
+                job_df['export_workspace'] = storage_options['WEED_storage'].get_export_workspace()
+            else:
+                job_df['export_workspace'] = None
+        else:
+            job_df['s3_prefix'] = None
+            job_df['export_workspace'] = None
+
         job_df['organization_id'] = organization_id
         job_df['s2_tileid_list'] = None
 

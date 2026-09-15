@@ -980,7 +980,7 @@ class SQL_storage:
 
         return lresults
 
-    def AddColumns(self, table: str, column_names: lst(str)) -> None:
+    def AddColumns(self, table: str, column_names: List[str]) -> None:
         """
         Adds a new column to a specified table in the database. The method dynamically constructs
         an SQL ALTER TABLE statement to add the column with the specified name, ensuring
@@ -1450,6 +1450,26 @@ class stac_storage:
             print(f"Collection {collection_url.rsplit('/')[-1]} deleted successfully")
         else:
             print(f"Failed to delete collection: HTTP {resp.status_code}\n{resp.text}")
+
+    def delete_collection_item(self, collection_name: str, item_id: str) -> None:
+        """
+        Deletes a specified item from a collection in the catalog. This method constructs
+        the URL for the item, uses authentication to validate the request, and sends a
+        delete request to remove the item. If the deletion is successful, a confirmation
+        message is printed. Otherwise, an error message with the appropriate HTTP status
+        code and error details is displayed.
+
+        :param collection_name: The name of the collection containing the item.
+        :param item_id: The ID of the item to delete.
+        """
+        catalog_url = self.get_catalog_url().rstrip('/')
+        auth_token = self.get_bearer_auth()
+        item_url = f"{catalog_url}/collections/{collection_name}/items/{item_id}"
+        resp = delete(item_url, auth=auth_token)
+        if resp.status_code == 204:
+            print(f"Item '{item_id}' deleted successfully from collection '{collection_name}'")
+        else:
+            print(f"Failed to delete item: HTTP {resp.status_code}\n{resp.text}")
 
 class ReadFaker:
     """

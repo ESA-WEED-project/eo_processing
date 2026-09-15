@@ -14,7 +14,7 @@ def apply_metadata(metadata: CubeMetadata, context:Dict) -> CubeMetadata:
     :param context: Context of the UDF
     :return: renamed labels
     """
-    return metadata.rename_labels(dimension="bands", target=['EUNIS habitat level3'])
+    return metadata.rename_labels(dimension="bands", target=[f'{context.get('typology','EUNIS')} habitat level3'])
 
 def _select_highest_prob_class(cube: xr.DataArray, raster_codes) -> xr.DataArray:
     """ Select per model the highest probability of occurrence class

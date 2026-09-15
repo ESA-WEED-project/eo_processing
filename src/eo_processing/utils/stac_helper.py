@@ -2,7 +2,7 @@ import pystac_client
 import logging
 from urllib.request import urlopen
 from io import BytesIO
-from typing import Optional
+from typing import Optional, List
 import geopandas as gpd
 import pandas as pd
 
@@ -60,6 +60,41 @@ def query_modelID_asset_url(model_id: str,
         raise ValueError(f"No items found for model_id: {model_id}")
 
     return item_collection.items[0].assets["model_valid_geometry"].href
+
+def query_modelID_output_bands(model_id: str,
+                               catalog_url: str ="https://catalogue.weed.apex.esa.int/",
+                               collection_id: str ="model-STAC") -> List[str]:
+    """
+    Queries the output bands associated with the specified model ID from a STAC catalog.
+
+    This function communicates with a STAC catalog to retrieve the model's output
+    bands by searching for items using their model ID. It uses CQL2 filtering
+    to perform the search and returns the output band names from the first matching
+    item's properties.
+
+    :param model_id: (str) The unique identifier for the model to query.
+    :param catalog_url: (str) The URL of the STAC catalog to connect to. Defaults to
+        "https://catalogue.weed.apex.esa.int/".
+    :param collection_id: (str) The ID of the STAC collection to search within. Defaults
+        to "model-STAC".
+    :return: A list of output band names (List[str]) associated with the given
+        model ID.
+    :raises ValueError: If no items are found in the catalog for the provided model ID.
+    """
+    client = pystac_client.Client.open(catalog_url)
+
+    search = client.search(
+        limit=20,
+        collections=[collection_id],
+        filter={"op": "=", "args": [{"property": "properties.modelID"}, model_id]},
+        filter_lang="cql2-json",
+    )
+    item_collection = search.item_collection()
+    if not item_collection.items:
+        logging.error(f"No items found for model_id: {model_id}")
+        raise ValueError(f"No items found for model_id: {model_id}")
+
+    return item_collection.items[0].properties["output_band_names"]
 
 def get_modelID_asset_geometry_from_STAC(df_AOI: gpd.GeoDataFrame, typology_schema: str = 'IUCNGET',
                                      model_version: Optional[str]=None,

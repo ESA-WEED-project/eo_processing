@@ -980,7 +980,7 @@ class SQL_storage:
 
         return lresults
 
-    def AddColumns(self, table: str, column_names: lst(str)) -> None:
+    def AddColumns(self, table: str, column_names: List[str]) -> None:
         """
         Adds a new column to a specified table in the database. The method dynamically constructs
         an SQL ALTER TABLE statement to add the column with the specified name, ensuring

@@ -1,11 +1,9 @@
-import os, sys
 import pandas as pd
 import numpy as np
 import xarray as xr
 import re
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List
 from openeo.udf import inspect
-from datetime import datetime
 from openeo.metadata import CubeMetadata
 
 def apply_metadata(metadata: CubeMetadata, context:Dict) -> CubeMetadata:
@@ -14,7 +12,10 @@ def apply_metadata(metadata: CubeMetadata, context:Dict) -> CubeMetadata:
     :param context: Context of the UDF
     :return: renamed labels
     """
-    return metadata.rename_labels(dimension="bands", target=[f'{context.get('typology','EUNIS')} habitat level3'])
+    band_name = context.get('typology', 'EUNIS')
+    final_band_name = f"{band_name} habitat level3"
+
+    return metadata.rename_labels(dimension="bands", target=[final_band_name])
 
 def _select_highest_prob_class(cube: xr.DataArray, raster_codes) -> xr.DataArray:
     """ Select per model the highest probability of occurrence class
@@ -150,8 +151,9 @@ def apply_datacube(cube: xr.DataArray, context:Dict) -> xr.DataArray:
 
     ### get the list of classes as output from inference run
     # use returned metadata to build up the class dictionary
-    inspect(message=cube.indexes["bands"].values)
-    df = parse_prob_classes_fromStac(cube.indexes["bands"].values)
+    input_band_names = cube.indexes["bands"].values
+    inspect(message=f"input cube band names ({len(input_band_names)}): {input_band_names}")
+    df = parse_prob_classes_fromStac(input_band_names)
 
     inspect(message=f"## context parameters")
     inspect(message=f"{df}")

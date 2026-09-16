@@ -1045,11 +1045,60 @@ class SQL_storage:
             data = ReadFaker(bulk_df)
             self.BulkInsert(table, data, tuple([column.lower() for column in df.columns]))
 
-        for index, row in line_df.iterrows():
+        if len(line_df) != 0:
             #upload line
-            self.StatusUpdateTiles(table, (row['MGRSid10'], row['year']),
-                                           tuple([column.lower() for column in column_names]),
-                                           row[column_names].to_list())
+            self.StatusUpdateTilesBulk(table, line_df, column_names)
+
+    def StatusUpdateTilesBulk(self, table:str, df: pd.DataFrame, column_names: List[str]) -> bool:
+        # establish connection to data base
+        # ini connection
+        conn = self.create_connection()
+
+        # set all following in a try loop so if even the pre-processing fails then the connection is closed and rolled back
+        try:
+            # create cursor
+            cur = conn.cursor()
+            # prepare UPDATE statement
+            print('** update the tile status...')
+            for index, row in df.iterrows():
+                PK = (row['MGRSid10'], row['year'])
+                lmsg = row[column_names].to_list()
+
+                # Build the query to update multiple columns in a single SQL statement
+                columns_query = ", ".join([f'"{col.lower()}" = %s' for col in column_names])
+                query_values = tuple(lmsg) + (PK,)
+
+                sql_statement = f"""
+                    UPDATE {table}
+                    SET {columns_query}
+                    WHERE (mgrsid10, year) = %s;
+                """
+                cur.execute(sql_statement, query_values)
+
+            # commit transactions
+            conn.commit()
+            # close cursor
+            cur.close()
+
+        except psycopg.Error as e:
+            print("** Could not update the data in the PostgreSQL database - error...")
+            print(e.pgerror)
+            print(e.pgcode)
+            # excecute a rollback when the error didn't closed the connection
+            try:
+                conn.rollback()
+            except:
+                print('No RollBack possible or not needed!')
+
+            if cur.closed == False: cur.close()
+            return False
+
+        finally:
+            # close connection
+            if conn.closed == 0: conn.close()
+
+        print('** No errors - all data successfully updated.')
+        return True
 
     def StatusUpdateTiles(self, table: str, PK: tuple(str, int), lcolumns: List[str], lmsg: List[str]) -> bool:
         """

@@ -100,7 +100,7 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "executor-memoryOverhead": "1G",
     "python-memory": "disable",
     "executor-cores": 1,
-    "max-executors": 10,
+    "max-executors": 20,
     "logging-threshold": "info"
 }
 

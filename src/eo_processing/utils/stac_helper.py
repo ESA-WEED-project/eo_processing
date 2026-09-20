@@ -295,7 +295,7 @@ def get_modelID_asset_geometry_from_STAC(df_AOI: gpd.GeoDataFrame, typology_sche
                             item['properties']['training_year'], item['properties']['model_version'],
                             item['properties']['name_spatial_region'], item['properties']['name_spatial_zone'], item['assets']['model_valid_geometry']['href']])
         else:
-            if str(item['properties']['model_version']) == model_version:
+            if float(item['properties']['model_version']) == float(model_version):
                 results.append([item['properties']['modelID'], item['properties']['topology'],
                                 item['properties']['training_year'], item['properties']['model_version'],
                                 item['properties']['name_spatial_region'], item['properties']['name_spatial_zone'], item['assets']['model_valid_geometry']['href']])

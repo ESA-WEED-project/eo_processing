@@ -43,7 +43,8 @@ import re
 import subprocess
 from pathlib import Path
 from typing import List, Optional, Tuple
-
+from concurrent.futures import ProcessPoolExecutor
+from concurrent import futures
 import geopandas as gpd
 import pandas as pd
 from eo_processing.utils.storage import WEED_storage
@@ -129,7 +130,7 @@ class S3Downloader:
         split_str = s3_url.replace(S3_BASE_URL, "").split("/", 1)
         return split_str[0], split_str[1]
 
-    def download_s3_file(self, s3_url, output_dir):
+    def download_s3_file(self, s3_url, output_dir, overwrite: bool = False):
         """
         Download a single file from S3 using unsigned requests.
 
@@ -149,6 +150,9 @@ class S3Downloader:
 
         try:
             output_path = Path(output_dir) / Path(key)
+            if output_path.exists() and not overwrite:
+                logger.info(f"File {output_path} already exists, skipping download.")
+                return True, str(output_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             self.s3_client.download_file(bucket, key, str(output_path))
             logger.info(f"Download complete: {output_path}")
@@ -302,8 +306,7 @@ def get_embedding_filenames(
 
 
 def download_embeddings(
-    filenames: List[str], output_path: str, overwrite: bool = False
-) -> List[str]:
+    filenames: List[str], output_path: str, overwrite: bool = False, multit: bool = True) -> List[str]:
     """
     Download the embeddings for the intersecting grids from sourcecoop or HTTP and save them to the output directory.
 
@@ -322,21 +325,39 @@ def download_embeddings(
     successful_downloads = 0
     if boto3_available:
         logger.info("Using S3 for downloading files.")
-        client = S3Downloader()
-        for fl in filenames:
-            success, new_path = client.download_s3_file(fl, output_dir)
-            if success:
-                new_paths.append(new_path)
-                successful_downloads += 1
-        logger.info(
-            f"Downloaded {len(new_paths)} files to {output_dir} out of {len(filenames)}"
-        )
+        if multit:
+            with ProcessPoolExecutor() as executor:
+                future_to_key = {executor.submit(download_wrapper, fl, output_dir): fl for fl in filenames}
+                
+                for future in futures.as_completed(future_to_key):
+                    key = future_to_key[future]
+                    exception = future.exception()
+                    if future.result()[0]:
+                        new_paths.append(future.result()[1])
+                        successful_downloads += 1
+                    
+        else :
+            client = S3Downloader()
+            for fl in filenames:
+                success, new_path = client.download_s3_file(fl, output_dir)
+                if success:
+                    new_paths.append(new_path)
+                    successful_downloads += 1
+            logger.info(
+                f"Downloaded {len(new_paths)} files to {output_dir} out of {len(filenames)}"
+            )
     else:
         logger.info("Using HTTP protocol for downloading files.")
         new_paths = http_download(filenames, output_dir, overwrite=overwrite)
         logger.info(f"Downloaded {len(new_paths)} files to {output_dir}")
     return new_paths
-
+  
+def download_wrapper(fl, output_dir):
+    client = S3Downloader()
+    
+    success, new_path = client.download_s3_file(fl, output_dir)
+    
+    return success, new_path
 
 def patch_vrt_relative_path(path_vrt: Path) -> None:
     """
@@ -391,7 +412,7 @@ def translate_to_cog(path_vrt: Path, version):
     return path_out
 
 
-def build_files_dataframe(files: list[Path]) -> pd.DataFrame:
+def build_files_dataframe(files: list[Path], version: str) -> pd.DataFrame:
     """
     Builds a DataFrame from a list of file paths, extracting relevant metadata from their parent directories.
 
@@ -411,10 +432,11 @@ def build_files_dataframe(files: list[Path]) -> pd.DataFrame:
     # Join extracted parts as new columns
     files_df = files_df.join(
         parent_parts.rename(
-            columns={0: "rest", 1: "version", 2: "_unused", 3: "year", 4: "zone"}
+            columns={0: "rest", 1: "random", 2: "_unused", 3: "year", 4: "zone"}
         )
     )
-    files_df = files_df.drop(columns=["rest", "_unused"])
+    files_df = files_df.drop(columns=["rest", "_unused","random"])
+    files_df["version"] = version
     files_df["s3_prefix"] = files_df[["version", "year", "zone"]].apply(
         lambda x: "/".join(x), axis=1
     )

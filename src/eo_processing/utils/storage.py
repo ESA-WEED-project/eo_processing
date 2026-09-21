@@ -980,7 +980,7 @@ class SQL_storage:
 
         return lresults
 
-    def AddColumns(self, table: str, column_names: lst(str)) -> None:
+    def AddColumns(self, table: str, column_names: List[str]) -> None:
         """
         Adds a new column to a specified table in the database. The method dynamically constructs
         an SQL ALTER TABLE statement to add the column with the specified name, ensuring
@@ -1045,11 +1045,60 @@ class SQL_storage:
             data = ReadFaker(bulk_df)
             self.BulkInsert(table, data, tuple([column.lower() for column in df.columns]))
 
-        for index, row in line_df.iterrows():
+        if len(line_df) != 0:
             #upload line
-            self.StatusUpdateTiles(table, (row['MGRSid10'], row['year']),
-                                           tuple([column.lower() for column in column_names]),
-                                           row[column_names].to_list())
+            self.StatusUpdateTilesBulk(table, line_df, column_names)
+
+    def StatusUpdateTilesBulk(self, table:str, df: pd.DataFrame, column_names: List[str]) -> bool:
+        # establish connection to data base
+        # ini connection
+        conn = self.create_connection()
+
+        # set all following in a try loop so if even the pre-processing fails then the connection is closed and rolled back
+        try:
+            # create cursor
+            cur = conn.cursor()
+            # prepare UPDATE statement
+            print('** update the tile status...')
+            for index, row in df.iterrows():
+                PK = (row['MGRSid10'], row['year'])
+                lmsg = row[column_names].to_list()
+
+                # Build the query to update multiple columns in a single SQL statement
+                columns_query = ", ".join([f'"{col.lower()}" = %s' for col in column_names])
+                query_values = tuple(lmsg) + (PK,)
+
+                sql_statement = f"""
+                    UPDATE {table}
+                    SET {columns_query}
+                    WHERE (mgrsid10, year) = %s;
+                """
+                cur.execute(sql_statement, query_values)
+
+            # commit transactions
+            conn.commit()
+            # close cursor
+            cur.close()
+
+        except psycopg.Error as e:
+            print("** Could not update the data in the PostgreSQL database - error...")
+            print(e.pgerror)
+            print(e.pgcode)
+            # excecute a rollback when the error didn't closed the connection
+            try:
+                conn.rollback()
+            except:
+                print('No RollBack possible or not needed!')
+
+            if cur.closed == False: cur.close()
+            return False
+
+        finally:
+            # close connection
+            if conn.closed == 0: conn.close()
+
+        print('** No errors - all data successfully updated.')
+        return True
 
     def StatusUpdateTiles(self, table: str, PK: tuple(str, int), lcolumns: List[str], lmsg: List[str]) -> bool:
         """
@@ -1450,6 +1499,26 @@ class stac_storage:
             print(f"Collection {collection_url.rsplit('/')[-1]} deleted successfully")
         else:
             print(f"Failed to delete collection: HTTP {resp.status_code}\n{resp.text}")
+
+    def delete_collection_item(self, collection_name: str, item_id: str) -> None:
+        """
+        Deletes a specified item from a collection in the catalog. This method constructs
+        the URL for the item, uses authentication to validate the request, and sends a
+        delete request to remove the item. If the deletion is successful, a confirmation
+        message is printed. Otherwise, an error message with the appropriate HTTP status
+        code and error details is displayed.
+
+        :param collection_name: The name of the collection containing the item.
+        :param item_id: The ID of the item to delete.
+        """
+        catalog_url = self.get_catalog_url().rstrip('/')
+        auth_token = self.get_bearer_auth()
+        item_url = f"{catalog_url}/collections/{collection_name}/items/{item_id}"
+        resp = delete(item_url, auth=auth_token)
+        if resp.status_code == 204:
+            print(f"Item '{item_id}' deleted successfully from collection '{collection_name}'")
+        else:
+            print(f"Failed to delete item: HTTP {resp.status_code}\n{resp.text}")
 
 class ReadFaker:
     """

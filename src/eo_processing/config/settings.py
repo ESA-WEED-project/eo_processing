@@ -93,27 +93,29 @@ OPENEO_EXTRACT_CREO_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
 }
 
 OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
-    "driver-memory": "8G",
-    "driver-memoryOverhead": "5G",
+    "driver-memory": "4G",
+    "driver-memoryOverhead": "2G",
     "driver-cores": 1,
-    "executor-memory": "2000m",
-    "executor-memoryOverhead": "256m",
-    "python-memory": "2500m",
+    "executor-memory": "2G",
+    "executor-memoryOverhead": "1G",
+    "python-memory": "disable",
     "executor-cores": 1,
-    "max-executors": 25,
+    "max-executors": 20,
     "logging-threshold": "info"
 }
 
 OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
-    "driver-memory": "1000m",
-    "driver-memoryOverhead": "1000m",
+    "driver-memory": "5G",
+    "driver-memoryOverhead": "4G",
     "driver-cores": 1,
-    "executor-memory": "1500m",
-    "executor-memoryOverhead": "256m",
+    "executor-memory": "5G",
+    "executor-memoryOverhead": "5G",
     "executor-cores": 1,
-    "max-executors": 20,
-    "python-memory": "4000m",
+    "max-executors": 15,
+    "python-memory": "disable",
     "logging-threshold": "info",
+    "force-s3proxy": True,
+    "soft-errors": 0.05,
     "udf-dependency-archives": [
         "https://s3.waw3-1.cloudferro.com/project_dependencies/onnx_deps_python311.zip#onnx_deps"
     ]
@@ -124,11 +126,12 @@ OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]]
     "driver-memoryOverhead": "2G",
     "driver-cores": 1,
     "executor-memory": "2G",
-    "executor-memoryOverhead": "2G",
+    "executor-memoryOverhead": "3G",
     "python-memory": "disable",
     "executor-cores": 1,
-    "max-executors": 25,
-    "logging-threshold": "info"
+    "max-executors": 15,
+    "logging-threshold": "info",
+    "soft-errors": 0.05
 }
 
 OPENEO_CUBEEXTRACTION_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {

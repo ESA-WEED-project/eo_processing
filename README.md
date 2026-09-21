@@ -149,3 +149,22 @@ planet_vi_list:  list = ['NDVI','AVI','CIRE','NIRv','NDWI']
 
 ## examples
 see the "notebook" sub-folder for detailed jupyter notebook examples
+
+## Version history
+
+The current development version is **0.8.0**. Previous releases are listed below in reverse chronological order.
+
+| Version | Release date |
+| --- | --- |
+| 0.8.0 | Current |
+| 0.7.0 | 2026-08-31 |
+| 0.6.0 | 2026-06-05 |
+| 0.5.0 | 2026-01-19 |
+| 0.4.5 | 2026-01-05 |
+| 0.4.1 | 2025-12-04 |
+| 0.3.9 | 2025-12-04 |
+| 0.3.5 | 2025-11-05 |
+| 0.3.3 | 2025-10-19 |
+| 0.2.26 | 2025-09-25 |
+| 0.2.15 | 2025-05-05 |
+| 0.2.9 | 2025-04-03 |

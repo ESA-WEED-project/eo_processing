@@ -252,6 +252,7 @@ def AOI_tiler(AOI: Union[gpd.GeoDataFrame, openEO_bbox_format, geojson.GeoJSON, 
             # spatial join
             result_gdf = gpd.sjoin(result_gdf, gdf_aoi[existing_columns + ['geometry']],
                                    how="left", predicate="intersects")
+            result_gdf.drop(columns=["index_right"], inplace=True)
         else:
             print(f'WARNING: non of the requested columns to merge from the AOI to job dataframe exist')
 
@@ -259,8 +260,22 @@ def AOI_tiler(AOI: Union[gpd.GeoDataFrame, openEO_bbox_format, geojson.GeoJSON, 
         print('WARNING: the column "bbox_dict" was not found in the tiling grid. Automatic spatial extent '
               'generation in the job_function of the JobManager will be not possible')
 
-    # reset the index
-    return result_gdf.reset_index()
+    # now some extra clean-up
+    # NOTE: since we merged the 'WEED_site' names column into the tile results, we have duplicate tiles several
+    # pilot sites are in the same 20x20km tiling grid. we just resolve that.
+    tile_col = 'grid20id' if 'grid20id' in result_gdf.columns else 'name'
+    result_gdf = result_gdf.drop_duplicates(subset=tile_col, keep='first')
+
+    # keep only tiles with a non-zero area overlap; touching tiles have zero overlap area
+    result_gdf_proj = result_gdf.to_crs("EPSG:6933")
+    aoi_union_proj = gdf_aoi.to_crs("EPSG:6933").union_all()
+    result_gdf = result_gdf.loc[
+        result_gdf_proj.geometry.intersection(aoi_union_proj).area > 0
+        ].copy()
+
+    result_gdf.reset_index(drop=True, inplace=True)
+    return result_gdf
+
 
 def reproj_bbox_to_ll(bbox: openEO_bbox_format, buffer: bool = False, densify: bool = False,
                       return_geojson: bool = False) -> Union[Polygon, geojson.Feature]:

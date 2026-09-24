@@ -33,13 +33,18 @@ def _select_highest_prob_class(cube: xr.DataArray, raster_codes) -> xr.DataArray
             f"{cube.sizes['bands']} bands and {len(raster_codes)} codes."
         )
 
-    # Identify the band with the highest probability for each pixel
-    cube= cube.fillna(0)  #make sure argmax is not returning all slice N/A
+    # we make sure we have no value 255 since that is officially the nodata value of PROBA results
+    # so set 255 to nan
+    cube = cube.where(cube != 255, np.nan)
+
+    # make sure argmax is not returning all slice N/A
+    cube= cube.fillna(0)
 
     # All-zero pixels have no valid class; argmax would incorrectly select band 0.
     nodata_mask = nodata_mask | (cube == 0).all(dim="bands")
 
     try:
+        # Identify the band with the highest probability for each pixel
         max_band = cube.argmax(axis=cube.get_axis_num("bands"))  # Index of max value, OpenEO need bands ?
     except Exception as e:
         inspect(message=f"EXCEPTION {e} in argmax for {raster_codes}")
@@ -79,7 +84,7 @@ def _merge_hierarchical(cube: xr.DataArray, df_high_prob) -> xr.DataArray:
         for row in df_l2.itertuples():
             # since the Index of the dataframe represents the band number in the cube
             aImprint = cube.isel(bands=[row.Index])
-            nodata = [0 , -1]
+            nodata = [0 , -1, 255]
 
             # get the Level 1 habitat code from the level 2 data
             lsub = [x for x in np.unique(aImprint).tolist() if x not in nodata and not np.isnan(x)]
@@ -108,7 +113,7 @@ def _merge_hierarchical(cube: xr.DataArray, df_high_prob) -> xr.DataArray:
         # now we run over each Level 3 model cube (index in dataframe) to imprint into Level2
         for row in df_l3.itertuples():
             aImprint = cube.isel(bands=[row.Index])
-            nodata = [0 , -1]
+            nodata = [0 , -1, 255]
 
             # get the Level 2 habitat code from the level 3 data
             lsub = [x for x in np.unique(aImprint).tolist() if x not in nodata and not np.isnan(x)]

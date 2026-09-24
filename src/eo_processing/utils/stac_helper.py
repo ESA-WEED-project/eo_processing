@@ -226,9 +226,8 @@ def query_proba_results(df_AOI: gpd.GeoDataFrame, collection_id:str, processing_
         ### for results with the same tileID (group them): combine band_names into one
         ### unique, sorted list, and merge item_url into a list and for the rest take first entry
         agg_dict = {
-            'band_names': combine_band_names,
-            'item_url': list,
-            **{col: 'first' for col in df_result.columns if col not in ['tileID', 'band_names', 'item_url']}
+            col: (list if col in ['band_names', 'item_url'] else 'first')
+            for col in df_result.columns if col != 'tileID'
         }
         df_result = df_result.groupby('tileID', as_index=False).agg(agg_dict)
 

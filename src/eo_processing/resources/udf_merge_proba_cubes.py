@@ -70,8 +70,4 @@ def apply_datacube(cube: xr.DataArray, context:Dict) -> xr.DataArray:
     if unfilled_bands:
         inspect(message=f"WARNING: {len(unfilled_bands)} output band(s) never filled: {unfilled_bands}")
 
-    # transfer back to Byte data type
-    #proba_cube = proba_cube.fillna(255) # the linear scale after the UDF brings 255 back to openEO nan
-    #proba_cube = proba_cube.astype("uint8")
-
     return proba_cube

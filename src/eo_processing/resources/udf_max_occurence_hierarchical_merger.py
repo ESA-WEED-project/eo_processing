@@ -239,7 +239,5 @@ def apply_datacube(cube: xr.DataArray, context:Dict) -> xr.DataArray:
     ### Merge highest probability classes in hierarchical way
     inspect(message=f"## merge highest probabilities")
     max_cube = _merge_hierarchical(max_cube, df_high_prob)
-    # make sure the output Xarray has set correct dtype (not float64)
-    max_cube = max_cube.astype("uint32")
 
     return max_cube

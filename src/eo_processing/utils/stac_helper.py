@@ -8,6 +8,47 @@ import geopandas as gpd
 import pandas as pd
 import re
 
+
+TILE_PATTERNS = [
+    r"E\d{3}N\d{3}",              # EUNIS2021plus, e.g. E426N410
+    r"\d{2}[^\W\d_][A-Z]{2}\d{2}", # IUCNGET, e.g. 48πXH44, 17λQC33
+]
+
+def extract_tile_id(basename: str) -> str:
+    for tile_pattern in TILE_PATTERNS:
+        match = re.search(rf"_(?P<tileID>{tile_pattern})_", basename)
+        if match:
+            return match.group("tileID")
+
+    raise ValueError(f"No supported tileID pattern found in basename: {basename}")
+
+def extract_real_tileid(tileid_variant):
+    """
+    Extract the real tileID by removing trailing letter suffixes.
+    Ensures the tileID ends with a number.
+    Example: '48πXH34a' -> '48πXH34'
+    """
+    # Remove any trailing letters after the last digit
+    return re.sub(r'[a-zA-Z]+$', '', tileid_variant)
+
+def combine_band_names(band_name_lists: List[List[str]]) -> List[str]:
+    """
+    Combines multiple lists of band names into a single, sorted list.
+
+    This function takes a list of band name collections, merges them into one
+    set to ensure uniqueness, and then sorts the combined names alphabetically.
+
+    :param band_name_lists: list[list[str]]
+        A list containing multiple lists of band names. Each inner list represents
+        a collection of band names.
+    :return: list[str]
+        A sorted list of unique band names.
+    """
+    combined = set()
+    for names in band_name_lists:
+        combined.update(names)
+    return sorted(combined)
+
 def get_stac_collection_url(collection_id: str, catalog_url: str = "https://catalogue.weed.apex.esa.int/") -> str:
     """
     Fetches the URL of a STAC (SpatioTemporal Asset Catalog) collection based on the provided 
@@ -102,29 +143,30 @@ def query_proba_results(df_AOI: gpd.GeoDataFrame, collection_id:str, processing_
                          stac_url:str = 'https://catalogue.weed.apex.esa.int',
                          info_debug: bool = True, postprocess: bool = True) -> gpd.GeoDataFrame:
     """
-    Queries and retrieves PROBA results intersecting with a given Area of Interest (AOI) from a STAC catalog.
+    Queries results from a STAC (SpatioTemporal Asset Catalog) service and
+    processes the output as per user requirements.
 
-    This function searches for PROBA results within the bounding box of the provided AOI and retrieves metadata
-    and asset information from the specified STAC catalog. The retrieved data is reformatted and returned
-    as a GeoDataFrame containing details about the intersecting PROBA tiles.
+    This function retrieves geometries within a specified area of interest (AOI),
+    filters them based on the provided collection ID and processing year, and
+    optionally post-processes the results for further aggregation and refinement.
 
-    Arguments:
-    :param df_AOI: A GeoDataFrame representing the Area of Interest (AOI). The GeoDataFrame should contain geometry
-        information and a coordinate reference system. If the coordinate reference system is not EPSG:4326,
-        the function will reproject it to EPSG:4326.
-    :param collection_id: A string specifying the collection identifier to search within the STAC catalog.
-    :param processing_year: An integer specifying the year for which to retrieve PROBA results.
-    :param stac_url: A string specifying the URL of the STAC catalog to query. Defaults to 'https://catalogue.weed.apex.esa.int'.
-    :param info_debug: A boolean flag to enable or disable debug logging information. Defaults to True.
-    :param postprocess: A boolean flag to determine whether to postprocess the retrieved data. Defaults to True.
+    :param df_AOI: A GeoDataFrame (gpd.GeoDataFrame) representing the area of interest (AOI).
+                   Expected to have its coordinate system as EPSG:4326 or convertible to it.
+    :param collection_id: A string representing the STAC collection ID to query.
+    :param processing_year: An integer specifying the processing year for filtering results.
+    :param stac_url: A string representing the URL of the STAC service.
+                     Default is 'https://catalogue.weed.apex.esa.int'.
+    :param info_debug: A boolean flag to enable or disable debug messages during processing.
+                       Default is True.
+    :param postprocess: A boolean flag to activate post-processing of PROBA tiles.
+                        Default is True.
 
-    Returns:
-    A GeoDataFrame containing metadata and details about the PROBA results that intersect with the AOI. The GeoDataFrame
-    includes additional columns extracted from the metadata and asset information of the intersecting tiles, such as
-    datetime, bounding box, tile ID, and others.
+    :return: A GeoDataFrame (gpd.GeoDataFrame) containing the results with the following attributes:
+             - 'tileID': The tile identifier.
+             - 'band_names': A unique, sorted list of band names for the tile.
+             - 'item_url': A list of item URLs related to the tile.
 
-    Raises:
-    ValueError: If no intersecting PROBA tiles are found in the STAC catalog for the specified collection.
+    :raises ValueError: If no intersecting PROBA tiles are found in the specified STAC collection.
     """
     if info_debug: print(f"get_modelID_asset_geometry_from_STAC")
     # convert AOI into BBOX in 4326
@@ -144,83 +186,53 @@ def query_proba_results(df_AOI: gpd.GeoDataFrame, collection_id:str, processing_
     search = client.search(
         collections=[collection_id],
         bbox=bbox_4326,
-        fields=["properties", "assets.openEO.href"],
+        fields=["properties", "assets", 'links'],
     )
 
     results = []
     for item in search.items_as_dicts():
-        results.append(
-            [item['properties']['datetime'], item['properties']['proj:bbox'], item['properties']['proj:shape'],
-             item['properties']['proj:code'], item['assets']['openEO']['href']])
-
-    # build dataframe
-    df_result = pd.DataFrame(results, columns=['datetime', 'file_bbox', 'file_shape', 'file_epsg', 'file_url'])
+        item_result = [item['properties']['datetime'], item['assets']['openEO']['href'],
+                       [band['name'] for band in item['assets']['openEO']['bands']], item['links'][0]['href'],
+                       item['properties']['proj:shape']]
+        results.append(item_result)
+    # build Pandas dataframe
+    df_result = pd.DataFrame(results, columns=['datetime', 'file_url', 'band_names', 'item_url', 'file_shape'])
     if info_debug: print(f"- found {len(df_result)} intersecting PROBA tiles")
     # check if there are any results
     if df_result.empty:
-        ValueError(f"No intersecting PROBA tiles found in the STAC ({collection_id}).")
+        raise ValueError(f"No intersecting PROBA tiles found in the STAC ({collection_id}).")
 
     if postprocess:
         if info_debug: print(f"- postprocessing PROBA tiles")
         # split out from file_url important parts (file_name, tile_id, etc)
+        # split the tileID and processing year out of the file names
         df_result['basename'] = df_result['file_url'].apply(lambda x: os.path.basename(x))
-        df_result[['project_typology', 'type', 'processing_year', 'tileID', 'model_short', 'inference_run_version',
-                   'procesisng_start']] = df_result['basename'].str.split('_', expand=True)
-        df_result['processing_year'] = df_result['processing_year'].str[-4:].astype(int)
+        df_result["tileID"] = df_result["basename"].apply(extract_tile_id)
+
+        df_result["processing_year"] = (
+            df_result["basename"]
+            .str.extract(r"year(\d{4})", expand=False)
+            .astype(int)
+        )
 
         # first limit results to processing year
         df_result = df_result[df_result['processing_year'] == processing_year]
 
         # check if we have tiles smaller than our standard 20x20km grid - yes then make sure tile name is correct
-        def extract_real_tileid(tileid_variant):
-            """
-            Extract the real tileID by removing trailing letter suffixes.
-            Ensures the tileID ends with a number.
-            Example: '48πXH34a' -> '48πXH34'
-            """
-            # Remove any trailing letters after the last digit
-            return re.sub(r'[a-zA-Z]+$', '', tileid_variant)
-
         for idx, row in df_result.iterrows():
             if row.file_shape != [2000, 2000]:
                 df_result.at[idx, 'tileID'] = extract_real_tileid(row.tileID)
 
-        # now we can filter out spatial duplicates for same used modelID_short name
-        # NOTE: that assumes that NEVER different inference runs of smae modelID were saved in same STAC catalog
-        df_result = df_result.drop_duplicates(subset=['tileID', 'model_short'], keep='first')
+        ### for results with the same tileID (group them): combine band_names into one
+        ### unique, sorted list, and merge item_url into a list and for the rest take first entry
+        agg_dict = {
+            col: (list if col in ['band_names', 'item_url'] else 'first')
+            for col in df_result.columns if col != 'tileID'
+        }
+        df_result = df_result.groupby('tileID', as_index=False).agg(agg_dict)
 
-        # last step. we have to prepare the output file_name.
-        # Step 1: Check if we have duplicate tileIDs with different model_short values
-        duplicate_tiles = df_result.groupby('tileID')['model_short'].apply(lambda x: list(x.unique())).to_dict()
-        tiles_with_multiple_models = {k: v for k, v in duplicate_tiles.items() if len(v) > 1}
-
-        if tiles_with_multiple_models:
-            if info_debug: print(f" -- Found {len(tiles_with_multiple_models)} tiles with multiple model_short values")
-
-            # Step 2: For tiles with multiple models, condense model_short names
-            # Create a condensed model_short by combining unique values
-            for tile, models in tiles_with_multiple_models.items():
-                # Sort models to ensure consistent naming
-                strata = [x.split('-')[0] for x in models]
-                condensed_name = '-'.join(sorted(strata)) + '-' + '-'.join(models[0].split('-')[1:])
-                # Update all rows for this tileID with the condensed name
-                df_result.loc[df_result['tileID'] == tile, 'model_short'] = condensed_name
-
-            # Step 3: Now remove duplicate tileIDs (keeping first occurrence)
-            df_result = df_result.drop_duplicates(subset=['tileID'], keep='first')
-        else:
-            if info_debug: print(" -- No duplicate tileIDs found with different model_short values")
-            # Still remove any exact duplicates
-            df_result = df_result.drop_duplicates(subset=['tileID'], keep='first')
-
-        # Step 4: Create the file_prefix column properly
-        df_result['file_prefix'] = df_result.apply(
-            lambda
-                row: f"{row['project_typology']}_mece-cube_year{row['processing_year']}_{row['tileID']}_{row['model_short']}_{row['inference_run_version']}",
-            axis=1
-        )
         # filter to final needed
-        df_result = df_result[['tileID', 'file_prefix']]
+        df_result = df_result[['tileID','band_names', 'item_url']]
 
     return df_result
 

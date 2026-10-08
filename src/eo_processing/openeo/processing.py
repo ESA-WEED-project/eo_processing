@@ -483,6 +483,13 @@ def generate_nonEO_feature_cube(
             if collection in ["DEM_aspec_30m"]:
                 nonEO_feature_cube.result_node().update_arguments(featureflags={'allow_empty_cube': True})
 
+            # fix for Copernicus
+            if collection in ["EUGW_VLCC_TCD"]:
+                # reset the nodata flag and get the value 0% back in the forest density
+                nonEO_feature_cube.result_node().update_arguments(featureflags={"retain_nodata_tiles": True})
+                nonEO_feature_cube = nonEO_feature_cube.convert_data_type(data_type="uint8raw")
+
+
         else:
             #if openeo the -v1 should be split off of the collection
             if bands == []:

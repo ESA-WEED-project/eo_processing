@@ -7,7 +7,7 @@ from eo_processing.openeo.masking import scl_mask_erode_dilate, classify_udm2, u
 from eo_processing.utils.catalogue_check import (catalogue_check_S1, catalogue_check_S2,
                                                  catalogue_check_CDSE_S1, catalogue_check_CDSE_S2)
 from eo_processing.config.settings import S2_BANDS, PLANET_BANDS, CHUNK_SIZE
-
+from eo_processing.utils.helper import add_featureflag
 from typing import Optional, Dict, Union, List, TYPE_CHECKING, Any, Tuple
 
 if TYPE_CHECKING:
@@ -117,7 +117,7 @@ def extract_S1_datacube(
                                        spatial_extent=bbox,
                                        temporal_extent=[start, end],
                                        properties=properties)
-    bands.result_node().update_arguments(featureflags={"tilesize": chunk_size})
+    add_featureflag(bands.result_node(), 'tilesize', chunk_size)
 
     # compute backscatter if starting from raw GRD, otherwise assume preprocessed backscatter
     check_flag = False
@@ -253,7 +253,7 @@ def extract_S2_datacube(
         max_cloud_cover=max_cloud_max,
         properties=properties
     )
-    bands.result_node().update_arguments(featureflags={"tilesize": chunk_size})
+    add_featureflag(bands.result_node(), 'tilesize', chunk_size)
 
     # warp and/or resample if needed
     if target_crs is not None:
@@ -272,7 +272,7 @@ def extract_S2_datacube(
             max_cloud_cover=max_cloud_max,
             properties=properties
         )
-        sub_collection.result_node().update_arguments(featureflags={"tilesize": chunk_size})
+        add_featureflag(sub_collection.result_node(), 'tilesize', chunk_size)
 
         # resample to 10m (needed for the correct kernels)
         if target_crs is not None:

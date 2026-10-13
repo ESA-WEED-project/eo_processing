@@ -4,14 +4,14 @@ import openeo
 import numpy as np
 from openeo.rest.datacube import DataCube
 from openeo.extra.spectral_indices import append_indices, compute_indices
-from openeo.processes import array_create, ProcessBuilder, array_concat, subtract
+from openeo.processes import array_create, ProcessBuilder, array_concat, subtract, if_, is_nodata
 from openeo.metadata import metadata_from_stac
 from eo_processing.openeo.preprocessing import (extract_S2_datacube, extract_S1_datacube,
                                                 extract_planet_datacube)
 from eo_processing.utils.stac_helper import get_stac_collection_url
 from eo_processing.config.settings import VI_LIST, RADAR_LIST, S2_SCALING, \
     PLANET_VI_LIST, PLANET_SCALING, CHUNK_SIZE
-
+from eo_processing.utils.helper import add_featureflag
 from typing import Optional, Dict, Union, List, TYPE_CHECKING
 if TYPE_CHECKING:
     from eo_processing.config.data_formats import openEO_bbox_format
@@ -400,58 +400,47 @@ def generate_master_feature_cube(
                                                                           **processing_options))
     return feature_cube
 
-def create_collections_list_from_bands(input_bands : List[str]):
-    """
-    Creates a list of (collections, band)  extracted from the provided bands.
-
-    The function processes a list of input band strings to determine whether
-    each band corresponds to a STAC collection. It verifies availability of the
-    collection in the STAC catalog, using a specific STAC API for validation.
-    If no corresponding collection is found, a message is printed.
-
-    Parameters:
-    input_bands: List[str]
-        A list of strings representing the input bands to process. Each string
-        typically contains information necessary to deduce the relevant STAC
-        collection.
-
-    Raises:
-    TypeError
-        If input_bands is not a list, or if any element in the list is not a string.
-    """
-
-    bands_list = []
-    for band in input_bands:
-        #first check if the band is a STAC catalogue (at the moment ony our own STAC api is checked.
-
-        band_breakdown = band.split('-',2)
-
-        if len(band_breakdown) == 2:
-            print(f"No specific band name provided for {band}. Assuming all bands in collection.")
-            bands_list.append((f"{band_breakdown[0]}-{band_breakdown[1]}", None))
-        elif len(band_breakdown) == 3:
-            bands_list.append((f"{band_breakdown[0]}-{band_breakdown[1]}", band_breakdown[2]))
-        else:
-            raise (f"It seems that this bandname is malformed. Please check the band name {band}.")
-
-
-    #now we need to group this based on the collections
-    temp = itertools.groupby(bands_list, key=lambda x: x[0])
-    collections_list = [(key, [x[1] for x in group]) for key, group in temp]
-
-    return collections_list
-
 def generate_nonEO_feature_cube(
         connection: openeo.Connection, bbox: openEO_bbox_format | None, start: str, end: str,
         collections_list: list[str],
         base_cube : DataCube,
         **processing_options: dict[str, str | bool | (int | float) | list[str] | list[int | float]]) -> DataCube:
 
-    """ Warper to generate the data cube of all nonEO data based on a collections  list of the form [(collection, [band1, band2, ...])]"""
+    """
+    Generates a non-Earth Observation (non-EO) feature data cube by processing and merging data from multiple collections
+    or STAC datasets while applying transformations, reprojections, and nodata adjustments as required.
+
+    This function processes each collection or STAC dataset individually, extracts relevant features, applies spatial
+    resampling, handles nodata cases, and merges the resulting feature cube into a base cube.
+
+    The collections provided can include specific data transformation or balancing settings depending on their
+    content, reprojection settings, and nodata handling rules.
+
+    :param connection: An instance of an OpenEO connection used to interact with OpenEO backend services.
+    :param bbox: Optional bounding box for spatial filtering of the input collections or STAC datasets.
+    :param start: Starting date (inclusive) for filtering temporal data in the collections or STAC datasets.
+    :param end: Ending date (inclusive) for filtering temporal data in the collections or STAC datasets.
+    :param collections_list: A list of tuples, each containing:
+        - collection: The identifier of the collection or STAC dataset.
+        - bands: A list of band names to extract (can be empty to extract all bands).
+        - reproj: Reprojection method to use, e.g., "near" or "bilinear" (can be empty to use a default).
+        - year: Year-based temporal filtering (can be NaN if not applicable).
+        - stac_url: Optional URL for retrieving metadata about the STAC dataset.
+    :param base_cube: Initial data cube to which the processed feature data will be merged.
+    :param processing_options: A dictionary of processing options, including:
+        - "openeo_chunk_size": Chunk size for processing data (default defined by `CHUNK_SIZE`).
+        - "target_crs": Target coordinate reference system for reprojection.
+        - "resolution": Spatial resolution for resampling.
+    :return: The updated base data cube after adding the processed non-EO features.
+    """
 
     chunk_size: int = processing_options.get("openeo_chunk_size", CHUNK_SIZE)
 
     for collection, bands, reproj, year, stac_url in collections_list:
+        # init possible flags and adaptations
+        adapt_nodata_flag: bool = False
+        new_nodata_value = None  # will be set during updates of feature flags to correct value for this load_stac / load_collection
+
         #first need to distinguish between STAC and collection
         #we assume that they will allways be an url type of link in contrary with a collections which should just be a name
         if not np.isnan(year):
@@ -478,30 +467,50 @@ def generate_nonEO_feature_cube(
                                                       bands=bands,
                                                       temporal_extent=temporal_extent
                                                       )
-            nonEO_feature_cube.result_node().update_arguments(featureflags={'tilesize': chunk_size})
+            # adjust tile size
+            add_featureflag(nonEO_feature_cube.result_node(), 'tilesize', chunk_size)
+
             # TODO add all the collections that are allowed to be empty
             if collection in ["DEM_aspec_30m"]:
-                nonEO_feature_cube.result_node().update_arguments(featureflags={'allow_empty_cube': True})
+                add_featureflag(nonEO_feature_cube.result_node(), 'allow_empty_cube', True)
 
-            # fix for Copernicus
+            # ToDo all all collections to fix nodata issues where no nodata value is set
+            # fix for Copernicus TCD
             if collection in ["EUGW_VLCC_TCD"]:
                 # reset the nodata flag and get the value 0% back in the forest density
-                nonEO_feature_cube.result_node().update_arguments(featureflags={"retain_nodata_tiles": True})
+                add_featureflag(nonEO_feature_cube.result_node(), 'allow_empty_cube', True)
+                add_featureflag(nonEO_feature_cube.result_node(), 'retain_nodata_tiles', True)
                 nonEO_feature_cube = nonEO_feature_cube.convert_data_type(data_type="uint8raw")
 
-
+            # ToDo: fix nodata re-assignment
+            # Note: the nodata value itself is correct, but we have to reset it for better ML training
+            # NOTE2: is responsibility of user to only put these bands in this load_stac call!!!!
+            # NOTE 3: this is a two step fix - nodata filling should be after resampling!
+            if (collection == "Soil-V2") and any(
+                    band in bands
+                    for band in (
+                            "chemical_properties_N",
+                            "chemical_properties_base_saturation",
+                            "chemical_properties_pH_status",
+                            "physical_properties_bulk_density",
+                    )):
+                # retain all nan blocks and set nodata in cities and water bodies to value -5000
+                add_featureflag(nonEO_feature_cube.result_node(), 'allow_empty_cube', True)
+                add_featureflag(nonEO_feature_cube.result_node(), 'retain_nodata_tiles', True)
+                adapt_nodata_flag = True
+                new_nodata_value = -5000
         else:
             #if openeo the -v1 should be split off of the collection
             if bands == []:
                 nonEO_feature_cube = connection.load_collection(collection.split('-')[0],
                                                                 temporal_extent=temporal_extent)
-                nonEO_feature_cube.result_node().update_arguments(featureflags={'tilesize': chunk_size})
+                add_featureflag(nonEO_feature_cube.result_node(), 'tilesize', chunk_size)
                 bands = nonEO_feature_cube.dimension_labels('bands')
             else:
                 nonEO_feature_cube = connection.load_collection(collection.split('-')[0],
                                                                 bands = bands,
                                                                 temporal_extent = temporal_extent)
-                nonEO_feature_cube.result_node().update_arguments(featureflags={'tilesize': chunk_size})
+                add_featureflag(nonEO_feature_cube.result_node(), 'tilesize', chunk_size)
             if isDEM:
                 # reduce the temporal domain since copernicus_30 collection is "special" and feature only are one time stamp
                 nonEO_feature_cube = nonEO_feature_cube.reduce_dimension(dimension='t', reducer=lambda x: x.last(ignore_nodata=True))
@@ -524,6 +533,10 @@ def generate_nonEO_feature_cube(
 
 
         nonEO_feature_cube = nonEO_feature_cube.rename_labels('bands', target = new_bands ,source = bands)
+
+        # fill nodata areas if needed with defined value
+        if adapt_nodata_flag:
+            nonEO_feature_cube = nonEO_feature_cube.apply(lambda x: if_(is_nodata(x), new_nodata_value, x))
 
         # merge into the base data cube
         base_cube = base_cube.merge_cubes(nonEO_feature_cube)

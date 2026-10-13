@@ -13,7 +13,8 @@ import hashlib
 from datetime import datetime
 import json
 from ast import literal_eval
-from typing import Union, Dict, List, TYPE_CHECKING, Optional
+from typing import Union, Dict, List, TYPE_CHECKING, Optional, Any
+
 try:
     import importlib.resources as importlib_resources
 except:
@@ -269,4 +270,20 @@ def convert_to_list(input_value: Union[str, List[str]]) -> List[str]:
     else:
         return input_value
 
+def add_featureflag(node: openeo.DataCube.result_node, key: str, value: Any) -> None:
+    """
+    Adds or updates a feature flag in the arguments of a result node.
+
+    This function modifies the "featureflags" parameter of the node's arguments
+    by adding a new key-value pair or updating the value of an existing key.
+
+    :param node: The result node of type openeo.DataCube.result_node to which
+                 the feature flag is added or updated.
+    :param key: A string representing the feature flag's key to be added or updated.
+    :param value: The value associated with the feature flag to store or update.
+    :return: None
+    """
+    featureflags = node.arguments.get("featureflags", {})
+    featureflags[key] = value
+    node.update_arguments(featureflags=featureflags)
 

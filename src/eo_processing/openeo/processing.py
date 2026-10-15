@@ -499,6 +499,12 @@ def generate_nonEO_feature_cube(
                 add_featureflag(nonEO_feature_cube.result_node(), 'retain_nodata_tiles', True)
                 adapt_nodata_flag = True
                 new_nodata_value = -5000
+            if (collection == "Vegetation-V3") and (bands == ["canopy_height"]):
+                # retain all nan blocks and set nodata in cities and water bodies to value 0
+                add_featureflag(nonEO_feature_cube.result_node(), 'allow_empty_cube', True)
+                add_featureflag(nonEO_feature_cube.result_node(), 'retain_nodata_tiles', True)
+                adapt_nodata_flag = True
+                new_nodata_value = 0
         else:
             #if openeo the -v1 should be split off of the collection
             if bands == []:

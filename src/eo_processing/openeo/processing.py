@@ -474,14 +474,6 @@ def generate_nonEO_feature_cube(
             if collection in ["DEM_aspec_30m"]:
                 add_featureflag(nonEO_feature_cube.result_node(), 'allow_empty_cube', True)
 
-            # ToDo all all collections to fix nodata issues where no nodata value is set
-            # fix for Copernicus TCD
-            if collection in ["EUGW_VLCC_TCD"]:
-                # reset the nodata flag and get the value 0% back in the forest density
-                add_featureflag(nonEO_feature_cube.result_node(), 'allow_empty_cube', True)
-                add_featureflag(nonEO_feature_cube.result_node(), 'retain_nodata_tiles', True)
-                nonEO_feature_cube = nonEO_feature_cube.convert_data_type(data_type="uint8raw")
-
             # ToDo: fix nodata re-assignment
             # Note: the nodata value itself is correct, but we have to reset it for better ML training
             # NOTE2: is responsibility of user to only put these bands in this load_stac call!!!!
@@ -499,7 +491,7 @@ def generate_nonEO_feature_cube(
                 add_featureflag(nonEO_feature_cube.result_node(), 'retain_nodata_tiles', True)
                 adapt_nodata_flag = True
                 new_nodata_value = -5000
-            if (collection == "Vegetation-V3") and (bands == ["canopy_height"]):
+            if ((collection == "Vegetation-V3") and (bands == ["canopy_height"])) or (collection == "EUGW_VLCC_TCD"):
                 # retain all nan blocks and set nodata in cities and water bodies to value 0
                 add_featureflag(nonEO_feature_cube.result_node(), 'allow_empty_cube', True)
                 add_featureflag(nonEO_feature_cube.result_node(), 'retain_nodata_tiles', True)

@@ -3,6 +3,7 @@ from skimage.morphology import disk
 from openeo.rest.datacube import DataCube
 import openeo
 from openeo.processes import if_, eq, array_element, gte
+from eo_processing.utils.helper import add_featureflag
 from typing import Union, List, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -111,7 +112,7 @@ def scl_mask_erode_dilate(
     layer_band = scl_layer_band.split(':')
     s2_sceneclassification = session.load_collection(
         layer_band[0], bands=[layer_band[1]], spatial_extent=bbox, max_cloud_cover=max_cloud_max)
-    s2_sceneclassification.result_node().update_arguments(featureflags={"tilesize": chunk_size})
+    add_featureflag(s2_sceneclassification.result_node(), 'tilesize', chunk_size)
 
     classification = s2_sceneclassification.band(layer_band[1])
 

@@ -454,6 +454,20 @@ def _level1_class(band: str) -> str:
     """ 'Level1_class-0_habitat-MH-20000' -> 'MH' """
     return band.split("_habitat-", 1)[-1].rsplit("-", 1)[0]
 
+def _to_percent_integers(p: np.ndarray) -> np.ndarray:
+    """ largest-remainder rounding (as to_byte_percentages in udf_catboost_inference) per pixel to integers
+    summing to round(total) <= 100; float32 kept, NaN pixels untouched (openEO nodata) """
+    out = p.copy()
+    valid = np.isfinite(p).all(axis=0)
+    if not valid.any():
+        return out
+    q = np.clip(p[:, valid], 0.0, 100.0)
+    fl = np.floor(q)
+    n_extra = (np.minimum(np.rint(q.sum(axis=0)), 100.0) - fl.sum(axis=0)).astype(np.int64)
+    rank = np.argsort(np.argsort(-(q - fl), axis=0, kind="stable"), axis=0, kind="stable")
+    out[:, valid] = fl + (rank < n_extra)
+    return out
+
 def _boost_tile(p: np.ndarray, classes: tuple, stack_a: np.ndarray, stack_b: np.ndarray, snow: np.ndarray):
     """ one (classes, y, x) tile: masking -> boosting -> imprinting (snow -> U, ocean -> MH, urban -> J) """
     kw = decode_stacks(stack_a, stack_b)
@@ -465,6 +479,7 @@ def _boost_tile(p: np.ndarray, classes: tuple, stack_a: np.ndarray, stack_b: np.
         p[:, snow_hit] = 0.0
         p[i_u[0]][snow_hit] = 100.0
     p = apply_imprints(p, classes, j_imprint, mh_imprint)  # ocean -> MH, then urban -> J
+    p = _to_percent_integers(p)
     stats = {"snow": int(snow_hit.sum()),
              "ocean": int(np.sum(mh_imprint == MH_IMPRINT_OCEAN)),
              "urban": int(np.sum(_codes(j_imprint, 0) == J_IMPRINT_URBAN))}

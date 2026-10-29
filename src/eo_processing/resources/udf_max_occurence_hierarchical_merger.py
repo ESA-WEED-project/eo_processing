@@ -34,7 +34,7 @@ def _select_highest_prob_class(cube: xr.DataArray, raster_codes) -> xr.DataArray
         )
 
     # we make sure we have no value 255 since that is officially the nodata value of PROBA results
-    # so set 255 to nan
+    # so set 255 to nan - a safe-guard, maybe never triggered
     cube = cube.where(cube != 255, np.nan)
 
     # make sure argmax is not returning all slice N/A
@@ -43,11 +43,8 @@ def _select_highest_prob_class(cube: xr.DataArray, raster_codes) -> xr.DataArray
     # All-zero pixels have no valid class; argmax would incorrectly select band 0.
     nodata_mask = nodata_mask | (cube == 0).all(dim="bands")
 
-    try:
-        # Identify the band with the highest probability for each pixel
-        max_band = cube.argmax(axis=cube.get_axis_num("bands"))  # Index of max value, OpenEO need bands ?
-    except Exception as e:
-        inspect(message=f"EXCEPTION {e} in argmax for {raster_codes}")
+    # Identify the band with the highest probability for each pixel
+    max_band = cube.argmax(axis=cube.get_axis_num("bands"))  # Index of max value, OpenEO need bands ?
 
     # Map max_band indices to corresponding raster codes
     selected_raster_code = np.choose(max_band, raster_codes)
@@ -71,9 +68,10 @@ def _merge_hierarchical(cube: xr.DataArray, df_high_prob) -> xr.DataArray:
     :param df_high_prob: DataFrame containing metadata for Level 2 and Level 3 data layers to be processed.
     :return: The modified base layer (Level 1), represented as an xarray.DataArray, after hierarchical imprinting.
     """
+    NODATA_VALUES = (0, -1, 255)
     inspect(message=f"+ merge hierarchical Level 1")
     #select the first band from the cube, this is level-1
-    aData = cube.isel(bands=[0])
+    aData = cube.isel(bands=[0]).drop_vars("bands", errors="ignore")
 
     inspect(message=f"+ merge hierarchical Level 2")
     # get list of Level2 files for this tile which can be imprinted
@@ -83,11 +81,13 @@ def _merge_hierarchical(cube: xr.DataArray, df_high_prob) -> xr.DataArray:
         # now we run over each Level 2 model cube (index in dataframe) to imprint into Level1
         for row in df_l2.itertuples():
             # since the Index of the dataframe represents the band number in the cube
-            aImprint = cube.isel(bands=[row.Index])
-            nodata = [0 , -1, 255]
+            aImprint = cube.isel(bands=[row.Index]).drop_vars("bands", errors="ignore")
+
+            # create valid data mask of the imprint data
+            valid_mask = aImprint.notnull() & ~aImprint.isin(NODATA_VALUES)
 
             # get the Level 1 habitat code from the level 2 data
-            lsub = [x for x in np.unique(aImprint).tolist() if x not in nodata and not np.isnan(x)]
+            lsub = np.unique(aImprint.values[valid_mask.values]).tolist()
             if len(lsub) == 0:
                 inspect(message=f"no data in level 2 for model {row.model}")
                 continue
@@ -101,9 +101,7 @@ def _merge_hierarchical(cube: xr.DataArray, df_high_prob) -> xr.DataArray:
             # if we have this error then check if the classified tile is containing data, probably there is 'nodata' involved in the issue.
 
             # now imprint the data into level 1
-            aData = xr.where(aData == lsub[0], aImprint, aData)
-            # free
-            aImprint = None
+            aData = xr.where((aData == lsub[0]) & valid_mask, aImprint, aData)
 
     inspect(message=f"+ merge hierarchical Level 3")
     # get list of Level3 files for this tile which can be imprinted
@@ -112,11 +110,13 @@ def _merge_hierarchical(cube: xr.DataArray, df_high_prob) -> xr.DataArray:
     if not df_l3.empty:
         # now we run over each Level 3 model cube (index in dataframe) to imprint into Level2
         for row in df_l3.itertuples():
-            aImprint = cube.isel(bands=[row.Index])
-            nodata = [0 , -1, 255]
+            # since the Index of the dataframe represents the band number in the cube
+            aImprint = cube.isel(bands=[row.Index]).drop_vars("bands", errors="ignore")
+            # create valid data mask of the imprint data
+            valid_mask = aImprint.notnull() & ~aImprint.isin(NODATA_VALUES)
 
             # get the Level 2 habitat code from the level 3 data
-            lsub = [x for x in np.unique(aImprint).tolist() if x not in nodata and not np.isnan(x)]
+            lsub = np.unique(aImprint.values[valid_mask.values]).tolist()
             if len(lsub) == 0:
                 inspect(message=f"no data in level 3 for model {row.model}")
                 continue
@@ -129,9 +129,7 @@ def _merge_hierarchical(cube: xr.DataArray, df_high_prob) -> xr.DataArray:
             # if we have this error then check if the classified tile is containing data, probably there is 'nodata' involved in the issue.
 
             # now imprint the data into level 2
-            aData = xr.where(aData == lsub[0], aImprint, aData)
-            # free
-            aImprint = None
+            aData = xr.where((aData == lsub[0]) & valid_mask, aImprint, aData)
 
     return aData
 
@@ -166,6 +164,17 @@ def parse_prob_classes_fromStac(band_names: List[str]) -> pd.DataFrame:
 
     return df
 
+def _nodata_result(cube: xr.DataArray) -> xr.DataArray:
+    """
+    Generates a DataArray filled with NaN values, matching the spatial dimensions of the input cube,
+    and adds a single band dimension.
+
+    :param cube: The input DataArray from which spatial dimensions and metadata are derived.
+    :return: A new DataArray with the same spatial shape as the input cube, containing NaN values and
+        a single band dimension added.
+    """
+    return xr.full_like(cube.isel(bands=0, drop=True), np.nan, dtype="float64").expand_dims(bands=[0])
+
 def apply_datacube(cube: xr.DataArray, context:Dict) -> xr.DataArray:
     inspect(message=f"xarray dims {cube.dims}")
     ### get the list of classes as output from inference run
@@ -173,6 +182,8 @@ def apply_datacube(cube: xr.DataArray, context:Dict) -> xr.DataArray:
     input_band_names = cube.indexes["bands"].values
     inspect(message=f"input cube band names ({len(input_band_names)}): {input_band_names}")
     df = parse_prob_classes_fromStac(input_band_names)
+    if df.empty:  # configuration error, not an empty chunk
+        raise ValueError(f"No band names match the expected pattern: {list(input_band_names)}")
 
     inspect(message=f"## parsed band names into dataframe")
     inspect(message=f"{df}")
@@ -183,6 +194,9 @@ def apply_datacube(cube: xr.DataArray, context:Dict) -> xr.DataArray:
     # read in the selected band names from the raster stack (per level and class)
     max_cube_initialized = False
     high_prob_records = []
+
+    # sort the dataframe by level and model so that level 1 is first
+    df = df.sort_values(["level", "model"])
 
     for (level, class_name), group in df.groupby(["level", "model"]):
         # get band_indices and raster_codes for this model
@@ -218,9 +232,8 @@ def apply_datacube(cube: xr.DataArray, context:Dict) -> xr.DataArray:
         )
 
     if not max_cube_initialized:
-        raise RuntimeError(
-            "No valid model results found: all groups contain only nodata."
-        )
+        inspect(message="Chunk contains only nodata, returning nodata result.")
+        return _nodata_result(cube)
 
     # check if xaaray has band dimension - if only level1 is processed that can happen
     if "bands" not in max_cube.dims:

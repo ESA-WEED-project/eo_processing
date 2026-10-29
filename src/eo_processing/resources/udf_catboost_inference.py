@@ -121,6 +121,9 @@ def get_model_metadata_artifact(modelID: str) -> Tuple[List[str], List[str]]:
         raise RuntimeError(f"No metadata found for model {modelID}")
 
     # Extract model URLs and band names
+    if "model_urls" not in metadata or "output_band_names" not in metadata:
+        raise ValueError(f"Metadata for model {modelID} is missing required fields.")
+
     model_urls = convert_to_list(metadata.get("model_urls", None))
     output_band_names = convert_to_list(metadata.get("output_band_names", None))
     if not output_band_names:
@@ -211,22 +214,19 @@ def convert_to_list(input_value: Union[str, List[str]]) -> List[str]:
     else:
         return input_value
 
-def download_file(url: str, max_file_size_mb: int = 250, cache_dir: str = "/tmp/cache") -> str:
+def download_file(url: str, max_file_size_mb: int = 250, cache_dir: str = "/tmp/cache",
+                  timeout: Tuple[int, int] = (10, 60)) -> str:
     """
-    Downloads a file from the specified URL. The file is
-    cached in a given directory, and downloads of the same file are prevented using a locking
-    mechanism. If the file already exists in the cache, it will not be downloaded again.
+    Downloads a file from a given URL to a local cache directory, ensuring file size constraints and
+    atomic operations during the download process.
 
     :param url: The URL of the file to download.
-    :param max_file_size_mb: Maximum allowable file size in megabytes. Defaults to 100 MB.
-    :param cache_dir: Directory where the downloaded file will be cached. Defaults to '/tmp/cache'.
-    :return: The path to the downloaded file in the cache directory.
-
-    :raises ValueError: If the file size exceeds the maximum limit or if there is an issue during the
-        download process.
+    :param max_file_size_mb: Maximum allowed file size in megabytes. Defaults to 250.
+    :param cache_dir: Directory path to store the downloaded file. Defaults to '/tmp/cache'.
+    :param timeout: A tuple representing connection and read timeout durations in seconds. Defaults to (10, 60).
+    :return: The path to the downloaded file.
     """
-    # Construct the file path within the cache directory (e.g., '/tmp/cache/model.onnx')
-    os.makedirs(cache_dir, exist_ok=True)  # Ensure cache directory exists
+    os.makedirs(cache_dir, exist_ok=True)
 
     file_name = os.path.basename(urlparse(url).path)
     file_path = os.path.join(cache_dir, file_name)
@@ -235,32 +235,37 @@ def download_file(url: str, max_file_size_mb: int = 250, cache_dir: str = "/tmp/
         inspect(message=f"File {file_path} already exists in cache.")
         return file_path
 
+    temp_file_path = None
     try:
-        response = requests.get(url, stream=True)
-        response.raise_for_status()  # Raise error if the request fails
+        with requests.get(url, stream=True, timeout=timeout) as response:
+            response.raise_for_status()
 
-        file_size = 0
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".onnx") as temp_file:
-            temp_file_path = temp_file.name
-            for chunk in response.iter_content(chunk_size=1024):
-                temp_file.write(chunk)
-                file_size += len(chunk)
-                if file_size > max_file_size_mb * 1024 * 1024:
-                    raise ValueError(f"Downloaded file exceeds the size limit of {max_file_size_mb} MB")
+            # temp file lives in cache_dir (same filesystem) so os.replace is atomic;
+            # the ".part" suffix keeps it from ever being mistaken for a finished file
+            with tempfile.NamedTemporaryFile(delete=False, dir=cache_dir,
+                                             prefix=f"{file_name}.", suffix=".part") as temp_file:
+                temp_file_path = temp_file.name
+                file_size = 0
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    temp_file.write(chunk)
+                    file_size += len(chunk)
+                    if file_size > max_file_size_mb * 1024 * 1024:
+                        raise ValueError(f"Downloaded file exceeds the size limit of {max_file_size_mb} MB")
 
-        shutil.move(temp_file_path, file_path)  # Move AFTER the `with` block, so the file isn't deleted
+        # atomic: concurrent workers either see no file or a complete one
+        os.replace(temp_file_path, file_path)
         return file_path
 
     except Exception as e:
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)  # Cleanup if an error occurs
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
         raise ValueError(f"Error downloading file: {e}")
 
 @functools.lru_cache(maxsize=1)
 def load_onnx_model(model_url: str, cache_dir: str = "/tmp/cache") -> Tuple[ort.InferenceSession, Dict[str, List[str]]]:
     """
     Loads an ONNX model from a given URL, caches the model locally, and initializes an ONNX Runtime
-    inference session. Additionally, extracts metadata such as input and output features from the model.
+    inference session. Additionally, extracts the input features from the model metadata.
 
     The function ensures the ONNX model is downloaded and locally stored in the specified cache directory
     to optimize repeated access. It also validates the model file and establishes an inference session with
@@ -271,8 +276,7 @@ def load_onnx_model(model_url: str, cache_dir: str = "/tmp/cache") -> Tuple[ort.
     :param cache_dir: An optional directory path to store the cached ONNX model. Defaults to '/tmp/cache',
                       ensuring local caching for repeated access.
     :return: A tuple where the first element is an initialized ONNX Runtime inference session, and the second
-             element is a dictionary containing metadata extracted from the model. The metadata includes lists
-             of input features and output features.
+             element is a dictionary containing the model's input features.
     :raises ValueError: If the ONNX model fails to load, initialize, or metadata extraction fails within the
                         processing steps.
     """
@@ -294,15 +298,8 @@ def load_onnx_model(model_url: str, cache_dir: str = "/tmp/cache") -> Tuple[ort.
                 input_features = input_features[1:-1]
         input_features = [band.strip() for band in input_features.split(",")]
 
-        output_features = model_meta.custom_metadata_map.get("output_features", "")
-        if output_features:
-            if output_features.startswith('"') and output_features.endswith('"'):
-                output_features = output_features[1:-1]
-        output_features = [band.strip() for band in output_features.split(",")]
-
         metadata = {
             "input_features": input_features,
-            "output_features": output_features,
         }
 
         inspect(message=f"Successfully extracted metadata from model at {model_path}...")
@@ -350,6 +347,36 @@ def run_inference(input_np: np.ndarray, ort_session: ort.InferenceSession) -> Li
     probabilities_dicts = ort_outputs[1]  # just take probability results
     return probabilities_dicts
 
+def to_byte_percentages(prob: np.ndarray) -> np.ndarray:
+    """
+    Converts probabilities into byte percentages for use in image processing or
+    similar applications. The function ensures that values are rounded and
+    adjusted to ensure the total does not exceed 100 per-pixel while preserving
+    the distribution as closely as possible.
+
+    The function clips the input probabilities to stay within the range [0, 100],
+    then floors the values. It calculates the difference between the floored values
+    and the targeted rounded total, determining how the remaining fractional
+    portion should be redistributed. This ensures precise and balanced byte
+    percentage scaling.
+
+    :param prob: A numpy ndarray representing probabilities. Values should
+        be non-negative and are clipped to stay in the range [0, 100].
+
+    :return: A numpy ndarray where each value is an integer in the range [0, 100],
+        representing byte-scaled percentages. The sum of values for each pixel
+        across all bands does not exceed 100.
+    """
+    prob = np.clip(prob, 0, 100)
+    floored = np.floor(prob)
+    # target per-pixel total, never above 100
+    target = np.minimum(np.rint(prob.sum(axis=0)), 100)
+    n_extra = (target - floored.sum(axis=0)).astype(int)          # (y, x), >= 0
+    # rank bands per pixel by fractional part (largest first)
+    rank = np.argsort(np.argsort(-(prob - floored), axis=0), axis=0)
+    floored += rank < n_extra
+    return floored.astype("uint8")
+
 def postprocess_output(probabilities_dicts: List[Dict[Union[str, int], float]],
                        input_shape: Tuple[int, int, int]) -> np.ndarray:
     """
@@ -381,7 +408,7 @@ def postprocess_output(probabilities_dicts: List[Dict[Union[str, int], float]],
 
     # Reshape probabilities into (bands, y, x), scale and convert to Byte
     probabilities = probabilities.T.reshape(len(class_labels), input_shape[0], input_shape[1]) * 100  # Scale by 100
-    probabilities = probabilities.astype("uint8")
+    probabilities = to_byte_percentages(probabilities)  # Convert to byte percentages
 
     return probabilities
 

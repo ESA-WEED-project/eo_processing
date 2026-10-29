@@ -94,7 +94,7 @@ OPENEO_EXTRACT_CREO_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
 
 OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "driver-memory": "3G",
-    "driver-memoryOverhead": "1G",
+    "driver-memoryOverhead": "2G",
     "driver-cores": 1,
     "executor-memory": "4G",
     "executor-memoryOverhead": "2G",

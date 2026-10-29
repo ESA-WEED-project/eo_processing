@@ -81,7 +81,8 @@ def api_capabilities() -> dict:
 @pytest.fixture(autouse=True)
 def mock_pystac(monkeypatch):
     """Mock pystac.read_file to return the right fake metadata based on URL."""
-    def fake_read_file(url):
+    def fake_read_file(url=None, href=None):
+        url = href if href is not None else url
         if "wern_features" in url:
             return pystac.Collection.from_dict(collections.DEFAULT_WERN_METADATA)
         else:
@@ -196,5 +197,3 @@ def compare_job_info(job_info: dict, filename: str, as_benchmark_scenario: bool=
     assert (
         result == groundtruth
     ), "Process graph does not match the saved process graph. Run pytest with `-vv` to see the differences."
-
-

@@ -471,7 +471,7 @@ def generate_nonEO_feature_cube(
             add_featureflag(nonEO_feature_cube.result_node(), 'tilesize', chunk_size)
 
             # TODO add all the collections that are allowed to be empty
-            if collection in ["DEM_aspec_30m"]:
+            if collection in ["DEM_aspec_30m", "wern_features"]:
                 add_featureflag(nonEO_feature_cube.result_node(), 'allow_empty_cube', True)
 
             # ToDo: fix nodata re-assignment

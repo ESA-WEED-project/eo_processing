@@ -265,7 +265,7 @@ def download_file(url: str, max_file_size_mb: int = 250, cache_dir: str = "/tmp/
 def load_onnx_model(model_url: str, cache_dir: str = "/tmp/cache") -> Tuple[ort.InferenceSession, Dict[str, List[str]]]:
     """
     Loads an ONNX model from a given URL, caches the model locally, and initializes an ONNX Runtime
-    inference session. Additionally, extracts metadata such as input and output features from the model.
+    inference session. Additionally, extracts the input features from the model metadata.
 
     The function ensures the ONNX model is downloaded and locally stored in the specified cache directory
     to optimize repeated access. It also validates the model file and establishes an inference session with
@@ -276,8 +276,7 @@ def load_onnx_model(model_url: str, cache_dir: str = "/tmp/cache") -> Tuple[ort.
     :param cache_dir: An optional directory path to store the cached ONNX model. Defaults to '/tmp/cache',
                       ensuring local caching for repeated access.
     :return: A tuple where the first element is an initialized ONNX Runtime inference session, and the second
-             element is a dictionary containing metadata extracted from the model. The metadata includes lists
-             of input features and output features.
+             element is a dictionary containing the model's input features.
     :raises ValueError: If the ONNX model fails to load, initialize, or metadata extraction fails within the
                         processing steps.
     """

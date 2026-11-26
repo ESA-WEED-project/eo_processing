@@ -69,7 +69,7 @@ PLANET_SCALING: List[Union[int, float]] = [0, 10000, 0, 1.0]
 HRVPP_COLLECTION: str = 'copernicus_r_utm-wgs84_10_m_hrvpp-vpp_p_2017-now_v01_direct'  #special case with 2 seasons iso 1 year
 # ---------------------------------------------------
 # Job options for OpenEO
-OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
+OPENEO_DEFAULT_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "8G",
     "driver-cores": 2,
@@ -81,7 +81,7 @@ OPENEO_EXTRACT_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "stac-version":"1.1"
 }
 
-OPENEO_EXTRACT_CREO_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
+OPENEO_CREO_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "driver-memory": "4G",
     "driver-memoryOverhead": "2G",
     "driver-cores": 1,
@@ -92,7 +92,7 @@ OPENEO_EXTRACT_CREO_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "max-executors": 200
 }
 
-OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
+OPENEO_STANDARD_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "driver-memory": "3G",
     "driver-memoryOverhead": "2G",
     "driver-cores": 1,
@@ -103,6 +103,20 @@ OPENEO_EXTRACT_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
     "max-executors": 20,
     "soft-errors": False,
     "logging-threshold": "info"
+}
+
+OPENEO_MECE_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
+    "driver-memory": "3G",
+    "driver-memoryOverhead": "2G",
+    "driver-cores": 1,
+    "executor-memory": "4G",
+    "executor-memoryOverhead": "2G",
+    "python-memory": "disable",
+    "executor-cores": 1,
+    "max-executors": 20,
+    "soft-errors": False,
+    "logging-threshold": "info",
+    "force-s3proxy": True,
 }
 
 OPENEO_INFERENCE_CDSE_JOB_OPTIONS: Dict[str, Union[str, int, float, List]] = {
@@ -184,7 +198,7 @@ def _get_default_job_options() -> Dict[str, Union[str, int, float, List]]:
 
     :return: A dictionary representing the default job options for OpenEO extract.
     """
-    return OPENEO_EXTRACT_JOB_OPTIONS.copy()
+    return OPENEO_DEFAULT_JOB_OPTIONS.copy()
 
 def get_job_options(provider: str = None, task: str = 'raw_extraction') -> Dict[str, Union[str, int, float, List]]:
     """
@@ -212,16 +226,18 @@ def get_job_options(provider: str = None, task: str = 'raw_extraction') -> Dict[
     job_options = _get_default_job_options()
 
     if 'creo' in provider.lower():
-        job_options.update(OPENEO_EXTRACT_CREO_JOB_OPTIONS)
+        job_options.update(OPENEO_CREO_JOB_OPTIONS)
     if 'cdse' in provider.lower():
         if task in ['inference']:
             job_options.update(OPENEO_INFERENCE_CDSE_JOB_OPTIONS)
+        elif task in ['mece']:
+            job_options.update(OPENEO_MECE_CDSE_JOB_OPTIONS)
         elif task in ['point_extraction']:
             job_options.update(OPENEO_POINTEXTRACTION_CDSE_JOB_OPTIONS)
         elif task in ['feature_generation']:
             job_options.update(OPENEO_CUBEEXTRACTION_CDSE_JOB_OPTIONS)
         else:
-            job_options.update(OPENEO_EXTRACT_CDSE_JOB_OPTIONS)
+            job_options.update(OPENEO_STANDARD_CDSE_JOB_OPTIONS)
 
     return job_options
 

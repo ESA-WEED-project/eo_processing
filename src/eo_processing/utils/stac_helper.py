@@ -193,10 +193,11 @@ def query_proba_results(df_AOI: gpd.GeoDataFrame, collection_id:str, processing_
     for item in search.items_as_dicts():
         item_result = [item['properties']['datetime'], item['assets']['openEO']['href'],
                        [band['name'] for band in item['assets']['openEO']['bands']], item['links'][0]['href'],
-                       item['properties']['proj:shape']]
+                       #item['properties']['proj:shape']
+                       ]
         results.append(item_result)
     # build Pandas dataframe
-    df_result = pd.DataFrame(results, columns=['datetime', 'file_url', 'band_names', 'item_url', 'file_shape'])
+    df_result = pd.DataFrame(results, columns=['datetime', 'file_url', 'band_names', 'item_url'])
     if info_debug: print(f"- found {len(df_result)} intersecting PROBA tiles")
     # check if there are any results
     if df_result.empty:
@@ -219,6 +220,8 @@ def query_proba_results(df_AOI: gpd.GeoDataFrame, collection_id:str, processing_
         df_result = df_result[df_result['processing_year'] == processing_year]
 
         # check if we have tiles smaller than our standard 20x20km grid - yes then make sure tile name is correct
+        # ugly temp fix due to error in obsgession... keyerror "proj:shape" during stac search
+        df_result['file_shape'] = [[2000, 2000]] * len(df_result)
         for idx, row in df_result.iterrows():
             if row.file_shape != [2000, 2000]:
                 df_result.at[idx, 'tileID'] = extract_real_tileid(row.tileID)
